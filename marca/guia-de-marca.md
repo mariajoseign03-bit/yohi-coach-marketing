@@ -6,10 +6,10 @@ Usar siempre estos nombres de archivo. Elegir la pose según el mensaje.
 | Archivo | Pose / uso | Estado |
 |---|---|---|
 | `yohi_duda.png` | Con signos de interrogación. Ganchos de mitos, preguntas, dudas. | ✅ |
-| `yohi_saludo.png` | Saludando. Bienvenidas, presentación, cierres. | ⏳ pendiente subir |
-| `yohi_cuaderno.png` | Con lápiz y cuaderno. Planificación, registro, tips. | ⏳ pendiente subir |
-| `yohi_pizarra.png` | Explicando la sentadilla. Contenido educativo/técnica. | ⏳ pendiente subir |
-| `yohi_escritorio.png` | En el escritorio con notebook. Asesorías online, CTA. | ⏳ pendiente subir |
+| `yohi_saludo.png` | Saludando. Bienvenidas, presentación, cierres. | ✅ |
+| `yohi_cuaderno.png` | Con lápiz y cuaderno. Planificación, registro, tips. | ✅ |
+| `yohi_pizarra.png` | Explicando la sentadilla. Contenido educativo/técnica. | ✅ |
+| `yohi_escritorio.png` | En el escritorio con notebook. Asesorías online, CTA. | ✅ |
 | `logo_yohi.png` | Logo circular. Perfil, cierre de videos, esquina de piezas. | ✅ |
 | `sello_certified.jpg` | Sello "Certified". Solo con certificación real y verificable. | ✅ |
 
@@ -63,3 +63,11 @@ Fuente: carpeta de Drive "Marketing YOHI COACH" → `marca/referencias/yohi-1a1-
 
 **Estructura narrativa de la secuencia (funciona, repetirla)**
 1. Gancho con pregunta-dolor → 2. Agitar el problema (dudas) → 3. Solución (1:1 y beneficios) → 4. CTA con palabra clave por DM.
+
+### Notas de uso del personaje
+- `yohi_escritorio.png` tiene fondo oscuro propio (no recortado) y muestra el logo de Apple en el notebook:
+  evitarlo en piezas pagadas/publicidad o editar el logo antes; usar como escena completa, no como recorte.
+- `yohi_pizarra.png` dice "PESO EN TALONES": revisar el cue con evidencia antes de usarla en contenido educativo
+  (la indicación habitual es apoyo de pie completo).
+- Dos estilos de cara: con lentes (duda, saludo, pizarra, cuaderno) y ojos grandes sin lentes (logo, escritorio).
+  No mezclar ambos estilos en una misma pieza.
