@@ -1,18 +1,43 @@
-# Yohi Coach — Marketing
+# Yohi Coach 💗 — Marketing
 
-## Marca
-- Qué es Yohi Coach: (POR COMPLETAR, copiar desde el proyecto de Claude "MARKETING YOHI COACH")
-- Público objetivo: (POR COMPLETAR)
-- Tono de voz: (POR COMPLETAR)
-- Colores y tipografías: ver `marca/`
+## Concepto
+Marca de entrenamiento personalizado que busca que las mujeres **dejen de entrenar por entrenar**
+y aprendan a entrenar con propósito, según sus objetivos y necesidades.
 
-## Reglas de contenido
-- Nunca sacrificar la evidencia por el alcance. Todo dato de salud lleva su fuente en `fuentes/`
-  (PubMed, Cochrane, OMS, MINSAL u otra fuente verificable). Si un dato no se puede verificar, no se publica.
-- No inventar estudios, cifras, DOI ni testimonios.
+## Público
+Mujeres jóvenes que quieren mejorar su entrenamiento, ganar fuerza, desarrollar masa muscular
+y entender realmente lo que hacen.
+
+## Servicios
+- Entrenamiento 1:1
+- Asesorías online
+- Educación sobre entrenamiento y ejercicio
+
+## Personalidad
+🔥 Spicy · 🧠 Educativa · 💗 Cercana · 💪 Segura · ✨ Juvenil
+
+## Tono
+Joven, directo, entretenido y educativo.
+- "Deja de entrenar por entrenar."
+- "Entrena con propósito. Progresa de verdad."
+
+## Identidad visual
+Guía completa en `marca/guia-de-marca.md`. Resumen:
+- Negro #111111 · Rosa YOHI #FF4FA3 · Rosa suave #FFD6E8 · Blanco #FFFFFF · Gris #8C8C8C
+- Fitness + femenino + moderno: fondos negros, detalles rosa, tipografías fuertes,
+  fotos de entrenamiento y el personaje YOHI como sello distintivo.
+
+## Reglas de contenido (no negociables)
+- **Evidencia antes que alcance.** Todo dato de entrenamiento, nutrición o salud lleva su fuente
+  registrada en `fuentes/` (revisiones sistemáticas, metaanálisis, guías ACSM/OMS/MINSAL, PubMed).
+  Si no se puede verificar, no se publica.
+- No inventar estudios, cifras, DOI, testimonios ni resultados de clientas.
+- "Spicy" sí, pero sin promesas milagro, sin "antes/después" engañosos y sin culpa corporal.
+- No dar indicaciones médicas ni nutricionales individuales en contenido masivo; derivar a 1:1 o a profesional.
+- El sello "CERTIFIED" solo se usa si existe una certificación real y verificable que lo respalde.
 
 ## Estructura
 - `reels/` guiones y videos (Remotion)
 - `carruseles/`, `historias/`, `copys/` piezas por formato
-- `marca/` identidad visual y tono
+- `marca/` logo, personaje, sello y guía de marca
 - `fuentes/` referencias que respaldan cada pieza
