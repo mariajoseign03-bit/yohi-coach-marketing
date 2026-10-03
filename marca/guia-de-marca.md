@@ -10,6 +10,8 @@ Usar siempre estos nombres de archivo. Elegir la pose según el mensaje.
 | `yohi_cuaderno.png` | Con lápiz y cuaderno. Planificación, registro, tips. | ✅ |
 | `yohi_pizarra.png` | Explicando la sentadilla. Contenido educativo/técnica. | ✅ |
 | `yohi_escritorio.png` | En el escritorio con notebook. Asesorías online, CTA. | ✅ |
+| `yohi_spotter.png` | Acompañando a una alumna en sentadilla con barra. Entrenamiento 1:1, acompañamiento, técnica. Fondo transparente. | ✅ |
+| `mancuerna_yohi.png` | Mancuerna negra/rosa con corona (elemento gráfico, sin personaje). Stickers, separadores, íconos, portadas. Fondo transparente. | ✅ |
 | `logo_yohi.png` | Logo circular. Perfil, cierre de videos, esquina de piezas. | ✅ |
 | `sello_certified.jpg` | Sello "Certified". Solo con certificación real y verificable. | ✅ |
 
@@ -71,3 +73,6 @@ Fuente: carpeta de Drive "Marketing YOHI COACH" → `marca/referencias/yohi-1a1-
   (la indicación habitual es apoyo de pie completo).
 - Dos estilos de cara: con lentes (duda, saludo, pizarra, cuaderno) y ojos grandes sin lentes (logo, escritorio).
   No mezclar ambos estilos en una misma pieza.
+- `yohi_spotter.png`: Yohi sostiene los discos desde el costado. Sirve como imagen de "acompañamiento", pero no
+  como demostración de cómo se asiste (spotting) una sentadilla trasera, que normalmente se hace desde atrás.
+  No usarla en contenido que enseñe a asistir.
