@@ -1,6 +1,7 @@
 import React from "react";
 import { AbsoluteFill, Img, interpolate, random, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { Character } from "../components/Character";
+import { EmojiText } from "../components/EmojiText";
 import { KineticText } from "../components/KineticText";
 import { clamp, easeIn, easeInOut, easeOut, pop, smooth, whip } from "../components/anim";
 import { copy } from "../copy";
@@ -33,13 +34,14 @@ const Subtitle: React.FC<{ text: string; delay: number; color?: string; size?: n
         color,
         textAlign: "center",
         lineHeight: 1.2,
+        textWrap: "balance",
         opacity: p,
         translate: `0px ${interpolate(p, [0, 1], [30, 0])}px`,
         filter: `blur(${interpolate(p, [0, 1], [8, 0])}px)`,
         textShadow: `0 0 24px ${colors.rosa}66`,
       }}
     >
-      {text}
+      <EmojiText text={text} />
     </div>
   );
 };
@@ -101,7 +103,7 @@ export const Scene2: React.FC = () => {
           fontSize={sizes.titulo + 6}
         />
         <div style={{ height: 22 }} />
-        <Subtitle text={s.subtitulo} delay={24} size={54} />
+        <Subtitle text={s.subtitulo} delay={24} size={68} />
       </TextBlock>
       {/* yohi_saludo asoma al lado del teléfono */}
       <div
@@ -146,7 +148,7 @@ const Pill: React.FC<{ text: string; at: number }> = ({ text, at }) => {
         scale: String(interpolate(p, [0, 1], [0.7, 1])),
       }}
     >
-      {text}
+      <EmojiText text={text} />
     </div>
   );
 };
@@ -198,14 +200,14 @@ export const Scene5: React.FC = () => {
   const enter = pop(frame, fps, 0, 13, 0.8);
   return (
     <AbsoluteFill style={whip(frame, d, 8, 7)}>
-      <TextBlock top={270}>
+      <TextBlock top={270} style={{ left: 30, right: 30 }}>
         <KineticText
           text={s.titulo}
           resaltar={s.resaltar}
           delay={4}
           stagger={4}
           fontFamily={fonts.titulo}
-          fontSize={sizes.titulo}
+          fontSize={96}
         />
       </TextBlock>
       <div
@@ -374,7 +376,7 @@ export const Scene7: React.FC = () => {
             fontFamily: fonts.texto,
             fontWeight: 900,
             fontSize: 90,
-            color: colors.rosa,
+            color: colors.rosaTexto,
             marginTop: 10,
             opacity: per,
             translate: `0px ${interpolate(per, [0, 1], [40, 0])}px`,

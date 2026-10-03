@@ -3,7 +3,8 @@
 
 export const colors = {
   negro: "#111111",
-  rosa: "#FF4FA3",
+  rosa: "#FF4FA3", // fondos, botones, bordes y glow
+  rosaTexto: "#EC3A8C", // letras rosadas: un tono mas bajo para que se lean nitidas (contraste 5:1 sobre negro)
   rosaSuave: "#FFD6E8",
   blanco: "#FFFFFF",
   gris: "#8C8C8C",

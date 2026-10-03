@@ -5,6 +5,7 @@ import { fonts } from "../fonts";
 import { colors } from "../theme";
 import { app, chat, phone } from "../timing";
 import { clamp, easeInOut, easeIn, pop, smooth } from "./anim";
+import { EmojiText } from "./EmojiText";
 
 const W = 620;
 const H = 1280;
@@ -90,7 +91,7 @@ const Bubble: React.FC<{ from: string; text: string; at: number; frame: number; 
           opacity: interpolate(p, [0, 0.3], [0, 1], clamp),
         }}
       >
-        {text}
+        <EmojiText text={text} />
       </div>
     </div>
   );
@@ -189,13 +190,13 @@ const ChatScreen: React.FC<{ f: number }> = ({ f }) => {
           <Img src={staticFile("logo_yohi.png")} style={{ width: 104, height: 104 }} />
         </div>
         <div style={{ fontFamily: fonts.texto, color: colors.blanco }}>
-          <div style={{ fontSize: 42, fontWeight: 800, lineHeight: 1.1 }}>{copy.chat.nombre}</div>
+          <div style={{ fontSize: 42, fontWeight: 800, lineHeight: 1.1 }}><EmojiText text={copy.chat.nombre} /></div>
           <div
             style={{
               fontSize: 28,
               fontWeight: 600,
               marginTop: 6,
-              color: typing ? colors.rosa : colors.rosaSuave,
+              color: typing ? colors.rosaTexto : colors.rosaSuave,
               display: "flex",
               alignItems: "center",
               gap: 10,
@@ -317,7 +318,7 @@ const PlanScreen: React.FC<{ a: number }> = ({ a }) => {
                 translate: `${interpolate(p, [0, 1], [80, 0])}px 0px`,
               }}
             >
-              <div style={{ color: colors.rosa, fontWeight: 800, fontSize: 44 }}>{d.dia}</div>
+              <div style={{ color: colors.rosaTexto, fontWeight: 800, fontSize: 44 }}>{d.dia}</div>
               <div style={{ color: colors.blanco, fontWeight: 600, fontSize: 34, marginTop: 4 }}>{d.grupos}</div>
             </div>
           );
@@ -417,7 +418,7 @@ const FotoScreen: React.FC<{ a: number }> = ({ a }) => {
         {/* Recorte de la ilustracion de la pizarra (figura de la sentadilla), sin alterarla */}
         <Img
           src={staticFile("yohi_pizarra.png")}
-          style={{ position: "absolute", width: 1237 * 2.1, left: -690 * 2.1 + PW / 2, top: -312 * 2.1 + PH / 2 }}
+          style={{ position: "absolute", width: 1254 * 2.1, left: -695 * 2.1 + PW / 2, top: -462 * 2.1 + PH / 2 }}
         />
         {/* Linea de escaneo */}
         {local < 40 && (
@@ -462,7 +463,9 @@ const FotoScreen: React.FC<{ a: number }> = ({ a }) => {
           transformOrigin: "0% 50%",
         }}
       >
-        {f.check}
+        <span>
+          <EmojiText text={f.check} />
+        </span>
       </div>
     </div>
   );

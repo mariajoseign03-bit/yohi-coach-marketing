@@ -94,9 +94,8 @@ def cutout_dark_bg(name: str, out_name: str, tol: float = 30) -> None:
 if __name__ == "__main__":
     for n in ["yohi_duda", "yohi_saludo", "yohi_cuaderno"]:
         cutout_light_bg(f"{n}.png", f"{n}.png")
-    # Pizarra: el hueco de fondo entre la pizarra y las piernas queda encerrado y no conecta con
-    # las esquinas; se agrega una semilla puntual para quitarlo (la pizarra blanca se conserva).
-    cutout_light_bg("yohi_pizarra.png", "yohi_pizarra.png", extra_seeds=[(671, 906)])
+    # Pizarra: la version actual ya viene con fondo transparente; se copia tal cual.
+    Image.open(SRC / "yohi_pizarra.png").convert("RGBA").save(OUT / "yohi_pizarra.png")
     cutout_logo("logo_yohi.png", "logo_yohi.png")
     cutout_dark_bg("sello_certified.jpg", "sello_certified.png")
     Image.open(SRC / "yohi_escritorio.png").convert("RGB").save(OUT / "yohi_escritorio.png")
