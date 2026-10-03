@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>YOHI Coach · Entrenamiento personalizado</title>
+<meta name="description" content="Entrenamiento personalizado 1:1 y asesoría online 1:1 con Yohi. Deja de entrenar por entrenar: entrena con intención." />
+<meta name="theme-color" content="#0B0B0B" />
+<link rel="icon" href="assets/logo.webp" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+/* =========================================================
+   YOHI COACH · estilos
+   Paleta y medidas editables en :root
+   ========================================================= */
+:root{
+  --negro:#0B0B0B;
+  --rosa:#FF4FA3;
+  --rosa-texto:#FF6DB4;      /* rosa para texto sobre negro (mas legible en tamaños chicos) */
+  --rosa-pastel:#FFD6E8;
+  --blanco:#FFF9FC;
+  --gris-oscuro:#191919;
+  --gris:#A7A7A7;
+  --borde:rgba(255,79,163,.28);
+  --radio:28px;
+  --titulo:"Anton", "Impact", "Arial Narrow", sans-serif;
+  --texto:"Montserrat", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --max:1200px;
+  --ease:cubic-bezier(.16,1,.3,1);
+  --nav-h:72px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{overflow-x:clip;scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 12px)}
+body{background:var(--negro);color:var(--blanco);font-family:var(--texto);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{max-width:100%;display:block}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--rosa);outline-offset:3px;border-radius:8px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.wrap{width:min(var(--max),100% - 32px);margin-inline:auto}
+section{position:relative;padding:clamp(80px,12vw,140px) 0}
+
+/* ---------- tipografia ---------- */
+.display{font-family:var(--titulo);font-weight:400;line-height:.95;letter-spacing:.005em;text-transform:uppercase}
+.h1{font-size:clamp(56px,10.5vw,150px)}
+.h2{font-size:clamp(42px,6.8vw,96px)}
+.h3{font-size:clamp(30px,3.6vw,46px)}
+.pink{color:var(--rosa)}
+.emo{font-size:.62em;vertical-align:.18em}
+.kicker{display:inline-flex;align-items:center;gap:10px;font-weight:800;font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--rosa-pastel);margin-bottom:22px}
+.kicker::before{content:"";width:28px;height:2px;background:var(--rosa)}
+.lead{font-size:clamp(17px,1.6vw,21px);color:#e9dfe4;max-width:56ch;font-weight:500}
+.muted{color:var(--gris)}
+
+/* ---------- botones ---------- */
+.btn{--bg:var(--rosa);--fg:var(--negro);display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:18px 30px;border-radius:999px;background:var(--bg);color:var(--fg);font-weight:900;font-size:15px;letter-spacing:.08em;text-transform:uppercase;border:2px solid var(--bg);cursor:pointer;transition:transform .35s var(--ease),background .25s,color .25s,box-shadow .35s;box-shadow:0 10px 30px -10px rgba(255,79,163,.7);white-space:nowrap}
+.btn:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 18px 40px -12px rgba(255,79,163,.9)}
+.btn:active{transform:scale(.97)}
+.btn--ghost{--bg:transparent;--fg:var(--blanco);border-color:rgba(255,249,252,.35);box-shadow:none}
+.btn--ghost:hover{--fg:var(--negro);background:var(--rosa-pastel);border-color:var(--rosa-pastel)}
+.btn--light{--bg:var(--blanco);--fg:var(--negro);box-shadow:none}
+.btn--light:hover{background:var(--rosa);border-color:var(--rosa)}
+.btn--sm{padding:12px 20px;font-size:13px}
+
+/* ---------- navbar ---------- */
+.nav{position:fixed;inset:0 0 auto 0;height:var(--nav-h);z-index:50;display:flex;align-items:center;transition:background .3s,border-color .3s;border-bottom:1px solid transparent}
+.nav.scrolled{background:rgba(11,11,11,.78);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-color:rgba(255,79,163,.15)}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--titulo);font-size:26px;letter-spacing:.02em}
+.logo img{width:40px;height:40px;border-radius:50%;box-shadow:0 0 0 2px var(--rosa),0 0 18px rgba(255,79,163,.6)}
+.logo span{color:var(--rosa)}
+.menu{display:flex;gap:28px;list-style:none;font-weight:700;font-size:14px}
+.menu a{position:relative;opacity:.85;transition:opacity .2s}
+.menu a::after{content:"";position:absolute;left:0;bottom:-6px;width:100%;height:2px;background:var(--rosa);transform:scaleX(0);transform-origin:left;transition:transform .35s var(--ease)}
+.menu a:hover{opacity:1}.menu a:hover::after{transform:scaleX(1)}
+.burger{display:none;width:46px;height:46px;border-radius:50%;border:1px solid var(--borde);background:transparent;cursor:pointer;place-items:center}
+.burger span{display:block;width:20px;height:2px;background:var(--blanco);position:relative;transition:transform .3s}
+.burger span::before,.burger span::after{content:"";position:absolute;left:0;width:20px;height:2px;background:var(--blanco);transition:transform .3s,top .3s}
+.burger span::before{top:-6px}.burger span::after{top:6px}
+.nav.open .burger span{background:transparent}
+.nav.open .burger span::before{top:0;transform:rotate(45deg)}
+.nav.open .burger span::after{top:0;transform:rotate(-45deg)}
+@media (max-width:980px){
+  .menu{position:fixed;inset:var(--nav-h) 0 auto 0;flex-direction:column;gap:0;background:rgba(11,11,11,.97);backdrop-filter:blur(14px);padding:10px 16px 26px;border-bottom:1px solid var(--borde);transform:translateY(-12px);opacity:0;pointer-events:none;transition:.35s var(--ease)}
+  .menu a{display:block;padding:16px 4px;font-size:22px;font-family:var(--titulo);letter-spacing:.03em;border-bottom:1px solid rgba(255,255,255,.06)}
+  .nav.open .menu{transform:none;opacity:1;pointer-events:auto}
+  .burger{display:grid}
+  .nav .btn{display:none}
+}
+
+/* ---------- hero ---------- */
+.hero{min-height:100svh;display:flex;align-items:center;padding-top:calc(var(--nav-h) + 30px);padding-bottom:60px;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:-20% -10% auto auto;width:70vw;height:70vw;background:radial-gradient(circle,rgba(255,79,163,.35),transparent 60%);filter:blur(10px);animation:breathe 7s ease-in-out infinite;pointer-events:none}
+.hero::after{content:"";position:absolute;inset:auto auto -30% -20%;width:60vw;height:60vw;background:radial-gradient(circle,rgba(255,79,163,.18),transparent 60%);pointer-events:none}
+.hero .wrap{display:grid;grid-template-columns:1.08fr .92fr;align-items:center;gap:30px;position:relative;z-index:1}
+.hero h1 .line{display:block}
+.hero .lead{margin:28px 0 38px}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap}
+.hero-trust{display:flex;align-items:center;gap:12px;margin-top:34px;font-size:14px;color:var(--gris);font-weight:600}
+.hero-trust b{color:var(--blanco)}
+.hero-art{position:relative;aspect-ratio:1/1.02;display:grid;place-items:center}
+.hero-art .disc{position:absolute;inset:8%;border-radius:50%;background:radial-gradient(circle at 50% 40%,#2a0f1d,#120a0e 60%,transparent 72%);box-shadow:inset 0 0 0 2px rgba(255,79,163,.25)}
+.hero-art .ring{position:absolute;inset:3%;border-radius:50%;border:1.5px dashed rgba(255,79,163,.35);animation:spin 40s linear infinite}
+.hero-char{position:relative;width:100%;filter:drop-shadow(0 0 30px rgba(255,79,163,.45)) drop-shadow(0 30px 40px rgba(0,0,0,.6));animation:float 6s ease-in-out infinite}
+.deco{position:absolute;pointer-events:none;will-change:transform}
+.chip{position:absolute;padding:9px 16px;border-radius:999px;font-weight:900;font-size:13px;letter-spacing:.16em;background:var(--negro);border:1.5px solid var(--rosa);color:var(--blanco);box-shadow:0 0 22px rgba(255,79,163,.35);animation:float 5s ease-in-out infinite}
+.chip--soft{background:var(--rosa-pastel);color:var(--negro);border-color:var(--rosa-pastel)}
+.chip--pink{background:var(--rosa);color:var(--negro)}
+.star{color:var(--rosa);font-size:28px;animation:twinkle 3s ease-in-out infinite}
+.heart{color:var(--rosa);font-size:30px;animation:float 4.5s ease-in-out infinite}
+.mancuerna{width:clamp(80px,11vw,130px);animation:float 5.5s ease-in-out infinite;filter:drop-shadow(0 10px 20px rgba(0,0,0,.6))}
+.scribble{width:120px;opacity:.9}
+@media (max-width:860px){
+  .hero .wrap{grid-template-columns:1fr;text-align:left}
+  .hero-art{max-width:520px;margin:10px auto 0;width:100%}
+}
+
+/* ---------- marquee ---------- */
+.marquee-wrap{overflow:hidden;padding:14px 0}
+.marquee{background:var(--rosa);color:var(--negro);overflow:hidden;padding:16px 0;transform:rotate(-1.5deg);margin:-10px -10px 0;border-block:2px solid var(--negro)}
+.marquee-track{display:flex;width:max-content;animation:marquee 26s linear infinite}
+.marquee span{font-family:var(--titulo);font-size:clamp(22px,3vw,34px);letter-spacing:.04em;padding-right:24px;white-space:nowrap}
+
+/* ---------- que buscas ---------- */
+.pick{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:50px}
+.pick-card{position:relative;overflow:hidden;border-radius:var(--radio);padding:40px 34px 34px;min-height:430px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--gris-oscuro);border:1px solid rgba(255,255,255,.07);transition:transform .5s var(--ease),border-color .3s,box-shadow .5s var(--ease);isolation:isolate}
+.pick-card:hover{transform:translateY(-8px);border-color:var(--borde);box-shadow:0 30px 60px -30px rgba(255,79,163,.6)}
+.pick-card--pink{background:var(--rosa);color:var(--negro)}
+.pick-card img{position:absolute;right:-3%;top:-3%;height:60%;width:auto;z-index:-1;transition:transform .6s var(--ease)}
+.pick-card:hover img{transform:translateY(-6px) rotate(-2deg) scale(1.04)}
+.pick-card .num{position:absolute;top:28px;left:34px;font-family:var(--titulo);font-size:20px;opacity:.6}
+.pick-card h3{margin-bottom:12px}
+.pick-card p{max-width:34ch;font-weight:600;margin-bottom:26px}
+.pick-card--pink p{color:#2a0717}
+.pick-card--pink .btn{--bg:var(--negro);--fg:var(--blanco);box-shadow:none}
+.pick-card--pink .btn:hover{background:var(--blanco);color:var(--negro);border-color:var(--blanco)}
+.badge{display:inline-flex;align-self:flex-start;gap:8px;align-items:center;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;background:rgba(255,79,163,.14);color:var(--rosa-pastel);border:1px solid var(--borde);margin-bottom:16px}
+.pick-card--pink .badge{background:var(--negro);color:var(--rosa-pastel);border-color:var(--negro)}
+.dot{width:8px;height:8px;border-radius:50%;background:#3DDC84;box-shadow:0 0 0 0 rgba(61,220,132,.7);animation:ping 2s infinite}
+@media (max-width:820px){.pick{grid-template-columns:1fr}.pick-card{min-height:470px}.pick-card img{height:44%!important;right:-2%!important}}
+
+/* ---------- servicios ---------- */
+.services{background:var(--blanco);color:var(--negro);border-radius:48px 48px 0 0}
+.services .kicker{color:#9a1d5c}
+.services .lead{color:#3b2a33}
+.svc-list{display:grid;gap:22px;margin-top:56px}
+.svc{display:grid;grid-template-columns:120px 1.1fr 1fr;gap:34px;align-items:start;padding:40px;border-radius:var(--radio);background:#fff;border:1.5px solid #f4d9e6;transition:transform .5s var(--ease),box-shadow .5s var(--ease),border-color .3s}
+.svc:hover{transform:translateY(-6px);box-shadow:0 30px 60px -36px rgba(255,79,163,.7);border-color:var(--rosa)}
+.svc .n{font-family:var(--titulo);font-size:84px;line-height:.8;color:var(--rosa)}
+.svc h3{margin-bottom:14px}
+.svc p{color:#3b2a33;font-weight:500;margin-bottom:26px}
+.svc ul{list-style:none;display:grid;gap:10px}
+.svc li{display:flex;gap:12px;align-items:center;font-weight:700;padding:14px 18px;border-radius:16px;background:#fff3f8;transition:background .25s,transform .25s}
+.svc li:hover{background:var(--rosa-pastel);transform:translateX(4px)}
+.svc li::before{content:"✦";color:var(--rosa);font-size:14px}
+.svc .btn{--fg:var(--negro)}
+.svc-note{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;margin-top:28px;padding:22px 28px;border-radius:22px;background:var(--negro);color:var(--blanco)}
+.svc-note p{font-weight:600;color:#e9dfe4}
+.svc-note strong{font-family:var(--titulo);font-weight:400;font-size:24px;letter-spacing:.03em;color:var(--rosa)}
+@media (max-width:900px){.svc{grid-template-columns:1fr;gap:18px;padding:30px 24px}.svc .n{font-size:64px}}
+
+/* ---------- body pro go ---------- */
+.measure{background:var(--blanco);color:var(--negro);padding-top:0}
+.measure-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:40px;background:var(--negro);color:var(--blanco);border-radius:40px;padding:clamp(34px,6vw,70px);overflow:hidden;position:relative}
+.measure-card::before{content:"";position:absolute;right:-10%;top:-30%;width:60%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(255,79,163,.35),transparent 65%)}
+.gauge{position:relative;width:min(360px,80%);aspect-ratio:1;margin-inline:auto}
+.gauge svg{width:100%;height:100%;transform:rotate(-90deg)}
+.gauge .track{fill:none;stroke:#2a2a2a;stroke-width:14}
+.gauge .bar{fill:none;stroke:url(#g);stroke-width:14;stroke-linecap:round;stroke-dasharray:565;stroke-dashoffset:565;transition:stroke-dashoffset 2.2s var(--ease)}
+.measure-card.in .gauge .bar{stroke-dashoffset:150}
+.gauge .center{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.gauge .center b{font-family:var(--titulo);font-weight:400;font-size:clamp(26px,7vw,44px);letter-spacing:.03em;display:block;line-height:1}
+.gauge .center small{font-weight:800;letter-spacing:.18em;font-size:12px;color:var(--rosa-pastel)}
+.disclaimer{font-size:13px;color:var(--gris);margin-top:16px;max-width:52ch}
+@media (max-width:860px){.measure-card{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- sobre yohi ---------- */
+.about .wrap{display:grid;grid-template-columns:.9fr 1.1fr;gap:clamp(30px,6vw,90px);align-items:center}
+.about-art{position:relative;border-radius:40px;background:linear-gradient(160deg,#2a0f1d,var(--gris-oscuro));aspect-ratio:4/5;display:grid;place-items:end center;overflow:hidden;border:1px solid var(--borde)}
+.about-art img.main{width:78%;margin-bottom:-2%;animation:float 6s ease-in-out infinite;filter:drop-shadow(0 0 30px rgba(255,79,163,.4))}
+.about-art .sello{position:absolute;top:22px;right:22px;width:110px;transform:rotate(12deg)}
+.about-art .tag{position:absolute;left:22px;top:26px;font-family:var(--titulo);font-size:20px;letter-spacing:.06em;background:var(--rosa);color:var(--negro);padding:8px 14px;border-radius:12px;transform:rotate(-4deg)}
+.about p.lead{margin:24px 0 34px}
+.creds{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cred{padding:22px;border-radius:22px;background:var(--gris-oscuro);border:1px solid rgba(255,255,255,.06);transition:transform .4s var(--ease),border-color .3s,background .3s}
+.cred:hover{transform:translateY(-4px) rotate(-.6deg);border-color:var(--borde);background:#1f1419}
+.cred .ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:rgba(255,79,163,.15);color:var(--rosa);font-size:20px;margin-bottom:14px;transition:transform .4s var(--ease)}
+.cred:hover .ico{transform:rotate(-10deg) scale(1.1)}
+.cred small{display:block;font-weight:900;letter-spacing:.18em;font-size:11px;color:var(--rosa-pastel);margin-bottom:6px}
+.cred b{font-weight:700;font-size:15px;line-height:1.35;display:block}
+.cred--wide{grid-column:1/-1}
+.cred--wide ul{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.cred--wide li{padding:8px 14px;border-radius:999px;border:1px solid var(--borde);font-weight:700;font-size:14px;transition:background .25s,color .25s}
+.cred--wide li:hover{background:var(--rosa);color:var(--negro)}
+.quote{margin-top:34px;font-family:var(--titulo);font-size:clamp(28px,3.4vw,44px);line-height:1.05;text-transform:uppercase}
+.quote span{color:var(--rosa)}
+@media (max-width:900px){.about .wrap{grid-template-columns:1fr}.about-art{max-width:460px;width:100%;margin-inline:auto}.creds{grid-template-columns:1fr}}
+
+/* ---------- carrusel generico ---------- */
+.carousel{position:relative;margin-top:50px}
+.track{display:flex;gap:20px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;padding:6px 16px 26px;margin:0 -16px;scrollbar-width:none;overscroll-behavior-x:contain}
+.track::-webkit-scrollbar{display:none}
+.track>*{scroll-snap-align:start;flex:0 0 clamp(270px,32%,380px)}
+.car-ui{display:flex;align-items:center;justify-content:space-between;gap:18px;margin-top:10px;flex-wrap:wrap}
+.arrows{display:flex;gap:10px}
+.arrow{width:54px;height:54px;border-radius:50%;border:1.5px solid var(--borde);background:transparent;cursor:pointer;display:grid;place-items:center;transition:background .25s,transform .25s,color .25s;font-size:20px}
+.arrow:hover{background:var(--rosa);color:var(--negro);transform:scale(1.06)}
+.dots{display:flex;gap:8px}
+.dots button{width:9px;height:9px;border-radius:9px;border:0;background:#3a3a3a;cursor:pointer;transition:width .35s var(--ease),background .3s;padding:0}
+.dots button.on{width:28px;background:var(--rosa)}
+
+/* ---------- sabias que ---------- */
+.facts-head{display:grid;grid-template-columns:1fr auto;align-items:end;gap:20px}
+.facts-head img{width:130px}
+.fact{position:relative;min-height:360px;border-radius:var(--radio);padding:34px 30px;display:flex;flex-direction:column;background:var(--gris-oscuro);border:1px solid rgba(255,255,255,.06);transition:transform .45s var(--ease),border-color .3s;overflow:hidden}
+.fact:nth-child(3n+2){background:var(--rosa);color:var(--negro)}
+.fact:nth-child(3n+3){background:var(--rosa-pastel);color:var(--negro)}
+.fact:hover{transform:translateY(-6px) rotate(-.4deg)}
+.fact .num{font-family:var(--titulo);font-size:64px;line-height:1;opacity:.25}
+.fact h3{font-family:var(--titulo);font-weight:400;font-size:28px;letter-spacing:.02em;line-height:1.05;margin:auto 0 14px;text-transform:uppercase}
+.fact p{font-weight:600;font-size:16px}
+.fact .src{margin-top:14px;font-size:12px;font-weight:700;opacity:.7}
+.fact .src a{text-decoration:underline}
+@media (max-width:640px){.facts-head img{width:90px}}
+
+/* ---------- frase ---------- */
+.manifesto{min-height:90svh;display:grid;place-items:center;text-align:center;background:#050505;overflow:hidden}
+.manifesto .display{font-size:clamp(40px,7.6vw,118px)}
+.manifesto .line{display:block;overflow:hidden}
+.manifesto .line>span{display:inline-block;transform:translateY(110%);transition:transform 1.1s var(--ease)}
+.manifesto.in .line>span{transform:none}
+.manifesto.in .line:nth-child(2)>span{transition-delay:.15s}
+.manifesto.in .line:nth-child(3)>span{transition-delay:.3s}
+.manifesto.in .line:nth-child(4)>span{transition-delay:.45s}
+.manifesto .sign{margin-top:36px;font-weight:900;letter-spacing:.3em;font-size:14px;color:var(--rosa-pastel);opacity:0;transition:opacity 1s .8s}
+.manifesto.in .sign{opacity:1}
+.manifesto .glow{position:absolute;inset:auto;width:70vmin;height:70vmin;border-radius:50%;background:radial-gradient(circle,rgba(255,79,163,.25),transparent 65%);animation:breathe 6s ease-in-out infinite}
+
+/* ---------- promos ---------- */
+.promos-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;margin-top:50px}
+.promo{position:relative;border-radius:var(--radio);padding:30px;min-height:260px;display:flex;flex-direction:column;gap:14px;background:var(--gris-oscuro);border:1px solid rgba(255,255,255,.07);transition:transform .45s var(--ease),border-color .3s,box-shadow .45s}
+.promo:hover{transform:translateY(-6px);border-color:var(--borde);box-shadow:0 26px 50px -30px rgba(255,79,163,.7)}
+.promo .type{font-size:12px;font-weight:900;letter-spacing:.18em;color:var(--rosa-pastel);text-transform:uppercase}
+.promo h3{font-family:var(--titulo);font-weight:400;font-size:34px;line-height:1;text-transform:uppercase}
+.promo p{font-weight:600;color:#e2d6dc;flex:1}
+.promo--live{background:var(--rosa);color:var(--negro)}
+.promo--live .type{color:#3a0a20}.promo--live p{color:#2a0717}
+.promo--live .btn{--bg:var(--negro);--fg:var(--blanco);box-shadow:none;align-self:flex-start}
+.promo--soon{border-style:dashed;border-color:rgba(255,79,163,.4);background:transparent;align-items:flex-start;justify-content:center}
+.promo--soon h3{color:var(--rosa)}
+
+/* ---------- profesionales ---------- */
+.pros-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;margin-top:46px}
+.pro{border-radius:24px;padding:26px;background:var(--gris-oscuro);border:1px solid rgba(255,255,255,.07);display:flex;flex-direction:column;gap:8px;transition:transform .4s var(--ease),border-color .3s}
+.pro:hover{transform:translateY(-5px);border-color:var(--borde)}
+.pro .ico{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:24px;background:rgba(255,79,163,.14);margin-bottom:8px}
+.pro small{font-weight:900;letter-spacing:.16em;font-size:11px;color:var(--rosa-pastel);text-transform:uppercase}
+.pro b{font-size:19px}
+.pro p{color:var(--gris);font-size:15px;font-weight:500;flex:1}
+.pro .links{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+
+/* ---------- reseñas ---------- */
+.review{border-radius:var(--radio);padding:32px 28px;min-height:300px;display:flex;flex-direction:column;gap:16px;background:var(--blanco);color:var(--negro);transition:transform .45s var(--ease)}
+.review:hover{transform:translateY(-6px) rotate(.4deg)}
+.review .stars{color:var(--rosa);letter-spacing:4px;font-size:20px}
+.review blockquote{font-weight:600;font-size:17px;flex:1}
+.review .who{display:flex;align-items:center;gap:12px}
+.review .avatar{width:50px;height:50px;border-radius:50%;background:var(--rosa-pastel);display:grid;place-items:center;font-weight:900;color:#9a1d5c;overflow:hidden;flex-shrink:0}
+.review .avatar img{width:100%;height:100%;object-fit:cover}
+.review .who b{display:block}.review .who small{color:#6b5560;font-weight:600}
+.review--empty{background:transparent;color:var(--blanco);border:1.5px dashed rgba(255,79,163,.45);justify-content:center;align-items:flex-start}
+.review--empty h3{font-family:var(--titulo);font-weight:400;font-size:32px;line-height:1.05;text-transform:uppercase}
+
+/* ---------- contacto ---------- */
+.contact{background:linear-gradient(180deg,var(--negro),#14070d)}
+.contact .wrap{display:grid;grid-template-columns:.85fr 1.15fr;gap:clamp(30px,6vw,80px);align-items:start}
+.contact-side img{width:min(320px,70%);margin-top:30px;animation:float 6s ease-in-out infinite;filter:drop-shadow(0 0 26px rgba(255,79,163,.45))}
+.form{position:relative;padding:clamp(26px,4vw,44px);border-radius:36px;background:var(--gris-oscuro);border:1px solid var(--borde);overflow:hidden}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.field label,.field legend{font-weight:800;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--rosa-pastel)}
+.field input,.field select,.field textarea{width:100%;padding:16px 18px;border-radius:16px;background:var(--negro);border:1.5px solid #2c2c2c;color:var(--blanco);font-weight:600;transition:border-color .25s,box-shadow .25s}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--rosa);box-shadow:0 0 0 4px rgba(255,79,163,.18)}
+.field textarea{min-height:110px;resize:vertical}
+fieldset.field{border:0}
+.options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{position:relative}
+.opt input{position:absolute;opacity:0;inset:0;cursor:pointer}
+.opt span{display:block;padding:14px 16px;border-radius:14px;border:1.5px solid #2c2c2c;background:var(--negro);font-weight:700;font-size:15px;transition:.25s;cursor:pointer}
+.opt input:checked+span{background:var(--rosa);color:var(--negro);border-color:var(--rosa);transform:scale(1.02)}
+.opt input:focus-visible+span{outline:3px solid var(--rosa);outline-offset:2px}
+.days{display:flex;gap:8px;flex-wrap:wrap}
+.days .opt span{width:52px;text-align:center;padding:12px 0}
+.form .btn{width:100%;margin-top:6px;font-size:16px;padding:20px}
+.form small.legal{display:block;margin-top:14px;color:var(--gris);font-size:13px;text-align:center}
+.done{position:absolute;inset:0;background:var(--rosa);color:var(--negro);display:grid;place-items:center;text-align:center;padding:30px;clip-path:circle(0% at 50% 100%);transition:clip-path .9s var(--ease)}
+.form.sent .done{clip-path:circle(150% at 50% 100%)}
+.done .check{width:96px;height:96px;margin:0 auto 22px}
+.done .check circle{fill:none;stroke:var(--negro);stroke-width:4;stroke-dasharray:290;stroke-dashoffset:290;transition:stroke-dashoffset .8s .4s var(--ease)}
+.done .check path{fill:none;stroke:var(--negro);stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:80;stroke-dashoffset:80;transition:stroke-dashoffset .5s 1s var(--ease)}
+.form.sent .done .check circle,.form.sent .done .check path{stroke-dashoffset:0}
+.done h3{font-family:var(--titulo);font-weight:400;font-size:clamp(30px,4vw,44px);line-height:1.05;text-transform:uppercase;margin-bottom:12px}
+.done p{font-weight:700;max-width:34ch;margin-inline:auto}
+.done .floaty{position:absolute;font-size:26px;opacity:0}
+.form.sent .done .floaty{animation:rise 2.4s 1.1s var(--ease) forwards}
+@media (max-width:900px){.contact .wrap{grid-template-columns:1fr}.contact-side img{display:none}}
+@media (max-width:520px){.grid2,.options{grid-template-columns:1fr}}
+
+/* ---------- horarios ---------- */
+.hours{padding-top:0;background:#14070d}
+.hours-card{display:grid;grid-template-columns:auto 1fr;gap:30px;align-items:center;padding:clamp(26px,4vw,44px);border-radius:36px;background:var(--negro);border:1px solid rgba(255,255,255,.07)}
+.hours-card .clock{width:84px;height:84px;border-radius:24px;background:var(--rosa);display:grid;place-items:center}
+.hours-list{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:18px 0}
+.hours-list li{display:flex;justify-content:space-between;gap:12px;padding:16px 18px;border-radius:16px;background:var(--gris-oscuro);font-weight:700}
+.hours-list li span:last-child{color:var(--rosa-pastel)}
+@media (max-width:640px){.hours-card{grid-template-columns:1fr}}
+
+/* ---------- footer ---------- */
+footer{padding:80px 0 120px;border-top:1px solid rgba(255,255,255,.06)}
+footer .big{font-family:var(--titulo);font-size:clamp(64px,15vw,220px);line-height:.85;letter-spacing:.01em}
+footer .big span{color:var(--rosa)}
+.foot-row{display:flex;flex-wrap:wrap;justify-content:space-between;gap:26px;margin-top:40px;align-items:flex-end}
+.foot-links{display:flex;flex-wrap:wrap;gap:18px;font-weight:700;font-size:14px}
+.foot-links a:hover,.socials a:hover{color:var(--rosa)}
+.socials{display:flex;gap:12px}
+.socials a{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;border-radius:999px;border:1px solid var(--borde);font-weight:800;font-size:14px;transition:background .25s,color .25s}
+.socials a:hover{background:var(--rosa);color:var(--negro)}
+
+/* ---------- flotantes ---------- */
+.fab-wrap{position:fixed;right:18px;bottom:18px;z-index:60;display:flex;flex-direction:column;align-items:flex-end;gap:12px}
+.fab{display:inline-flex;align-items:center;gap:10px;padding:16px 22px;border-radius:999px;border:0;cursor:pointer;font-weight:900;font-size:15px;background:var(--rosa);color:var(--negro);box-shadow:0 14px 34px -10px rgba(255,79,163,.9);animation:pulse 2.6s infinite;transition:transform .3s var(--ease)}
+.fab:hover{transform:scale(1.05)}
+.fab img{width:30px;height:30px;border-radius:50%;background:var(--negro);object-fit:cover;object-position:top}
+.wa{width:58px;height:58px;border-radius:50%;background:#25D366;display:grid;place-items:center;box-shadow:0 10px 26px -8px rgba(37,211,102,.8);animation:pulseWa 3s infinite;transition:transform .3s var(--ease)}
+.wa:hover{transform:scale(1.07)}
+.wa svg{width:30px;height:30px;fill:#fff}
+@media (max-width:600px){.btn{white-space:normal;text-align:center}.fab{padding:12px 16px;font-size:13px}.fab img{width:26px;height:26px}.wa{width:52px;height:52px}.fab-wrap{right:12px;bottom:12px}.bot{right:12px;bottom:84px}}
+
+/* ---------- bot ---------- */
+.bot{position:fixed;right:18px;bottom:96px;z-index:70;width:min(390px,calc(100vw - 24px));max-height:min(640px,calc(100svh - 120px));display:flex;flex-direction:column;border-radius:28px;background:var(--gris-oscuro);border:1px solid var(--borde);box-shadow:0 40px 80px -20px rgba(0,0,0,.8),0 0 0 1px rgba(255,79,163,.15);transform-origin:bottom right;transform:translateY(20px) scale(.92);opacity:0;pointer-events:none;transition:transform .45s var(--ease),opacity .3s}
+.bot.open{transform:none;opacity:1;pointer-events:auto}
+.bot-head{display:flex;align-items:center;gap:12px;padding:16px 18px;background:var(--rosa);color:var(--negro);border-radius:28px 28px 0 0}
+.bot-head .av{width:48px;height:48px;border-radius:50%;background:var(--negro);overflow:hidden;flex-shrink:0;box-shadow:0 0 0 3px var(--negro)}
+.bot-head .av img{width:100%;height:100%;object-fit:cover;object-position:50% 8%;transform:scale(1.9) translateY(18%)}
+.bot-head b{display:block;font-size:17px;font-weight:900}
+.bot-head small{font-weight:700;font-size:12px;opacity:.75}
+.bot-head .x{margin-left:auto;width:38px;height:38px;border-radius:50%;border:0;background:var(--negro);color:var(--blanco);cursor:pointer;font-size:18px}
+.bot-body{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain}
+.msg{max-width:86%;padding:12px 16px;border-radius:20px;font-size:15px;font-weight:600;line-height:1.45;animation:msgIn .45s var(--ease) both}
+.msg.bot-m{background:var(--negro);border:1px solid #2c2c2c;border-bottom-left-radius:6px;align-self:flex-start}
+.msg.user-m{background:var(--rosa);color:var(--negro);border-bottom-right-radius:6px;align-self:flex-end}
+.msg b{color:var(--rosa-pastel)}
+.msg.typing{display:flex;gap:5px;padding:16px}
+.msg.typing i{width:8px;height:8px;border-radius:50%;background:var(--rosa);animation:bounce 1s infinite}
+.msg.typing i:nth-child(2){animation-delay:.15s}.msg.typing i:nth-child(3){animation-delay:.3s}
+.svc-mini{align-self:stretch;border-radius:18px;padding:16px;background:var(--negro);border:1.5px solid var(--rosa);animation:msgIn .45s var(--ease) both}
+.svc-mini b{font-family:var(--titulo);font-weight:400;font-size:22px;letter-spacing:.03em;display:block;color:var(--rosa)}
+.svc-mini p{font-size:14px;font-weight:600;color:#e2d6dc;margin:4px 0 10px}
+.quick{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px 16px;border-top:1px solid #2a2a2a}
+.quick button{padding:10px 14px;border-radius:999px;border:1.5px solid var(--borde);background:transparent;font-weight:700;font-size:13px;cursor:pointer;transition:background .2s,color .2s,transform .2s;text-align:left}
+.quick button:hover{background:var(--rosa);color:var(--negro);transform:translateY(-2px)}
+.quick .btn{width:100%}
+
+/* ---------- reveal ---------- */
+.reveal{opacity:0;transform:translateY(40px);transition:opacity .9s var(--ease),transform .9s var(--ease)}
+.reveal.in{opacity:1;transform:none}
+.reveal[data-d="1"]{transition-delay:.1s}.reveal[data-d="2"]{transition-delay:.2s}.reveal[data-d="3"]{transition-delay:.3s}
+.split .w{display:inline-block;overflow:hidden;vertical-align:top;padding:.16em 0 .06em;margin-top:-.16em} /* padding arriba: no recortar tildes (Á, É, Í) */
+.nw{white-space:nowrap}
+.split .w>span{display:inline-block;transform:translateY(105%);transition:transform .9s var(--ease)}
+.split.in .w>span{transform:none}
+
+/* ---------- keyframes ---------- */
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes twinkle{0%,100%{opacity:.35;transform:scale(.85) rotate(0)}50%{opacity:1;transform:scale(1.15) rotate(20deg)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes breathe{0%,100%{opacity:.75;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+@keyframes marquee{to{transform:translateX(-50%)}}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(61,220,132,.6)}70%{box-shadow:0 0 0 10px rgba(61,220,132,0)}100%{box-shadow:0 0 0 0 rgba(61,220,132,0)}}
+@keyframes pulse{0%,100%{box-shadow:0 14px 34px -10px rgba(255,79,163,.9),0 0 0 0 rgba(255,79,163,.45)}60%{box-shadow:0 14px 34px -10px rgba(255,79,163,.9),0 0 0 14px rgba(255,79,163,0)}}
+@keyframes pulseWa{0%,100%{box-shadow:0 10px 26px -8px rgba(37,211,102,.8),0 0 0 0 rgba(37,211,102,.4)}60%{box-shadow:0 10px 26px -8px rgba(37,211,102,.8),0 0 0 12px rgba(37,211,102,0)}}
+@keyframes msgIn{from{opacity:0;transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes bounce{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(-5px);opacity:1}}
+@keyframes rise{0%{opacity:0;transform:translateY(30px) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translateY(-160px) scale(1.2)}}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition-duration:.01ms!important;transition-delay:0s!important}
+  .reveal,.split .w>span,.manifesto .line>span{opacity:1!important;transform:none!important}
+  .marquee-track{transform:none}
+}
+</style>
+</head>
+<body>
+
+<!-- =============================== NAVBAR =============================== -->
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a href="#inicio" class="logo" aria-label="YOHI Coach, inicio"><img src="assets/logo.webp" alt="" width="40" height="40" />YOHI <span>COACH</span></a>
+    <nav aria-label="Principal">
+      <ul class="menu" id="menu">
+        <li><a href="#inicio">Inicio</a></li>
+        <li><a href="#servicios">Servicios</a></li>
+        <li><a href="#sobre-yohi">Sobre Yohi</a></li>
+        <li><a href="#sabias-que">¿Sabías que?</a></li>
+        <li><a href="#resenas">Reseñas</a></li>
+        <li><a href="#contacto">Contacto</a></li>
+      </ul>
+    </nav>
+    <a href="#contacto" class="btn btn--sm">Quiero empezar 💗</a>
+    <button class="burger" id="burger" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu"><span></span></button>
+  </div>
+</header>
+
+<main>
+<!-- =============================== HERO =============================== -->
+<section class="hero" id="inicio">
+  <div class="wrap">
+    <div>
+      <p class="kicker reveal">Entrenamiento personalizado</p>
+      <h1 class="display h1 split" data-split>
+        <span class="line">Deja de entrenar</span>
+        <span class="line pink">por entrenar.</span>
+      </h1>
+      <p class="lead reveal" data-d="2">Entrenamiento personalizado para que sepas qué hacer, por qué lo haces y cómo avanzar.</p>
+      <div class="hero-ctas reveal" data-d="3">
+        <a href="#contacto" class="btn">Quiero empezar</a>
+        <a href="#servicios" class="btn btn--ghost">Conoce los servicios</a>
+      </div>
+      <p class="hero-trust reveal" data-d="3"><span class="dot"></span> <span><b>Entrena con intención.</b> 1:1 presencial y online</span></p>
+    </div>
+
+    <div class="hero-art reveal" data-d="1" id="heroArt">
+      <div class="disc"></div>
+      <div class="ring"></div>
+      <img class="hero-char" src="assets/yohi_spotter.webp" alt="Ilustración de Yohi acompañando a una alumna en una sentadilla con barra" width="1000" height="914" fetchpriority="high" />
+      <!-- elementos graficos flotantes (data-depth = intensidad del parallax) -->
+      <span class="deco chip" data-depth="18" style="top:6%;left:2%;animation-delay:-1s">FUERZA</span>
+      <span class="deco chip chip--pink" data-depth="26" style="top:16%;right:-2%;animation-delay:-2.5s">TÉCNICA</span>
+      <span class="deco chip chip--soft" data-depth="14" style="bottom:12%;left:-2%;animation-delay:-.5s">PROGRESO</span>
+      <span class="deco star" data-depth="30" style="top:2%;right:24%">✦</span>
+      <span class="deco star" data-depth="22" style="bottom:28%;right:2%;animation-delay:-1.4s">✦</span>
+      <span class="deco star" data-depth="12" style="top:44%;left:-3%;font-size:20px;animation-delay:-.7s">✦</span>
+      <span class="deco heart" data-depth="20" style="top:30%;left:8%;animation-delay:-2s">♥</span>
+      <span class="deco heart" data-depth="28" style="bottom:4%;right:26%;font-size:22px;animation-delay:-3s">♥</span>
+      <img class="deco mancuerna" data-depth="34" src="assets/mancuerna.webp" alt="" style="bottom:-2%;right:-4%;animation-delay:-1.8s" />
+      <svg class="deco scribble" data-depth="10" style="top:-2%;left:26%" viewBox="0 0 120 40" aria-hidden="true"><path d="M4 30 C 24 4, 40 38, 60 14 S 96 6, 116 22" fill="none" stroke="#FF4FA3" stroke-width="4" stroke-linecap="round"/></svg>
+    </div>
+  </div>
+</section>
+
+<!-- marquee -->
+<div class="marquee-wrap" aria-hidden="true"><div class="marquee">
+  <div class="marquee-track" id="marquee"></div>
+</div></div>
+
+<!-- =============================== QUE BUSCAS =============================== -->
+<section id="que-buscas">
+  <div class="wrap">
+    <p class="kicker reveal">Elige tu camino</p>
+    <h2 class="display h2 split" data-split>¿Qué estás <span class="pink">buscando?</span></h2>
+    <div class="pick">
+      <article class="pick-card reveal" data-d="1">
+        <span class="num">01</span>
+        <img src="assets/yohi_pizarra.webp" alt="" loading="lazy" />
+        <span class="badge"><span class="dot"></span> Cupos limitados</span>
+        <h3 class="display h3">Entrenamiento 1:1</h3>
+        <p>Cupos limitados para entrenamiento personalizado y acompañamiento presencial.</p>
+        <a href="#servicio-1a1" class="btn btn--light">Ver 1:1</a>
+      </article>
+      <article class="pick-card pick-card--pink reveal" data-d="2">
+        <span class="num">02</span>
+        <img src="assets/yohi_cuaderno.webp" alt="" loading="lazy" style="height:78%;right:2%" />
+        <span class="badge">Desde donde estés</span>
+        <h3 class="display h3">Asesoría online 1:1</h3>
+        <p>Planificación personalizada + seguimiento para que entrenes desde donde quieras.</p>
+        <a href="#servicio-online" class="btn">Ver asesoría</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== SERVICIOS =============================== -->
+<section class="services" id="servicios">
+  <div class="wrap">
+    <p class="kicker reveal">Servicios</p>
+    <h2 class="display h2 split" data-split>Tu entrenamiento, pero <span class="pink">hecho para ti.</span></h2>
+
+    <div class="svc-list">
+      <article class="svc reveal" id="servicio-1a1">
+        <div class="n">01</div>
+        <div>
+          <h3 class="display h3">Entrenamiento personalizado 1:1</h3>
+          <p>Entrenamientos personalizados según tus objetivos, nivel, necesidades y disponibilidad.</p>
+          <a href="#contacto" class="btn" data-servicio="Entrenamiento 1:1">Quiero mi cupo</a>
+        </div>
+        <ul>
+          <li>Atención personalizada</li>
+          <li>Corrección técnica</li>
+          <li>Planificación</li>
+          <li>Seguimiento</li>
+          <li>Cupos limitados</li>
+        </ul>
+      </article>
+
+      <article class="svc reveal" id="servicio-online">
+        <div class="n">02</div>
+        <div>
+          <h3 class="display h3">Asesoría online 1:1</h3>
+          <p>Entrena desde donde quieras con una planificación adaptada a ti y acompañamiento durante tu proceso.</p>
+          <a href="#contacto" class="btn" data-servicio="Asesoría online">Quiero saber más</a>
+        </div>
+        <ul>
+          <li>Planificación personalizada</li>
+          <li>Seguimiento</li>
+          <li>Adaptación según progreso</li>
+          <li>Orientación de entrenamiento</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="svc-note reveal">
+      <p>Los planes pueden variar según la cantidad de días que necesites entrenar.</p>
+      <strong>Nuevos planes en camino ✦</strong>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== BODY PRO GO =============================== -->
+<section class="measure" id="medicion">
+  <div class="wrap">
+    <div class="measure-card reveal" id="measureCard">
+      <div style="position:relative">
+        <p class="kicker">Medición Body Pro Go</p>
+        <h2 class="display h2 split" data-split>¿Quieres conocer tu <span class="pink">progreso?</span></h2>
+        <p class="lead" style="margin:22px 0 30px">Medición mediante báscula Body Pro Go como herramienta de seguimiento y conocimiento corporal.</p>
+        <a href="#contacto" class="btn" data-servicio="Medición Body Pro Go">Quiero medir mi progreso</a>
+        <p class="disclaimer">Es una herramienta de seguimiento del proceso de entrenamiento. No es un diagnóstico médico ni reemplaza la evaluación de un profesional de la salud.</p>
+      </div>
+      <div class="gauge" aria-hidden="true">
+        <svg viewBox="0 0 200 200">
+          <defs><linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#FF4FA3"/><stop offset="1" stop-color="#FFD6E8"/></linearGradient></defs>
+          <circle class="track" cx="100" cy="100" r="90"/>
+          <circle class="bar" cx="100" cy="100" r="90"/>
+        </svg>
+        <div class="center"><div><b>TU PROGRESO</b><small>EN SEGUIMIENTO</small></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== SOBRE YOHI =============================== -->
+<section class="about" id="sobre-yohi">
+  <div class="wrap">
+    <div class="about-art reveal">
+      <span class="tag">HOLA 👋</span>
+      <img class="sello" src="assets/sello.webp" alt="" loading="lazy" />
+      <!-- Cuando tengas una foto real de Yohi, reemplaza este src por la foto (idealmente vertical 4:5). -->
+      <img class="main" src="assets/yohi_saludo.webp" alt="Ilustración de Yohi saludando" loading="lazy" />
+    </div>
+    <div>
+      <p class="kicker reveal">Sobre Yohi</p>
+      <h2 class="display h2 split" data-split>Hola, soy <span class="nw"><span class="pink">Yohi</span> <span class="emo">💗</span></span></h2>
+      <p class="lead reveal">Soy Yohi, entrenadora y creadora de YOHI Coach. Mi objetivo es ayudarte a entrenar con intención, entender tu proceso y construir una relación más consciente con el entrenamiento.</p>
+
+      <div class="creds">
+        <div class="cred reveal" data-d="1">
+          <div class="ico">🎓</div>
+          <small>Entrenadora</small>
+          <b>Egresada de Universidad Santo Tomás.</b>
+        </div>
+        <div class="cred reveal" data-d="2">
+          <div class="ico">✦</div>
+          <small>Enfoque</small>
+          <b>Entrenar con intención, no por entrenar.</b>
+        </div>
+        <div class="cred cred--wide reveal" data-d="3">
+          <div class="ico">📚</div>
+          <small>Diplomados</small>
+          <ul>
+            <li>Entrenamiento físico para el deporte</li>
+            <li>Entrenamiento físico en poblaciones especiales</li>
+            <li>Gestión de proyectos en actividad física</li>
+            <li>Entrenamiento físico y salud</li>
+          </ul>
+        </div>
+      </div>
+      <p class="quote reveal">“No necesitas entrenar más. <span>Necesitas entrenar mejor.</span>”</p>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== SABIAS QUE =============================== -->
+<section id="sabias-que" style="background:var(--negro)">
+  <div class="wrap">
+    <div class="facts-head">
+      <div>
+        <p class="kicker reveal">Datos de entrenamiento</p>
+        <h2 class="display h2 split" data-split>¿Sabías <span class="nw"><span class="pink">que…?</span> <span class="emo">👀</span></span></h2>
+      </div>
+      <img src="assets/yohi_duda.webp" alt="" loading="lazy" class="reveal" style="animation:float 5s ease-in-out infinite" />
+    </div>
+    <div class="carousel" data-carousel>
+      <div class="track" id="factsTrack" tabindex="0" aria-label="Datos de entrenamiento, desliza para ver más"></div>
+      <div class="car-ui">
+        <div class="dots"></div>
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+          <a class="btn btn--ghost btn--sm" id="moreFacts" href="#" target="_blank" rel="noopener">Quiero más datos →</a>
+          <div class="arrows"><button class="arrow" data-dir="-1" aria-label="Anterior">←</button><button class="arrow" data-dir="1" aria-label="Siguiente">→</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== FRASE =============================== -->
+<section class="manifesto" id="frase">
+  <div class="glow"></div>
+  <div class="wrap" style="position:relative">
+    <p class="display">
+      <span class="line"><span>No entrenes para</span></span>
+      <span class="line"><span>castigar tu cuerpo.</span></span>
+      <span class="line"><span class="pink">Entrena para</span></span>
+      <span class="line"><span class="pink">construirlo.</span></span>
+    </p>
+    <p class="sign">— YOHI COACH</p>
+  </div>
+</section>
+
+<!-- =============================== PROMOS =============================== -->
+<section id="novedades">
+  <div class="wrap">
+    <p class="kicker reveal">Promociones y novedades</p>
+    <h2 class="display h2 split" data-split>Lo que está pasando <span class="pink">en <span class="nw">Yohi ✦</span></span></h2>
+    <div class="promos-grid" id="promos"></div>
+  </div>
+</section>
+
+<!-- =============================== PROFESIONALES =============================== -->
+<section id="red" style="background:#0f0f0f">
+  <div class="wrap">
+    <p class="kicker reveal">Red de confianza</p>
+    <h2 class="display h2 split" data-split>¿Necesitas a otra persona <span class="pink">de confianza?</span></h2>
+    <p class="lead reveal" style="margin-top:22px">Si YOHI no es exactamente lo que estás buscando, puede recomendarte profesionales según lo que necesites.</p>
+    <div class="pros-grid" id="pros"></div>
+  </div>
+</section>
+
+<!-- =============================== RESEÑAS =============================== -->
+<section id="resenas">
+  <div class="wrap">
+    <p class="kicker reveal">Reseñas</p>
+    <h2 class="display h2 split" data-split>Ellas ya están <span class="pink">en el</span> <span class="nw"><span class="pink">proceso</span> <span class="emo">💗</span></span></h2>
+    <div class="carousel" data-carousel>
+      <div class="track" id="reviewsTrack" tabindex="0" aria-label="Reseñas, desliza para ver más"></div>
+      <div class="car-ui">
+        <div class="dots"></div>
+        <div class="arrows"><button class="arrow" data-dir="-1" aria-label="Anterior">←</button><button class="arrow" data-dir="1" aria-label="Siguiente">→</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== CONTACTO =============================== -->
+<section class="contact" id="contacto">
+  <div class="wrap">
+    <div class="contact-side">
+      <p class="kicker reveal">Contacto</p>
+      <h2 class="display h2 split" data-split>¿Lista para <span class="pink">empezar?</span></h2>
+      <p class="lead reveal" style="margin-top:22px">Cuéntame un poquito sobre ti y Yohi se pondrá en contacto contigo.</p>
+      <img src="assets/yohi_cuaderno.webp" alt="" loading="lazy" />
+    </div>
+
+    <form class="form reveal" id="form" novalidate>
+      <div class="grid2">
+        <div class="field"><label for="f-nombre">Nombre</label><input id="f-nombre" name="nombre" autocomplete="name" required /></div>
+        <div class="field"><label for="f-edad">Edad</label><input id="f-edad" name="edad" type="number" min="12" max="99" inputmode="numeric" /></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label for="f-email">Email</label><input id="f-email" name="email" type="email" autocomplete="email" required /></div>
+        <div class="field"><label for="f-wa">WhatsApp</label><input id="f-wa" name="whatsapp" type="tel" autocomplete="tel" placeholder="+56 9 ..." required /></div>
+      </div>
+      <fieldset class="field">
+        <legend>¿Qué estás buscando?</legend>
+        <div class="options" style="margin-top:8px">
+          <label class="opt"><input type="radio" name="servicio" value="Entrenamiento 1:1" required /><span>Entrenamiento 1:1</span></label>
+          <label class="opt"><input type="radio" name="servicio" value="Asesoría online" /><span>Asesoría online</span></label>
+          <label class="opt"><input type="radio" name="servicio" value="Medición Body Pro Go" /><span>Medición Body Pro Go</span></label>
+          <label class="opt"><input type="radio" name="servicio" value="No estoy segura/o" /><span>No estoy segura/o</span></label>
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>¿Cuántos días a la semana quieres entrenar?</legend>
+        <div class="days" style="margin-top:8px">
+          <label class="opt"><input type="radio" name="dias" value="1" /><span>1</span></label>
+          <label class="opt"><input type="radio" name="dias" value="2" /><span>2</span></label>
+          <label class="opt"><input type="radio" name="dias" value="3" /><span>3</span></label>
+          <label class="opt"><input type="radio" name="dias" value="4" /><span>4</span></label>
+          <label class="opt"><input type="radio" name="dias" value="5" /><span>5</span></label>
+          <label class="opt"><input type="radio" name="dias" value="6" /><span>6</span></label>
+        </div>
+      </fieldset>
+      <div class="field"><label for="f-obj">¿Cuál es tu objetivo?</label><input id="f-obj" name="objetivo" /></div>
+      <div class="field"><label for="f-msg">Mensaje</label><textarea id="f-msg" name="mensaje"></textarea></div>
+      <button class="btn" type="submit">Quiero empezar 💗</button>
+      <small class="legal">Tus datos solo se usan para que Yohi pueda contactarte.</small>
+
+      <div class="done" role="status" aria-live="polite">
+        <div>
+          <svg class="check" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="46"/><path d="M30 52 L45 66 L72 36"/></svg>
+          <h3>¡Listo! 💗</h3>
+          <p>Recibimos tu información. Yohi se pondrá en contacto contigo.</p>
+          <span class="floaty" style="left:18%;bottom:10%">💗</span>
+          <span class="floaty" style="left:48%;bottom:4%;animation-delay:1.3s">✦</span>
+          <span class="floaty" style="right:18%;bottom:12%;animation-delay:1.5s">💗</span>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- =============================== HORARIOS =============================== -->
+<section class="hours" id="horarios">
+  <div class="wrap">
+    <div class="hours-card reveal">
+      <div class="clock" aria-hidden="true">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#0B0B0B" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      </div>
+      <div>
+        <h2 class="display h3">Horarios de atención</h2>
+        <ul class="hours-list" id="hours"></ul>
+        <p class="muted" style="font-weight:600">Los horarios de entrenamiento están sujetos a disponibilidad y reserva previa.</p>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- =============================== FOOTER =============================== -->
+<footer>
+  <div class="wrap">
+    <p class="big">YOHI <span>COACH</span></p>
+    <p class="lead" style="margin-top:18px">Entrena con intención. Progresa con propósito.</p>
+    <div class="foot-row">
+      <nav class="foot-links" aria-label="Pie de página">
+        <a href="#inicio">Inicio</a><a href="#servicios">Servicios</a><a href="#sobre-yohi">Sobre Yohi</a><a href="#sabias-que">¿Sabías que?</a><a href="#resenas">Reseñas</a><a href="#contacto">Contacto</a>
+      </nav>
+      <div class="socials" id="socials"></div>
+    </div>
+    <p class="muted" style="margin-top:40px;font-size:14px">© 2026 YOHI COACH</p>
+  </div>
+</footer>
+
+<!-- =============================== FLOTANTES + BOT =============================== -->
+<div class="fab-wrap">
+  <a class="wa" id="waFab" href="#contacto" aria-label="Escribir a Yohi por WhatsApp" target="_blank" rel="noopener">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></svg>
+  </a>
+  <button class="fab" id="botFab" aria-expanded="false" aria-controls="bot"><img src="assets/yohi_saludo.webp" alt="" />💬 Pregúntale a Yohi</button>
+</div>
+
+<div class="bot" id="bot" role="dialog" aria-label="Yohi Bot" aria-modal="false">
+  <div class="bot-head">
+    <div class="av"><img src="assets/yohi_saludo.webp" alt="" /></div>
+    <div><b>Yohi Bot 💗</b><small>Te ayudo a elegir</small></div>
+    <button class="x" id="botClose" aria-label="Cerrar">✕</button>
+  </div>
+  <div class="bot-body" id="botBody" aria-live="polite"></div>
+  <div class="quick" id="botQuick"></div>
+</div>
+
+<script>
+/* =========================================================
+   CONTENIDO EDITABLE
+   Cambia aqui los datos sin tocar el resto del codigo.
+   ========================================================= */
+const CONFIG = {
+  instagram: "https://www.instagram.com/yohi.coach/",
+  instagramHandle: "@yohi.coach",
+  whatsapp: "",            // numero con codigo de pais, sin + ni espacios. Ej: "56912345678"
+  email: "",               // ej: "contacto@yohicoach.cl"
+  // Donde llegan los formularios. Opciones:
+  // 1) formEndpoint: URL de Formspree / Google Apps Script / Make (recomendado).
+  // 2) Si no hay endpoint pero hay WhatsApp, se abre WhatsApp con el mensaje armado.
+  formEndpoint: "",
+};
+
+// Texto del marquee
+const MARQUEE = ["CUPOS ABIERTOS", "YOHI COACH", "NUEVO", "ENTRENA CON INTENCIÓN"];
+
+// ¿Sabias que...? Agrega tarjetas copiando un bloque. `fuente` es opcional (texto + link).
+const SABIAS_QUE = [
+  { titulo: "Sobrecarga progresiva", texto: "No necesitas cambiar todos tus ejercicios cada semana. Necesitas generar progresión de forma planificada.", fuente: null },
+  { titulo: "Entrenamiento y hormonas", texto: "Las diferencias hormonales entre hombres y mujeres, entre otros factores, influyen en cómo se desarrolla fuerza y masa muscular.", fuente: null },
+  { titulo: "Entrenar pesado", texto: "Entrenar pesado no significa automáticamente verte ‘demasiado musculosa’. El resultado depende de múltiples factores.", fuente: null },
+  { titulo: "Técnica", texto: "Levantar más peso no sirve de mucho si pierdes el control del movimiento.", fuente: null },
+  // { titulo: "Nuevo dato", texto: "...", fuente: { texto: "Autor, año", url: "https://..." } },
+];
+
+// Promociones / novedades. tipo: "promo" | "cupos" | "servicio" | "novedad". activo:false = se oculta.
+// Si no queda ninguna activa, se muestra "PRÓXIMAMENTE ✦".
+const PROMOS = [
+  { tipo: "cupos", etiqueta: "Cupos disponibles", titulo: "Cupos abiertos", texto: "Entrenamiento personalizado 1:1", boton: "Quiero mi cupo", servicio: "Entrenamiento 1:1", activo: true },
+];
+
+// Profesionales recomendados. Deja `nombre` vacio para mostrar la tarjeta como "pronto".
+const PROFESIONALES = [
+  { area: "Nutrición", icono: "🥗", nombre: "", descripcion: "", instagram: "", contacto: "" },
+  { area: "Kinesiología", icono: "🦵", nombre: "", descripcion: "", instagram: "", contacto: "" },
+  { area: "Psicología deportiva", icono: "🧠", nombre: "", descripcion: "", instagram: "", contacto: "" },
+  { area: "Otros profesionales", icono: "🤝", nombre: "", descripcion: "", instagram: "", contacto: "" },
+];
+
+// Reseñas REALES (con permiso de cada alumna). foto: "assets/..." opcional.
+// Mientras este vacio se muestra una tarjeta "Muy pronto".
+const RESENAS = [
+  // { nombre: "C. M.", proceso: "Asesoría online · 3 meses", texto: "...", estrellas: 5, foto: "" },
+];
+
+// Horarios: completa con los reales.
+const HORARIOS = [
+  { dias: "Lunes a viernes", horas: "Por confirmar" },
+  { dias: "Sábado", horas: "Por confirmar" },
+  { dias: "Domingo", horas: "Por confirmar" },
+];
+
+/* =========================================================
+   A PARTIR DE AQUI: comportamiento (no hace falta editar)
+   ========================================================= */
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const waLink = (text = "") => CONFIG.whatsapp ? `https://wa.me/${CONFIG.whatsapp}${text ? "?text=" + encodeURIComponent(text) : ""}` : null;
+const talkLink = (text) => waLink(text) || CONFIG.instagram;
+
+/* ---------- navbar ---------- */
+const nav = $("#nav");
+const onScroll = () => nav.classList.toggle("scrolled", scrollY > 30);
+addEventListener("scroll", onScroll, { passive: true }); onScroll();
+$("#burger").addEventListener("click", () => {
+  const open = nav.classList.toggle("open");
+  $("#burger").setAttribute("aria-expanded", open);
+});
+$$("#menu a").forEach((a) => a.addEventListener("click", () => { nav.classList.remove("open"); $("#burger").setAttribute("aria-expanded", false); }));
+
+/* ---------- titulos palabra por palabra ---------- */
+$$("[data-split]").forEach((el) => {
+  let i = 0;
+  const walk = (node) => {
+    [...node.childNodes].forEach((n) => {
+      if (n.nodeType === 3) {
+        const frag = document.createDocumentFragment();
+        n.textContent.split(/(\s+)/).forEach((part) => {
+          if (!part) return;
+          if (/^\s+$/.test(part)) { frag.append(" "); return; }
+          const w = document.createElement("span"); w.className = "w";
+          const s = document.createElement("span"); s.textContent = part;
+          s.style.transitionDelay = (i++ * 0.06) + "s";
+          w.append(s); frag.append(w);
+        });
+        n.replaceWith(frag);
+      } else if (n.nodeType === 1) walk(n);
+    });
+  };
+  walk(el);
+  el.classList.add("split");
+});
+
+/* ---------- reveal al hacer scroll ---------- */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+}, { threshold: 0.18, rootMargin: "0px 0px -6% 0px" });
+const observeAll = () => $$(".reveal:not(.in), .split:not(.in), .manifesto:not(.in), #measureCard:not(.in)").forEach((el) => io.observe(el));
+
+/* ---------- marquee ---------- */
+(() => {
+  const t = $("#marquee");
+  const one = MARQUEE.map((m) => `<span>${esc(m)} ✦</span>`).join("");
+  t.innerHTML = one.repeat(4) + one.repeat(4); // dos mitades iguales para el loop
+})();
+
+/* ---------- parallax hero ---------- */
+(() => {
+  if (reduce) return;
+  const art = $("#heroArt"); const decos = $$(".deco", art);
+  let mx = 0, my = 0, sy = 0, raf = 0;
+  const apply = () => {
+    raf = 0;
+    decos.forEach((d) => { const k = +d.dataset.depth || 10; d.style.translate = `${mx * k}px ${my * k - sy * k * 0.012}px`; });
+    $(".hero-char", art).style.translate = `${mx * -6}px ${-sy * 0.06}px`;
+  };
+  const req = () => { if (!raf) raf = requestAnimationFrame(apply); };
+  addEventListener("pointermove", (e) => { if (e.pointerType !== "mouse") return; mx = e.clientX / innerWidth - 0.5; my = e.clientY / innerHeight - 0.5; req(); }, { passive: true });
+  addEventListener("scroll", () => { if (scrollY < innerHeight * 1.2) { sy = scrollY; req(); } }, { passive: true });
+})();
+
+/* ---------- servicio preseleccionado desde CTAs ---------- */
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("[data-servicio]"); if (!a) return;
+  const r = $(`#form input[name="servicio"][value="${a.dataset.servicio}"]`); if (r) r.checked = true;
+});
+
+/* ---------- carruseles ---------- */
+function setupCarousel(root) {
+  const track = $(".track", root); const dots = $(".dots", root);
+  const items = [...track.children];
+  dots.innerHTML = items.map((_, i) => `<button aria-label="Ir a ${i + 1}"></button>`).join("");
+  const step = () => (items[1] ? items[1].offsetLeft - items[0].offsetLeft : track.clientWidth);
+  const update = () => {
+    const idx = Math.round(track.scrollLeft / step());
+    $$("button", dots).forEach((b, i) => b.classList.toggle("on", i === Math.min(idx, items.length - 1)));
+  };
+  $$(".arrow", root).forEach((b) => b.addEventListener("click", () => track.scrollBy({ left: step() * +b.dataset.dir, behavior: reduce ? "auto" : "smooth" })));
+  $$("button", dots).forEach((b, i) => b.addEventListener("click", () => track.scrollTo({ left: step() * i, behavior: reduce ? "auto" : "smooth" })));
+  track.addEventListener("scroll", () => requestAnimationFrame(update), { passive: true });
+  track.addEventListener("keydown", (e) => { if (e.key === "ArrowRight") track.scrollBy({ left: step() }); if (e.key === "ArrowLeft") track.scrollBy({ left: -step() }); });
+  // arrastre con mouse (en celular el swipe es nativo)
+  let down = false, sx = 0, sl = 0;
+  track.addEventListener("pointerdown", (e) => { if (e.pointerType !== "mouse") return; down = true; sx = e.clientX; sl = track.scrollLeft; track.style.scrollSnapType = "none"; });
+  addEventListener("pointermove", (e) => { if (down) track.scrollLeft = sl - (e.clientX - sx); });
+  addEventListener("pointerup", () => { if (!down) return; down = false; track.style.scrollSnapType = ""; track.scrollTo({ left: Math.round(track.scrollLeft / step()) * step(), behavior: "smooth" }); });
+  update();
+  const hide = items.length < 2; $(".arrows", root).style.display = hide ? "none" : ""; dots.style.display = hide ? "none" : "";
+}
+
+/* ---------- render: sabias que ---------- */
+$("#factsTrack").innerHTML = SABIAS_QUE.map((f, i) => `
+  <article class="fact">
+    <span class="num">${String(i + 1).padStart(2, "0")}</span>
+    <h3>${esc(f.titulo)}</h3>
+    <p>${esc(f.texto)}</p>
+    ${f.fuente ? `<p class="src">Fuente: ${f.fuente.url ? `<a href="${esc(f.fuente.url)}" target="_blank" rel="noopener">${esc(f.fuente.texto)}</a>` : esc(f.fuente.texto)}</p>` : ""}
+  </article>`).join("");
+$("#moreFacts").href = CONFIG.instagram;
+
+/* ---------- render: promos ---------- */
+(() => {
+  const act = PROMOS.filter((p) => p.activo);
+  const soon = `<article class="promo promo--soon reveal"><span class="type">Novedades</span><h3>Próximamente ✦</h3><p>Muy pronto compartiremos nuevas promociones y servicios.</p></article>`;
+  $("#promos").innerHTML = act.map((p, i) => `
+    <article class="promo ${i === 0 ? "promo--live" : ""} reveal" data-d="${i % 3}">
+      <span class="type">${esc(p.etiqueta || p.tipo)}</span>
+      <h3>${esc(p.titulo)}</h3>
+      <p>${esc(p.texto)}</p>
+      ${p.boton ? `<a href="#contacto" class="btn ${i === 0 ? "" : "btn--sm"}" data-servicio="${esc(p.servicio || "")}">${esc(p.boton)}</a>` : ""}
+    </article>`).join("") + soon;
+})();
+
+/* ---------- render: profesionales ---------- */
+$("#pros").innerHTML = PROFESIONALES.map((p, i) => {
+  const ok = !!p.nombre;
+  const ig = p.instagram ? `<a class="btn btn--ghost btn--sm" href="https://instagram.com/${esc(p.instagram.replace("@", ""))}" target="_blank" rel="noopener">Instagram</a>` : "";
+  const ct = p.contacto ? `<a class="btn btn--sm" href="${esc(p.contacto)}" target="_blank" rel="noopener">Contactar</a>` : "";
+  const ask = `<a class="btn btn--ghost btn--sm" href="${esc(talkLink("Hola Yohi! Me gustaría una recomendación de " + p.area.toLowerCase() + " 💗"))}" target="_blank" rel="noopener">Pedir recomendación</a>`;
+  return `<article class="pro reveal" data-d="${i % 4}">
+    <div class="ico">${p.icono}</div>
+    <small>${esc(p.area)}</small>
+    <b>${ok ? esc(p.nombre) : "Pronto en la red ✦"}</b>
+    <p>${ok ? esc(p.descripcion) : "Pídele a Yohi una recomendación según lo que necesites."}</p>
+    <div class="links">${ok ? ig + ct : ask}</div>
+  </article>`;
+}).join("");
+
+/* ---------- render: reseñas ---------- */
+$("#reviewsTrack").innerHTML = RESENAS.length
+  ? RESENAS.map((r) => `
+    <article class="review">
+      <div class="stars" aria-label="${r.estrellas || 5} de 5 estrellas">${"★".repeat(r.estrellas || 5)}</div>
+      <blockquote>“${esc(r.texto)}”</blockquote>
+      <div class="who">
+        <div class="avatar">${r.foto ? `<img src="${esc(r.foto)}" alt="" loading="lazy">` : esc(r.nombre.slice(0, 2))}</div>
+        <div><b>${esc(r.nombre)}</b><small>${esc(r.proceso || "")}</small></div>
+      </div>
+    </article>`).join("")
+  : `<article class="review review--empty"><span class="badge">Reseñas reales</span><h3>Muy pronto: historias de alumnas reales 💗</h3><p class="muted" style="font-weight:600">¿Entrenas con Yohi? Cuéntanos cómo va tu proceso.</p><a class="btn btn--sm" href="${esc(talkLink("Hola Yohi! Quiero dejar mi reseña 💗"))}" target="_blank" rel="noopener">Dejar mi reseña</a></article>`;
+
+/* ---------- render: horarios ---------- */
+$("#hours").innerHTML = HORARIOS.map((h) => `<li><span>${esc(h.dias)}</span><span>${esc(h.horas)}</span></li>`).join("");
+
+/* ---------- render: redes ---------- */
+(() => {
+  const s = [`<a href="${CONFIG.instagram}" target="_blank" rel="noopener">Instagram</a>`];
+  if (CONFIG.whatsapp) s.push(`<a href="${waLink()}" target="_blank" rel="noopener">WhatsApp</a>`);
+  if (CONFIG.email) s.push(`<a href="mailto:${CONFIG.email}">Email</a>`);
+  $("#socials").innerHTML = s.join("");
+  const fab = $("#waFab");
+  if (CONFIG.whatsapp) fab.href = waLink("Hola Yohi! 💗 Quiero más información.");
+  else { fab.href = CONFIG.instagram; fab.setAttribute("aria-label", "Escribir a Yohi por Instagram"); }
+})();
+
+$$("[data-carousel]").forEach(setupCarousel);
+observeAll();
+
+/* ---------- formulario ---------- */
+$("#form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  const req = $$("[required]", f);
+  const bad = req.find((el) => (el.type === "radio" ? !$(`input[name="${el.name}"]:checked`, f) : !el.value.trim() || !el.checkValidity()));
+  if (bad) { (bad.type === "radio" ? bad.closest("fieldset") : bad).scrollIntoView({ behavior: "smooth", block: "center" }); if (bad.focus) bad.focus({ preventScroll: true }); return; }
+  const data = Object.fromEntries(new FormData(f).entries());
+  const resumen = `Hola Yohi! 💗 Soy ${data.nombre}${data.edad ? ` (${data.edad} años)` : ""}.\nBusco: ${data.servicio}\nDías por semana: ${data.dias || "-"}\nObjetivo: ${data.objetivo || "-"}\nEmail: ${data.email}\nWhatsApp: ${data.whatsapp}\n${data.mensaje ? "Mensaje: " + data.mensaje : ""}`;
+  try {
+    if (CONFIG.formEndpoint) {
+      await fetch(CONFIG.formEndpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(data) });
+    } else if (CONFIG.whatsapp) {
+      window.open(waLink(resumen), "_blank", "noopener");
+    } else {
+      console.warn("[YOHI] Formulario sin destino: configura CONFIG.formEndpoint o CONFIG.whatsapp.", data);
+    }
+  } catch (err) { console.error(err); }
+  f.classList.add("sent");
+});
+
+/* ---------- Yohi Bot ---------- */
+const bot = $("#bot"), body = $("#botBody"), quick = $("#botQuick"), fabBtn = $("#botFab");
+const SERV = {
+  presencial: { t: "Entrenamiento 1:1", d: "Para personas que buscan acompañamiento presencial, corrección técnica y seguimiento cercano.", s: "Entrenamiento 1:1", href: "#servicio-1a1" },
+  online: { t: "Asesoría online 1:1", d: "Para personas que quieren entrenar desde donde estén con planificación y seguimiento personalizado.", s: "Asesoría online", href: "#servicio-online" },
+};
+const MENU = [
+  ["¿Qué servicio necesito?", "need"],
+  ["¿1:1 presencial u online?", "compare"],
+  ["¿Cómo funcionan las asesorías?", "how"],
+  ["¿Cuáles son los horarios?", "hours"],
+  ["¿Cómo puedo reservar?", "book"],
+  ["Quiero hablar con Yohi", "talk"],
+];
+let started = false;
+const scrollBot = () => body.scrollTo({ top: body.scrollHeight, behavior: reduce ? "auto" : "smooth" });
+const say = (html, who = "bot") => new Promise((res) => {
+  if (who === "user") { body.insertAdjacentHTML("beforeend", `<div class="msg user-m">${html}</div>`); scrollBot(); return res(); }
+  const t = document.createElement("div"); t.className = "msg bot-m typing"; t.innerHTML = "<i></i><i></i><i></i>";
+  body.append(t); scrollBot();
+  setTimeout(() => { t.remove(); body.insertAdjacentHTML("beforeend", `<div class="msg bot-m">${html}</div>`); scrollBot(); res(); }, reduce ? 0 : 650);
+});
+const card = (k) => { const s = SERV[k]; body.insertAdjacentHTML("beforeend", `<div class="svc-mini"><b>${s.t}</b><p>${s.d}</p><a class="btn btn--sm" href="${s.href}" data-close>Ver ${k === "online" ? "asesoría" : "1:1"}</a></div>`); scrollBot(); };
+const options = (list) => { quick.innerHTML = list.map(([l, k]) => `<button data-k="${k}">${l}</button>`).join(""); };
+const finale = async () => {
+  await say("Si quieres, te derivo directamente con Yohi 💗");
+  quick.innerHTML = `<a class="btn" href="${esc(talkLink("Hola Yohi! 💗 Vengo desde la web."))}" target="_blank" rel="noopener">Hablar con Yohi</a><button data-k="menu">Ver otras preguntas</button>`;
+};
+const flows = {
+  async need() { await say("¡Vamos! ¿Cómo te gustaría entrenar?"); options([["Acompañada, en presencial", "pick-presencial"], ["Desde donde esté, online", "pick-online"], ["No estoy segura", "compare"]]); },
+  async "pick-presencial"() { await say("Entonces lo tuyo es:"); card("presencial"); await finale(); },
+  async "pick-online"() { await say("Entonces lo tuyo es:"); card("online"); await finale(); },
+  async compare() { await say("Te muestro las dos opciones:"); card("presencial"); card("online"); await finale(); },
+  async how() {
+    await say("En la <b>asesoría online 1:1</b> tienes:<br>✦ Planificación personalizada<br>✦ Seguimiento<br>✦ Adaptación según tu progreso<br>✦ Orientación de entrenamiento");
+    await say("Los planes pueden variar según la cantidad de días que necesites entrenar."); await finale();
+  },
+  async hours() { await say("Los horarios de entrenamiento están sujetos a disponibilidad y reserva previa. Puedes verlos en la sección <a href='#horarios' data-close style='text-decoration:underline'>Horarios</a> 🕒"); await finale(); },
+  async book() { await say("Completa el formulario de contacto con tus datos y Yohi se pondrá en contacto contigo 💗"); quick.innerHTML = `<a class="btn" href="#contacto" data-close>Ir al formulario</a><button data-k="menu">Ver otras preguntas</button>`; },
+  async talk() { await finale(); },
+  async menu() { await say("¿En qué más te ayudo?"); options(MENU); },
+};
+const openBot = async () => {
+  bot.classList.add("open"); fabBtn.setAttribute("aria-expanded", true);
+  if (!started) { started = true; await say("Holiii 💗 Soy Yohi Bot. Te ayudo a encontrar la opción que más se adapta a ti."); options(MENU); }
+};
+const closeBot = () => { bot.classList.remove("open"); fabBtn.setAttribute("aria-expanded", false); };
+fabBtn.addEventListener("click", () => (bot.classList.contains("open") ? closeBot() : openBot()));
+$("#botClose").addEventListener("click", closeBot);
+addEventListener("keydown", (e) => { if (e.key === "Escape") closeBot(); });
+quick.addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-k]"); if (!b) return;
+  quick.innerHTML = "";
+  await say(esc(b.textContent), "user");
+  await flows[b.dataset.k]();
+});
+bot.addEventListener("click", (e) => { const a = e.target.closest("[data-close]"); if (a) closeBot(); });
+</script>
+</body>
+</html>
