@@ -1,11 +1,17 @@
 # Guía de marca — Yohi Coach
 
-## Recursos
-| Archivo | Uso |
-|---|---|
-| `logo-yohi-coach.png` | Logo principal (YOHI en sentadilla con barra). Cierres de video, perfil, portadas. |
-| `personaje-yohi-pensando.png` | YOHI pensando con "??". Hooks de mitos, preguntas y "¿sabías que…?". |
-| `sello-certified.jpg` | Sello. Usar solo con certificación real y verificable detrás. |
+## Recursos (personaje y logos)
+Usar siempre estos nombres de archivo. Elegir la pose según el mensaje.
+
+| Archivo | Pose / uso | Estado |
+|---|---|---|
+| `yohi_duda.png` | Con signos de interrogación. Ganchos de mitos, preguntas, dudas. | ✅ |
+| `yohi_saludo.png` | Saludando. Bienvenidas, presentación, cierres. | ⏳ pendiente subir |
+| `yohi_cuaderno.png` | Con lápiz y cuaderno. Planificación, registro, tips. | ⏳ pendiente subir |
+| `yohi_pizarra.png` | Explicando la sentadilla. Contenido educativo/técnica. | ⏳ pendiente subir |
+| `yohi_escritorio.png` | En el escritorio con notebook. Asesorías online, CTA. | ⏳ pendiente subir |
+| `logo_yohi.png` | Logo circular. Perfil, cierre de videos, esquina de piezas. | ✅ |
+| `sello_certified.jpg` | Sello "Certified". Solo con certificación real y verificable. | ✅ |
 
 ## Paleta
 | Color | Hex | Uso |
