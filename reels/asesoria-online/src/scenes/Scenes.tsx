@@ -405,7 +405,7 @@ export const Scene8: React.FC = () => {
   const glow = 0.7 + 0.3 * Math.sin(frame / 6);
   const btn = pop(frame, fps, 52, 11, 0.6);
   const btnPulse = 1 + 0.045 * Math.sin((frame - 52) / 4.5) * (frame > 64 ? 1 : 0);
-  const flash = interpolate(frame, [STAMP, STAMP + 6], [0.22, 0], clamp);
+  const flash = interpolate(frame, [STAMP - 1, STAMP, STAMP + 6], [0, 0.22, 0], clamp);
 
   return (
     <AbsoluteFill style={{ translate: `${shakeX}px ${shakeY}px` }}>

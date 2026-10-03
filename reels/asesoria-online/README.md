@@ -1,7 +1,7 @@
 # Historia · Asesoría online 1:1 (@yohi.coach)
 
 Video para historias de Instagram hecho con Remotion (React + TypeScript).
-1080×1920 · 30 fps · 35 s · MP4 H.264 yuv420p CRF 18 · AAC 48 kHz (-14 LUFS).
+1080×1920 · 30 fps · 32,3 s (35 s con la escena de precio, ver `mostrarPrecio` en src/timing.ts) · MP4 H.264 yuv420p CRF 18 · AAC 48 kHz (-14 LUFS).
 
 ## Previsualizar
 

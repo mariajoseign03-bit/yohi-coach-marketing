@@ -1,4 +1,10 @@
-// Inicio y duracion de cada escena, en frames (30 fps). Total: 35 s = 1050 frames.
+// Escena 7 (precio): apagada. Cambia a `true` para volver a mostrarla (el video dura 2,7 s mas).
+export const mostrarPrecio = false;
+
+const PRECIO = mostrarPrecio ? 80 : 0;
+
+// Inicio y duracion de cada escena, en frames (30 fps).
+// Sin precio: 32,3 s = 970 frames. Con precio: 35 s = 1050 frames.
 export const scenes = {
   s1: { from: 0, duration: 100 }, // 0 - 3,3 s   gancho
   s2: { from: 100, duration: 100 }, // 3,3 - 6,7 s teléfono
@@ -6,9 +12,11 @@ export const scenes = {
   s4: { from: 440, duration: 200 }, // 14,7 - 21,3 s app + pills
   s5: { from: 640, duration: 85 }, // 21,3 - 24,2 s técnica
   s6: { from: 725, duration: 120 }, // 24,2 - 28,2 s seguimiento
-  s7: { from: 845, duration: 80 }, // 28,2 - 30,8 s precio
-  s8: { from: 925, duration: 125 }, // 30,8 - 35 s CTA
+  s7: { from: 845, duration: PRECIO }, // precio (apagado)
+  s8: { from: 845 + PRECIO, duration: 125 }, // CTA
 };
+
+export const totalFrames = scenes.s8.from + scenes.s8.duration;
 
 // Teléfono: vive de la escena 2 a la 4 (frames locales dentro de su secuencia).
 export const phone = {

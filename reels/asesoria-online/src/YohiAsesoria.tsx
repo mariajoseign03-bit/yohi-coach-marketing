@@ -5,7 +5,7 @@ import { Background } from "./components/Background";
 import { Phone } from "./components/Phone";
 import { Scene1, Scene2, Scene4, Scene5, Scene6, Scene7, Scene8, WhipFlash } from "./scenes/Scenes";
 import { sfxVolume as v } from "./theme";
-import { app, chat, phone, scenes } from "./timing";
+import { app, chat, mostrarPrecio, phone, scenes } from "./timing";
 
 const Sfx: React.FC<{ at: number; file: string; volume: number; name: string }> = ({ at, file, volume, name }) => (
   <Sequence from={at} name={`SFX ${name}`} layout="none">
@@ -42,15 +42,17 @@ export const YohiAsesoria: React.FC = () => {
       <Sequence name="6 · Seguimiento" from={s6.from} durationInFrames={s6.duration} premountFor={fps}>
         <Scene6 />
       </Sequence>
-      <Sequence name="7 · Precio" from={s7.from} durationInFrames={s7.duration} premountFor={fps}>
-        <Scene7 />
-      </Sequence>
+      {mostrarPrecio && (
+        <Sequence name="7 · Precio" from={s7.from} durationInFrames={s7.duration} premountFor={fps}>
+          <Scene7 />
+        </Sequence>
+      )}
       <Sequence name="8 · CTA" from={s8.from} durationInFrames={s8.duration} premountFor={fps}>
         <Scene8 />
       </Sequence>
 
       {/* Destellos de transicion en cada corte */}
-      {[s2.from, s4.from, s5.from, s6.from, s7.from, s8.from].map((at) => (
+      {[s2.from, s4.from, s5.from, s6.from, ...(mostrarPrecio ? [s7.from] : []), s8.from].map((at) => (
         <Sequence key={at} name="Whip" from={at - 4} durationInFrames={10}>
           <WhipFlash />
         </Sequence>
@@ -82,8 +84,8 @@ export const YohiAsesoria: React.FC = () => {
       {/* Escena 6 */}
       <Sfx name="shimmer" at={s6.from + 6} file="shimmer" volume={v.shimmer} />
       {/* Escena 7 */}
-      <Sfx name="click" at={s7.from + 2} file="click" volume={v.click} />
-      <Sfx name="cha-ching" at={s7.from + 10} file="chaching" volume={v.chaching} />
+      {mostrarPrecio && <Sfx name="click" at={s7.from + 2} file="click" volume={v.click} />}
+      {mostrarPrecio && <Sfx name="cha-ching" at={s7.from + 10} file="chaching" volume={v.chaching} />}
       {/* Escena 8 */}
       <Sfx name="brillo" at={s8.from + 2} file="sparkle" volume={v.sparkle} />
       <Sfx name="sello" at={s8.from + 26} file="stamp" volume={v.stamp} />

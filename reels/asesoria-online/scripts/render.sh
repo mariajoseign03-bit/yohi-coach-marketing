@@ -16,7 +16,7 @@ STATS=$(ffmpeg -hide_banner -i out/_raw.mp4 -af loudnorm=I=-14:TP=-1.5:LRA=11:pr
 get() { echo "$STATS" | grep "\"$1\"" | sed -E 's/.*: "([^"]+)".*/\1/'; }
 ffmpeg -y -hide_banner -loglevel error -i out/_raw.mp4 -c:v copy \
   -af "loudnorm=I=-14:TP=-1.5:LRA=11:measured_I=$(get input_i):measured_TP=$(get input_tp):measured_LRA=$(get input_lra):measured_thresh=$(get input_thresh):offset=$(get target_offset):linear=true,aresample=48000" \
-  -c:a aac -b:a 320k -ar 48000 -t 35 -movflags +faststart out/yohi-asesoria-online.mp4
+  -c:a aac -b:a 320k -ar 48000 -shortest -movflags +faststart out/yohi-asesoria-online.mp4
 rm -f out/_raw.mp4
 
 # Portada (frame de la escena 2)

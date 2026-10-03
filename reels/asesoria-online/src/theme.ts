@@ -18,7 +18,6 @@ export const video = {
   width: 1080,
   height: 1920,
   fps: 30,
-  durationInFrames: 35 * 30,
 };
 
 // Zonas seguras de historias de Instagram: ningun texto dentro de estas franjas.
