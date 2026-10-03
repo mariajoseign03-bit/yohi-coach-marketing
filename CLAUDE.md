@@ -36,6 +36,13 @@ Guía completa en `marca/guia-de-marca.md`. Resumen:
 - No dar indicaciones médicas ni nutricionales individuales en contenido masivo; derivar a 1:1 o a profesional.
 - El sello "CERTIFIED" solo se usa si existe una certificación real y verificable que lo respalde.
 
+## Herramientas de video (decisión de marca)
+- **Remotion** → plantillas de serie con datos que se repiten (ej. "¿Mito o realidad? 🤔" con fuente en pantalla),
+  intros/cierres de marca y videos generados desde guion.
+- **HyperFrames** → edición de videos grabados: subtítulos animados (`embedded-captions`),
+  recortes de videos hablando a cámara (`talking-head-recut`), carruseles a video y efectos rápidos.
+- Si una pieza no encaja claro en una de las dos, preguntar antes de elegir. No mezclar ambas en una misma pieza.
+
 ## Estructura
 - `reels/` guiones y videos (Remotion)
 - `carruseles/`, `historias/`, `copys/` piezas por formato
