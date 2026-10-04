@@ -5,7 +5,9 @@ frames = sys.argv[2:]
 out = sys.argv[1]
 ims = []
 for f in frames:
-    im = Image.open(f"out/qa/f{int(f):04d}.png").convert("RGB").resize((432, 768))
+    import os
+    comp = os.environ.get("COMP", "YohiAsesoriaOnline")
+    im = Image.open(f"out/qa/{comp}-f{int(f):04d}.png").convert("RGB").resize((432, 768))
     d = ImageDraw.Draw(im)
     d.line([(0, 100), (432, 100)], fill=(0, 255, 0), width=2)
     d.line([(0, 768 - 136), (432, 768 - 136)], fill=(0, 255, 0), width=2)

@@ -4,12 +4,13 @@ import { bundle } from "@remotion/bundler";
 import { renderStill, selectComposition } from "@remotion/renderer";
 import path from "node:path";
 
+const COMP = process.env.COMP ?? "YohiAsesoriaOnline";
 const frames = process.argv.slice(2).map(Number);
 const list = frames.length ? frames : [80, 190, 300, 425, 520, 625, 710, 830, 910, 1040];
 const serveUrl = await bundle({ entryPoint: path.resolve("src/index.ts") });
 const browserExecutable = process.env.REMOTION_CHROME ?? null;
-const composition = await selectComposition({ serveUrl, id: "YohiAsesoriaOnline", browserExecutable });
+const composition = await selectComposition({ serveUrl, id: COMP, browserExecutable });
 for (const frame of list) {
-  await renderStill({ composition, serveUrl, frame, output: `out/qa/f${String(frame).padStart(4, "0")}.png`, browserExecutable });
+  await renderStill({ composition, serveUrl, frame, output: `out/qa/${COMP}-f${String(frame).padStart(4, "0")}.png`, browserExecutable });
   console.log("ok", frame);
 }

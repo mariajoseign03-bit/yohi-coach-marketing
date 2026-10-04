@@ -162,6 +162,35 @@ def typing() -> np.ndarray:
     return x
 
 
+def zap() -> np.ndarray:
+    """Descarga electrica: rafagas de ruido agudo con chisporroteo."""
+    tt = t(0.7)
+    x = np.zeros_like(tt)
+    for k in range(9):
+        start = int(rng.uniform(0, 0.35) * SR)
+        seg = t(rng.uniform(0.02, 0.08))
+        burst = highpass(rng.standard_normal(len(seg)), 2500) * np.sign(np.sin(2 * np.pi * rng.uniform(80, 160) * seg))
+        end = min(len(x), start + len(seg))
+        x[start:end] += burst[: end - start] * rng.uniform(0.4, 1)
+    buzz = np.sign(np.sin(2 * np.pi * 110 * tt)) * 0.25
+    return env(x + buzz * np.exp(-tt / 0.15), 0.001, 0.25)
+
+
+def tick() -> np.ndarray:
+    tt = t(0.12)
+    tone = env(np.sin(2 * np.pi * 1500 * tt) + 0.5 * np.sin(2 * np.pi * 3000 * tt), 0.0005, 0.03)
+    snap = env(highpass(rng.standard_normal(len(tt)), 3000), 0.0003, 0.006) * 0.6
+    return tone + snap
+
+
+def riser(dur: float = 1.8) -> np.ndarray:
+    tt = t(dur)
+    f = 200 * (12 ** (tt / dur))
+    tone = np.sin(2 * np.pi * np.cumsum(f) / SR) * 0.35
+    noise = highpass(rng.standard_normal(len(tt)), 1500) * (tt / dur) ** 2
+    return (tone + noise) * (tt / dur) ** 1.5
+
+
 if __name__ == "__main__":
     save("boom", boom())
     save("whoosh", whoosh())
@@ -177,3 +206,6 @@ if __name__ == "__main__":
     save("stamp", stamp())
     save("sparkle", sparkle())
     save("typing", typing(), peak_db=-9.0)
+    save("zap", zap())
+    save("tick", tick())
+    save("riser", riser())
