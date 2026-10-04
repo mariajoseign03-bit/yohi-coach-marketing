@@ -567,17 +567,17 @@ footer .big span{color:var(--rosa)}
 
       <div class="creds">
         <div class="cred reveal" data-d="1">
-          <div class="ico">🎓</div>
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></svg></div>
           <small>Entrenadora</small>
           <b>Egresada de Universidad Santo Tomás.</b>
         </div>
         <div class="cred reveal" data-d="2">
-          <div class="ico">✦</div>
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg></div>
           <small>Enfoque</small>
           <b>Entrenar con intención, no por entrenar.</b>
         </div>
         <div class="cred cred--wide reveal" data-d="3">
-          <div class="ico">📚</div>
+          <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg></div>
           <small>Diplomados</small>
           <ul>
             <li>Entrenamiento físico para el deporte</li>
@@ -806,11 +806,12 @@ const PROMOS = [
 ];
 
 // Profesionales recomendados. Deja `nombre` vacio para mostrar la tarjeta como "pronto".
+// icono: "nutricion" | "kine" | "psico" | "otros"
 const PROFESIONALES = [
-  { area: "Nutrición", icono: "🥗", nombre: "", descripcion: "", instagram: "", contacto: "" },
-  { area: "Kinesiología", icono: "🦵", nombre: "", descripcion: "", instagram: "", contacto: "" },
-  { area: "Psicología deportiva", icono: "🧠", nombre: "", descripcion: "", instagram: "", contacto: "" },
-  { area: "Otros profesionales", icono: "🤝", nombre: "", descripcion: "", instagram: "", contacto: "" },
+  { area: "Nutrición", icono: "nutricion", nombre: "", descripcion: "", instagram: "", contacto: "" },
+  { area: "Kinesiología", icono: "kine", nombre: "", descripcion: "", instagram: "", contacto: "" },
+  { area: "Psicología deportiva", icono: "psico", nombre: "", descripcion: "", instagram: "", contacto: "" },
+  { area: "Otros profesionales", icono: "otros", nombre: "", descripcion: "", instagram: "", contacto: "" },
 ];
 
 // Reseñas REALES (con permiso de cada alumna). foto: "assets/..." opcional.
@@ -949,6 +950,15 @@ $("#moreFacts").href = CONFIG.instagram;
     </article>`).join("") + soon;
 })();
 
+/* ---------- iconos (SVG, sin emojis) ---------- */
+const svg = (d) => `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FF4FA3" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICONOS = {
+  nutricion: svg('<path d="M12 7c-2-3-7-2-7 3 0 5 4 10 7 10s7-5 7-10c0-5-5-6-7-3Z"/><path d="M12 7c0-2 1-4 3-4"/>'),
+  kine: svg('<path d="M3 12h4l3-8 4 16 3-8h4"/>'),
+  psico: svg('<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/>'),
+  otros: svg('<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5"/><path d="M16 4a3 3 0 0 1 0 6"/><path d="M21 20c0-2-1.5-4-4-4.5"/>'),
+};
+
 /* ---------- render: profesionales ---------- */
 $("#pros").innerHTML = PROFESIONALES.map((p, i) => {
   const ok = !!p.nombre;
@@ -956,7 +966,7 @@ $("#pros").innerHTML = PROFESIONALES.map((p, i) => {
   const ct = p.contacto ? `<a class="btn btn--sm" href="${esc(p.contacto)}" target="_blank" rel="noopener">Contactar</a>` : "";
   const ask = `<a class="btn btn--ghost btn--sm" href="${esc(talkLink("Hola Yohi! Me gustaría una recomendación de " + p.area.toLowerCase() + " 💗"))}" target="_blank" rel="noopener">Pedir recomendación</a>`;
   return `<article class="pro reveal" data-d="${i % 4}">
-    <div class="ico">${p.icono}</div>
+    <div class="ico">${ICONOS[p.icono] || ICONOS.otros}</div>
     <small>${esc(p.area)}</small>
     <b>${ok ? esc(p.nombre) : "Pronto en la red ✦"}</b>
     <p>${ok ? esc(p.descripcion) : "Pídele a Yohi una recomendación según lo que necesites."}</p>
