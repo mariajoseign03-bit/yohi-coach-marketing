@@ -17,6 +17,7 @@ const FILES: Record<string, string> = {
   "1f449": "1f449", // 👉
   "26a1": "26a1", // ⚡
   "1f440": "1f440", // 👀
+  "1f499": "1f499", // 💙
 };
 
 const PICTO = /\p{Extended_Pictographic}/u;

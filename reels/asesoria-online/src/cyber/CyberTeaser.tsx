@@ -17,7 +17,7 @@ export const CYBER = {
 } as const;
 
 /* ---------------- Fondo: negro + glow azul + grilla en perspectiva + particulas ---------------- */
-const Background: React.FC = () => {
+export const Background: React.FC = () => {
   const f = useCurrentFrame();
   const breathe = (Math.sin(f / 14) + 1) / 2;
   return (
@@ -83,7 +83,7 @@ const Background: React.FC = () => {
 };
 
 /* ---------------- Rayo ---------------- */
-const Bolt: React.FC<{ at: number; x: number; seed: string; color?: string }> = ({ at, x, seed, color = C.azulClaro }) => {
+export const Bolt: React.FC<{ at: number; x: number; seed: string; color?: string }> = ({ at, x, seed, color = C.azulClaro }) => {
   const f = useCurrentFrame();
   const local = f - at;
   if (local < 0 || local > 7) return null;
@@ -103,7 +103,7 @@ const Bolt: React.FC<{ at: number; x: number; seed: string; color?: string }> = 
 };
 
 /* Destello de pantalla completa */
-const Flash: React.FC<{ at: number; color?: string; max?: number }> = ({ at, color = C.azulClaro, max = 0.55 }) => {
+export const Flash: React.FC<{ at: number; color?: string; max?: number }> = ({ at, color = C.azulClaro, max = 0.55 }) => {
   const f = useCurrentFrame();
   const o = interpolate(f, [at - 1, at, at + 7], [0, max, 0], clamp);
   return <AbsoluteFill style={{ background: color, opacity: o, mixBlendMode: "screen", pointerEvents: "none" }} />;
@@ -138,7 +138,7 @@ const Tags: React.FC<{ from: number; to: number }> = ({ from, to }) => {
 };
 
 /* Destellos tipo estrella */
-const Sparkles: React.FC<{ cx: number; cy: number; at: number; n?: number }> = ({ cx, cy, at, n = 10 }) => {
+export const Sparkles: React.FC<{ cx: number; cy: number; at: number; n?: number }> = ({ cx, cy, at, n = 10 }) => {
   const f = useCurrentFrame();
   const local = f - at;
   if (local < 0 || local > 30) return null;
@@ -312,7 +312,7 @@ const Countdown: React.FC = () => {
 };
 
 /* ---------------- SFX ---------------- */
-const Sfx: React.FC<{ at: number; file: string; volume: number }> = ({ at, file, volume }) => (
+export const Sfx: React.FC<{ at: number; file: string; volume: number }> = ({ at, file, volume }) => (
   <Sequence from={at} layout="none" name={`SFX ${file}`}>
     <Audio src={staticFile(`sfx/${file}.wav`)} volume={volume} />
   </Sequence>
