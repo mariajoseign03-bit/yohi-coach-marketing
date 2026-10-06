@@ -41,3 +41,19 @@ entra al 25 % y hace fade out al final. Si no existe, el video lleva solo efecto
 - `scripts/make_sfx.py`: genera los efectos de sonido por código (sin derechos) → `public/sfx/`.
 - `scripts/qa-stills.mjs` + `scripts/contact.py`: capturas de control por escena en `out/qa/`.
 - Fuentes Anton y Montserrat (Google Fonts, licencia OFL) en `public/fonts/`.
+
+---
+
+# Historia · Ya estamos online (`YohiOnline`)
+
+Presenta la web yohicoach.cl: se escribe la dirección, Enter, recorrido por 7 secciones en un teléfono y cierre
+"YA ESTAMOS ONLINE 💗". 1080×1920 · 30 fps · 18 s. Código en `src/online/`.
+
+- **Textos y etiquetas de cada parada:** `src/online/copy.ts`.
+- **Si la web cambia**, vuelve a capturarla y regenera las imágenes del recorrido:
+  ```bash
+  node scripts/capture-web.mjs ../../site/index.html out/web   # captura móvil de página completa
+  python3 scripts/prepare_web.py out/web/full.png             # tiles en public/web/ + src/online/tour.json
+  ```
+  Las paradas (posición de cada sección) se ajustan en `STOPS` dentro de `scripts/prepare_web.py`.
+- **Exportar:** `bash scripts/render.sh YohiOnline yohi-ya-estamos-online 470`

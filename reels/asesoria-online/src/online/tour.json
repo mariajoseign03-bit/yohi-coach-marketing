@@ -1,0 +1,76 @@
+{
+  "width": 975,
+  "height": 21613,
+  "tiles": [
+    {
+      "src": "web/tile-00.jpg",
+      "y": 0,
+      "h": 3000
+    },
+    {
+      "src": "web/tile-01.jpg",
+      "y": 3000,
+      "h": 3000
+    },
+    {
+      "src": "web/tile-02.jpg",
+      "y": 6000,
+      "h": 3000
+    },
+    {
+      "src": "web/tile-03.jpg",
+      "y": 9000,
+      "h": 3000
+    },
+    {
+      "src": "web/tile-04.jpg",
+      "y": 12000,
+      "h": 3000
+    },
+    {
+      "src": "web/tile-05.jpg",
+      "y": 15000,
+      "h": 3000
+    },
+    {
+      "src": "web/tile-06.jpg",
+      "y": 18000,
+      "h": 3000
+    },
+    {
+      "src": "web/tile-07.jpg",
+      "y": 21000,
+      "h": 613
+    }
+  ],
+  "stops": [
+    {
+      "id": "inicio",
+      "y": 0
+    },
+    {
+      "id": "que-buscas",
+      "y": 2250
+    },
+    {
+      "id": "presencial",
+      "y": 3155
+    },
+    {
+      "id": "online",
+      "y": 5975
+    },
+    {
+      "id": "medicion",
+      "y": 8280
+    },
+    {
+      "id": "novedades",
+      "y": 11800
+    },
+    {
+      "id": "contacto",
+      "y": 15988
+    }
+  ]
+}

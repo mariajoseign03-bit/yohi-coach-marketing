@@ -5,6 +5,7 @@ import { totalFrames } from "./timing";
 import { YohiAsesoria } from "./YohiAsesoria";
 import { CYBER, CyberTeaser } from "./cyber/CyberTeaser";
 import { CyberPrices, PRICES } from "./cyber/CyberPrices";
+import { ONLINE, YohiOnline } from "./online/YohiOnline";
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -29,6 +30,14 @@ export const RemotionRoot: React.FC = () => {
         id="CyberPrecios"
         component={CyberPrices}
         durationInFrames={PRICES.total}
+        fps={video.fps}
+        width={video.width}
+        height={video.height}
+      />
+      <Composition
+        id="YohiOnline"
+        component={YohiOnline}
+        durationInFrames={ONLINE.total}
         fps={video.fps}
         width={video.width}
         height={video.height}
