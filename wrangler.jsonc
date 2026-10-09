@@ -1,7 +1,18 @@
 {
   "name": "yohi-coach-marketing",
+  "main": "src/worker.js",
   "compatibility_date": "2026-09-06",
   "assets": {
-    "directory": "./site"
-  }
+    "directory": "./site",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "yohi-portal",
+      "database_id": "fa9b1d0c-abdd-4469-b209-c0d7b91fa803",
+      "migrations_dir": "migrations"
+    }
+  ]
 }

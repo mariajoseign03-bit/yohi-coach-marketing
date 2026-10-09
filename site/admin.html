@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Panel de Yohi · Yohi Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@500;600;700;800&family=Yellowtail&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite">
+  <p class="muted">Cargando…</p>
+</main>
+<script src="/portal.js"></script>
+<script>
+(async function () {
+  const app = document.getElementById('app');
+  const me = await api('/api/me');
+  if (me.status === 401) { location.replace('/'); return; }
+  if (!me.ok || me.data.user.role !== 'admin') { location.replace('/alumnos'); return; }
+
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+  function select(name, opts, value) {
+    const s = el('select', { name }, opts.map(([v, t]) => el('option', { value: v }, t)));
+    if (value) s.value = value;
+    return s;
+  }
+
+  function approveForm(u, reload) {
+    const msg = el('p', { class: 'err', role: 'alert' });
+    const modality = select('modality', [['presencial', 'Presencial 1:1'], ['online', 'Asesoría online']], 'presencial');
+    const sede = select('sede', [['quilpue', 'Quilpué'], ['vina', 'Viña del Mar'], ['quillota', 'Quillota']], 'quilpue');
+    const sessions = el('input', { name: 'sessions', type: 'number', min: '1', max: '40', value: '12', inputmode: 'numeric' });
+    const months = select('months', [['1', '1 mes'], ['3', '3 meses']], '1');
+    const start = el('input', { name: 'start', type: 'date', value: today });
+    const wPres = el('div', { class: 'form' }, el('label', {}, 'Sede', sede), el('label', {}, 'Sesiones del plan', sessions));
+    const wOn = el('div', { class: 'form', hidden: '' }, el('label', {}, 'Duración', months));
+    modality.addEventListener('change', () => { const p = modality.value === 'presencial'; wPres.hidden = !p; wOn.hidden = p; });
+    const go = el('button', { class: 'btn', type: 'submit' }, 'Aprobar y asignar plan');
+    const form = el('form', { class: 'form', novalidate: '' },
+      el('label', {}, 'Modalidad', modality), wPres, wOn, el('label', {}, 'Inicio del plan', start), msg, go);
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault(); msg.textContent = ''; go.disabled = true;
+      const body = { userId: u.id, modality: modality.value, start: start.value };
+      if (modality.value === 'presencial') { body.sede = sede.value; body.sessions = Number(sessions.value); }
+      else body.months = Number(months.value);
+      const r = await api('/api/admin/approve', body);
+      go.disabled = false;
+      if (!r.ok) { msg.textContent = r.data.error || 'No se pudo aprobar.'; return; }
+      reload();
+    });
+    return form;
+  }
+
+  async function render() {
+    const [pend, stu] = await Promise.all([api('/api/admin/pending'), api('/api/admin/students')]);
+    const top = el('div', { class: 'top' },
+      el('div', {}, el('span', { class: 'brand' }, 'YOHI COACH · PANEL'), el('p', { class: 'hello' }, 'Hola, ' + me.data.user.name.split(' ')[0])),
+      el('button', { class: 'btn ghost small', type: 'button', onclick: logout }, 'Cerrar sesión'));
+
+    const pendingCards = (pend.data.pending || []).map((u) => {
+      const det = el('details', {}, el('summary', { class: 'btn small', style: 'list-style:none' }, 'Revisar y aprobar'), el('div', { style: 'margin-top:14px' }, approveForm(u, render)));
+      const reject = el('button', { class: 'btn ghost small', type: 'button', onclick: async () => {
+        if (!confirm('¿Rechazar la solicitud de ' + u.name + '?')) return;
+        await api('/api/admin/reject', { userId: u.id }); render();
+      } }, 'Rechazar');
+      return el('div', { class: 'card' },
+        el('div', { class: 'item' }, el('div', {}, el('strong', {}, u.name), el('br'), el('span', { class: 'muted' }, u.email)),
+          el('div', { class: 'row' }, reject)),
+        el('div', { style: 'margin-top:14px' }, det));
+    });
+
+    const rows = (stu.data.students || []).map((s) => el('div', { class: 'card item' },
+      el('div', {}, el('strong', {}, s.name), el('br'), el('span', { class: 'muted' }, s.email)),
+      el('div', { class: 'muted', style: 'font-size:13px' }, s.modality
+        ? [s.modality === 'presencial' ? `1:1 · ${SEDE_NOMBRE[s.sede] || ''} · ${s.sessions_total} sesiones` : 'Online', ' · vence ', fmtDate(s.end_date)]
+        : 'Sin plan')));
+
+    app.replaceChildren(top,
+      el('h2', {}, 'Cuentas por aprobar'),
+      pendingCards.length ? el('div', { class: 'list' }, ...pendingCards) : el('p', { class: 'muted' }, 'No hay cuentas pendientes.'),
+      el('h2', {}, 'Alumnos activos'),
+      rows.length ? el('div', { class: 'list' }, ...rows) : el('p', { class: 'muted' }, 'Aún no hay alumnos activos.'));
+  }
+  render();
+})();
+</script>
+</body>
+</html>

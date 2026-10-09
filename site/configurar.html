@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Crear cuenta de Yohi · Yohi Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@500;600;700;800&family=Yellowtail&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
+</head>
+<body>
+<main class="wrap narrow">
+  <div class="top"><span class="brand">YOHI COACH · PRIMERA CONFIGURACIÓN</span></div>
+  <h1>Crear la cuenta de Yohi</h1>
+  <p class="muted">Esto se usa una sola vez. Necesitas el código secreto que se guardó en Cloudflare (variable <code>SETUP_TOKEN</code>). Cuando la cuenta exista, esta página deja de funcionar.</p>
+  <form class="form card" id="f" novalidate>
+    <label>Código secreto<input name="token" type="password" autocomplete="off" required></label>
+    <label>Nombre<input name="name" type="text" autocomplete="name" required></label>
+    <label>Correo<input name="email" type="email" autocomplete="username" required></label>
+    <label>Clave (mínimo 10 caracteres, letras y números)<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+    <p class="err" id="msg" role="alert"></p>
+    <button class="btn" type="submit">Crear cuenta de Yohi</button>
+  </form>
+</main>
+<script src="/portal.js"></script>
+<script>
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target, msg = document.getElementById('msg');
+  msg.className = 'err'; msg.textContent = '';
+  const r = await api('/api/setup', { token: f.token.value, name: f.name.value, email: f.email.value, password: f.password.value });
+  if (!r.ok) { msg.textContent = r.data.error || 'No se pudo crear la cuenta.'; return; }
+  msg.className = 'ok'; msg.textContent = r.data.message + ' Ve a la página principal y entra con "Alumnos".';
+  f.reset();
+});
+</script>
+</body>
+</html>

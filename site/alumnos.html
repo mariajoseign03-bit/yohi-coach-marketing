@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Mi espacio · Yohi Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@500;600;700;800&family=Yellowtail&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite">
+  <p class="muted">Cargando tu espacio…</p>
+</main>
+<script src="/portal.js"></script>
+<script>
+(async function () {
+  const app = document.getElementById('app');
+  const r = await api('/api/me');
+  if (r.status === 401) { location.replace('/'); return; }
+  if (!r.ok) { app.replaceChildren(el('p', { class: 'err' }, r.data.error || 'No pudimos cargar tu espacio.')); return; }
+  const { user, plan } = r.data;
+  if (user.role === 'admin') { location.replace('/admin'); return; }
+
+  const top = el('div', { class: 'top' },
+    el('div', {},
+      el('span', { class: 'brand' }, 'YOHI COACH · ZONA ALUMNOS'),
+      el('p', { class: 'hello' }, 'Hola, ' + user.name.split(' ')[0])),
+    el('button', { class: 'btn ghost small', type: 'button', onclick: logout }, 'Cerrar sesión'));
+
+  const cards = [];
+  if (plan) {
+    const left = daysLeft(plan.end_date);
+    const facts = [
+      el('p', {}, el('span', { class: 'chip' }, plan.modality === 'presencial' ? 'Presencial 1:1' : 'Asesoría online')),
+    ];
+    if (plan.modality === 'presencial') {
+      facts.push(el('h1', {}, plan.sessions_total + ' sesiones'));
+      facts.push(el('p', { class: 'muted' }, SEDE_NOMBRE[plan.sede] || ''));
+    } else {
+      facts.push(el('h1', {}, 'Asesoría online'));
+    }
+    facts.push(el('p', {}, 'Del ', el('strong', {}, fmtDate(plan.start_date)), ' al ', el('strong', {}, fmtDate(plan.end_date)), ' · ',
+      el('span', { class: 'chip gold' }, left + (left === 1 ? ' día' : ' días'))));
+    cards.push(el('section', { class: 'card' }, ...facts));
+  } else {
+    cards.push(el('section', { class: 'card' }, el('h1', {}, 'Tu plan'), el('p', { class: 'muted' }, 'Yohi aún no ha cargado tu plan.')));
+  }
+  if (plan && plan.modality === 'presencial') {
+    cards.push(el('section', { class: 'card' }, el('span', { class: 'chip gold' }, 'Próximamente'),
+      el('h2', {}, 'Agenda'), el('p', { class: 'muted' }, 'Aquí podrás pedir tus horas de la semana.')));
+  }
+  cards.push(el('section', { class: 'card' }, el('span', { class: 'chip gold' }, 'Próximamente'),
+    el('h2', {}, 'Mediciones'), el('p', { class: 'muted' },
+      user.healthConsent
+        ? 'Aquí verás la evolución de tus mediciones Body Pro Go.'
+        : 'Para que Yohi cargue tus mediciones necesitas autorizar el tratamiento de datos de salud. Escríbele a Yohi por WhatsApp si quieres activarlo.')));
+
+  app.replaceChildren(top, el('div', { class: 'grid' }, ...cards),
+    el('p', { class: 'muted', style: 'margin-top:24px;font-size:13px' },
+      'Tus datos están protegidos. ', el('a', { href: '/privacidad' }, 'Política de privacidad'), ' · ', el('a', { href: '/terminos' }, 'Términos')));
+})();
+</script>
+</body>
+</html>
