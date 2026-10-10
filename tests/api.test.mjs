@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import worker from '../src/worker.js';
 
 const db = new DatabaseSync(':memory:');
-for (const f of ['0001_init.sql', '0002_health_consent.sql', '0003_late_cancel.sql']) db.exec(fs.readFileSync('./migrations/' + f, 'utf8'));
+for (const f of ['0001_init.sql', '0002_health_consent.sql', '0003_late_cancel.sql', '0004_pdf.sql']) db.exec(fs.readFileSync('./migrations/' + f, 'utf8'));
 db.exec('PRAGMA foreign_keys = ON');
 
 function stmt(sql) {
@@ -14,7 +14,7 @@ function stmt(sql) {
     bind(...a) { args = a; return o; },
     async first() { return db.prepare(sql).get(...args) || null; },
     async all() { return { results: db.prepare(sql).all(...args) }; },
-    async run() { db.prepare(sql).run(...args); return { success: true }; },
+    async run() { const r = db.prepare(sql).run(...args); return { success: true, meta: { last_row_id: Number(r.lastInsertRowid) } }; },
     _run() { db.prepare(sql).run(...args); },
   };
   return o;
@@ -27,10 +27,11 @@ const env = { DB, SETUP_TOKEN: 'codigo-secreto-123', ASSETS: { fetch: () => new 
 const ORIGIN = 'https://yohicoach.cl';
 let cookie = '';
 async function call(method, path, body, opts = {}) {
-  const headers = { 'content-type': 'application/json', 'cf-connecting-ip': opts.ip || '1.1.1.1' };
+  const headers = { 'cf-connecting-ip': opts.ip || '1.1.1.1' };
+  if (!(body instanceof FormData)) headers['content-type'] = 'application/json';
   if (method === 'POST') headers.origin = opts.origin ?? ORIGIN;
   if (cookie && !opts.nocookie) headers.cookie = cookie;
-  const res = await worker.fetch(new Request(ORIGIN + path, { method, headers, body: body ? JSON.stringify(body) : undefined }), env);
+  const res = await worker.fetch(new Request(ORIGIN + path, { method, headers, body: body ? (body instanceof FormData ? body : JSON.stringify(body)) : undefined }), env);
   const sc = res.headers.get('set-cookie');
   if (sc && !opts.nocookie) cookie = sc.split(';')[0].includes('=;') || /Max-Age=0/.test(sc) ? '' : sc.split(';')[0];
   const data = await res.json().catch(() => null);
@@ -171,6 +172,38 @@ await loginAs('yohi@x.cl', 'ClaveSegura123');
 r = await call('POST', '/api/admin/measurement/delete', { id: mid }); t('Yohi borra una medición', r.status === 200 && db.prepare('SELECT count(*) c FROM measurements WHERE user_id=?').get(cid).c === 1, r);
 await loginAs('camila@x.cl', 'Camila12345');
 r = await call('POST', '/api/health-consent', { enabled: false }); t('retirar autorización borra mediciones', r.status === 200 && db.prepare('SELECT count(*) c FROM measurements WHERE user_id=?').get(cid).c === 0 && db.prepare('SELECT health_consent_at h FROM users WHERE id=?').get(cid).h === null, r);
+delete env.NOW_MS;
+
+// ---------- PDF de Body Pro Go ----------
+env.NOW_MS = String(new Date('2026-10-20T12:00:00-03:00').getTime());
+await loginAs('camila@x.cl', 'Camila12345');
+await call('POST', '/api/health-consent', { enabled: true });
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+const mkPdf = (n, head = '%PDF-1.4\n') => { const u = new Uint8Array(n); u.set(new TextEncoder().encode(head)); for (let i = head.length; i < n; i++) u[i] = (i * 7) % 256; return u; };
+const formFor = (bytes, name = 'informe.pdf', extra = {}) => { const fd = new FormData(); fd.set('userId', String(cid)); fd.set('date', '2026-10-19'); for (const [k, v] of Object.entries(extra)) fd.set(k, v); if (bytes) fd.set('pdf', new File([bytes], name, { type: 'application/pdf' })); return fd; };
+const big = mkPdf(1300000);
+r = await call('POST', '/api/admin/measurement', formFor(big, 'Informe Body Pro (1).pdf', { weight_kg: '61.2' })); t('sube PDF de 1,3 MB con valores', r.status === 200, r);
+const pm = db.prepare('SELECT * FROM measurements WHERE pdf_name IS NOT NULL').get();
+t('PDF guardado en trozos y nombre saneado', pm && db.prepare('SELECT count(*) c FROM pdf_chunks WHERE measurement_id=?').get(pm.id).c === 3 && /^[\w.\- ]+$/.test(pm.pdf_name), pm);
+r = await call('POST', '/api/admin/measurement', formFor(mkPdf(5000), 'solo.pdf')); t('PDF sin valores también se acepta', r.status === 200, r);
+r = await call('POST', '/api/admin/measurement', formFor(new TextEncoder().encode('esto no es pdf'), 'x.pdf', { weight_kg: '60' })); t('archivo que no es PDF rechazado', r.status === 400, r);
+r = await call('POST', '/api/admin/measurement', formFor(mkPdf(4 * 1024 * 1024 + 10), 'grande.pdf')); t('PDF de más de 4 MB rechazado', r.status === 400 || r.status === 413, r);
+const res = await worker.fetch(new Request(ORIGIN + '/api/measurements/pdf?id=' + pm.id, { headers: { cookie } }), env);
+const got = new Uint8Array(await res.arrayBuffer());
+t('Yohi descarga el PDF idéntico', res.status === 200 && res.headers.get('content-type') === 'application/pdf' && got.length === big.length && got.every((v, i) => v === big[i]), res.status);
+t('PDF con cabeceras seguras', res.headers.get('x-content-type-options') === 'nosniff' && /no-store/.test(res.headers.get('cache-control')) && res.headers.get('content-security-policy') === 'sandbox');
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('GET', '/api/measurements'); t('alumna ve que hay PDF', r.data.items.some((i) => i.has_pdf), r.data);
+const own = await worker.fetch(new Request(ORIGIN + '/api/measurements/pdf?id=' + pm.id, { headers: { cookie } }), env);
+t('la dueña descarga su PDF', own.status === 200);
+await loginAs('fran@x.cl', 'Francisca123');
+const other = await worker.fetch(new Request(ORIGIN + '/api/measurements/pdf?id=' + pm.id, { headers: { cookie } }), env);
+t('otra alumna NO accede al PDF', other.status === 404);
+const anon = await worker.fetch(new Request(ORIGIN + '/api/measurements/pdf?id=' + pm.id), env);
+t('sin sesión NO accede al PDF', anon.status === 401);
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('POST', '/api/health-consent', { enabled: false });
+t('retirar autorización borra también los PDF', db.prepare('SELECT count(*) c FROM pdf_chunks').get().c === 0 && db.prepare('SELECT count(*) c FROM measurements WHERE user_id=?').get(cid).c === 0, r);
 delete env.NOW_MS;
 // fuerza bruta
 cookie = '';

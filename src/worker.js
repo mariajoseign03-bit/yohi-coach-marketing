@@ -513,7 +513,7 @@ async function myMeasurements(req, env) {
   if (!user) return fail(401, 'No has iniciado sesión.');
   if (!user.health_consent_at) return json({ ok: true, enabled: false, items: [] });
   const { results } = await env.DB.prepare(
-    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg FROM measurements WHERE user_id = ? ORDER BY measured_on, id',
+    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg, (pdf_name IS NOT NULL) AS has_pdf FROM measurements WHERE user_id = ? ORDER BY measured_on, id',
   ).bind(user.id).all();
   return json({ ok: true, enabled: true, items: results });
 }
@@ -543,14 +543,33 @@ async function adminMeasurements(req, env, url) {
   if (!u) return fail(404, 'No se encontró la alumna.');
   if (!u.health_consent_at) return json({ ok: true, enabled: false, items: [] });
   const { results } = await env.DB.prepare(
-    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg FROM measurements WHERE user_id = ? ORDER BY measured_on DESC, id DESC',
+    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg, (pdf_name IS NOT NULL) AS has_pdf FROM measurements WHERE user_id = ? ORDER BY measured_on DESC, id DESC',
   ).bind(userId).all();
   return json({ ok: true, enabled: true, items: results });
 }
 
+const PDF_MAX = 4 * 1024 * 1024; // 4 MB
+const CHUNK = 500000; // bytes por trozo (base64 ≈ 667 KB, bajo el límite de la base)
+function bytesToB64(u8) {
+  let out = '';
+  for (let i = 0; i < u8.length; i += 0x8000) out += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  return btoa(out);
+}
+
 async function adminAddMeasurement(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
-  const b = await readBody(req);
+  const ct = req.headers.get('content-type') || '';
+  let b, file = null;
+  if (ct.includes('multipart/form-data')) {
+    if (Number(req.headers.get('content-length') || 0) > PDF_MAX + 100000) return fail(413, 'El PDF pesa más de 4 MB.');
+    let fd;
+    try { fd = await req.formData(); } catch { return fail(400, 'Solicitud inválida.'); }
+    b = Object.fromEntries([...fd.entries()].filter(([, v]) => typeof v === 'string'));
+    const f = fd.get('pdf');
+    if (f && typeof f !== 'string' && f.size > 0) file = f;
+  } else {
+    b = await readBody(req);
+  }
   if (!b) return fail(400, 'Solicitud inválida.');
   const userId = Number(b.userId);
   if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
@@ -558,12 +577,58 @@ async function adminAddMeasurement(req, env) {
   if (!validDate(date) || date > todayCL(env)) return fail(400, 'Fecha inválida (no puede ser futura).');
   const w = num(b.weight_kg, 20, 300), f = num(b.fat_pct, 2, 70), m = num(b.muscle_kg, 5, 150);
   if ([w, f, m].some(Number.isNaN)) return fail(400, 'Revisa los valores: peso 20–300 kg, grasa 2–70 %, músculo 5–150 kg.');
-  if (w === null && f === null && m === null) return fail(400, 'Ingresa al menos un valor.');
+  if (w === null && f === null && m === null && !file) return fail(400, 'Ingresa al menos un valor o sube el PDF.');
+  let bytes = null;
+  if (file) {
+    if (file.size > PDF_MAX) return fail(400, 'El PDF pesa más de 4 MB.');
+    bytes = new Uint8Array(await file.arrayBuffer());
+    if (String.fromCharCode(...bytes.subarray(0, 5)) !== '%PDF-') return fail(400, 'El archivo no es un PDF válido.');
+  }
   const u = await env.DB.prepare("SELECT health_consent_at FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
   if (!u) return fail(404, 'No se encontró la alumna.');
   if (!u.health_consent_at) return fail(403, 'Esta alumna no ha autorizado el registro de datos de salud.');
-  await env.DB.prepare('INSERT INTO measurements (user_id, measured_on, weight_kg, fat_pct, muscle_kg) VALUES (?, ?, ?, ?, ?)').bind(userId, date, w, f, m).run();
+  const name = file ? String(file.name || 'informe.pdf').replace(/[^\w.\- ]/g, '_').slice(0, 80) : null;
+  const ins = await env.DB.prepare('INSERT INTO measurements (user_id, measured_on, weight_kg, fat_pct, muscle_kg, pdf_name) VALUES (?, ?, ?, ?, ?, ?)').bind(userId, date, w, f, m, name).run();
+  if (bytes) {
+    const mid = ins.meta && ins.meta.last_row_id;
+    try {
+      const stmts = [];
+      for (let i = 0, seq = 0; i < bytes.length; i += CHUNK, seq++) {
+        stmts.push(env.DB.prepare('INSERT INTO pdf_chunks (measurement_id, seq, data) VALUES (?, ?, ?)').bind(mid, seq, bytesToB64(bytes.subarray(i, i + CHUNK))));
+      }
+      await env.DB.batch(stmts);
+    } catch (e) {
+      await env.DB.prepare('DELETE FROM measurements WHERE id = ?').bind(mid).run();
+      return fail(500, 'No se pudo guardar el PDF. Intenta de nuevo.');
+    }
+  }
   return json({ ok: true });
+}
+
+// Descarga del informe PDF: solo la dueña (con su autorización de salud vigente) o Yohi.
+async function measurementPdf(req, env, url) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  const id = Number(url.searchParams.get('id'));
+  if (!Number.isInteger(id)) return fail(400, 'Solicitud inválida.');
+  const row = await env.DB.prepare('SELECT m.user_id, m.measured_on, m.pdf_name, u.health_consent_at FROM measurements m JOIN users u ON u.id = m.user_id WHERE m.id = ?').bind(id).first();
+  if (!row || !row.pdf_name) return fail(404, 'No encontrado.');
+  const isOwner = row.user_id === user.id && !!row.health_consent_at;
+  if (!isOwner && user.role !== 'admin') return fail(404, 'No encontrado.');
+  const { results } = await env.DB.prepare('SELECT data FROM pdf_chunks WHERE measurement_id = ? ORDER BY seq').bind(id).all();
+  const parts = results.map((r) => Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0)));
+  const body = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let off = 0;
+  for (const p of parts) { body.set(p, off); off += p.length; }
+  return new Response(body, {
+    headers: {
+      'content-type': 'application/pdf',
+      'content-disposition': `inline; filename="bodypro-${row.measured_on}.pdf"`,
+      'cache-control': 'private, no-store',
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': 'sandbox',
+    },
+  });
 }
 
 async function adminDeleteMeasurement(req, env) {
@@ -606,6 +671,7 @@ export default {
         case 'POST /api/admin/booking': return await adminBooking(req, env);
         case 'GET /api/measurements': return await myMeasurements(req, env);
         case 'POST /api/health-consent': return await setHealthConsent(req, env);
+        case 'GET /api/measurements/pdf': return await measurementPdf(req, env, url);
         case 'GET /api/admin/measurements': return await adminMeasurements(req, env, url);
         case 'POST /api/admin/measurement': return await adminAddMeasurement(req, env);
         case 'POST /api/admin/measurement/delete': return await adminDeleteMeasurement(req, env);

@@ -74,7 +74,7 @@
         await api('/api/health-consent', { enabled: false }); renderMed();
       } }, 'Retirar mi autorización y borrar mis mediciones'));
     if (!items.length) { medBox.replaceChildren(head, el('p', { class: 'muted' }, 'Yohi aún no ha cargado tus mediciones. Aparecerán aquí después de tu primer control.'), foot); return; }
-    const first = items[0], last = items[items.length - 1];
+    const last = items.filter((i) => METRICS.some(([k]) => i[k] !== null)).pop() || items[items.length - 1];
     const tiles = METRICS.filter(([k]) => last[k] !== null).map(([k, label, unit]) => {
       const base = items.find((i) => i[k] !== null);
       const diff = Math.round((last[k] - base[k]) * 10) / 10;
@@ -87,10 +87,11 @@
     const mu = METRICS.find(([k]) => k === metric);
     const chart = lineChart(items, metric, mu[2]);
     const rows = [...items].reverse().map((i) => el('tr', {}, el('td', {}, fmtDate(i.measured_on)),
-      ...METRICS.map(([k]) => el('td', {}, i[k] === null ? '–' : String(i[k])))));
+      ...METRICS.map(([k]) => el('td', {}, i[k] === null ? '–' : String(i[k]))),
+      el('td', {}, i.has_pdf ? el('a', { href: '/api/measurements/pdf?id=' + i.id, target: '_blank', rel: 'noopener' }, 'Ver PDF') : '–')));
     medBox.replaceChildren(head, el('div', { class: 'tiles' }, ...tiles), chart || '',
       el('div', { style: 'overflow-x:auto;margin-top:12px' }, el('table', { class: 'mtab' },
-        el('thead', {}, el('tr', {}, el('th', {}, 'Fecha'), ...METRICS.map(([, l, u]) => el('th', {}, l + ' (' + u + ')')))), el('tbody', {}, ...rows))), foot);
+        el('thead', {}, el('tr', {}, el('th', {}, 'Fecha'), ...METRICS.map(([, l, u]) => el('th', {}, l + ' (' + u + ')')), el('th', {}, 'Informe'))), el('tbody', {}, ...rows))), foot);
   }
   renderMed();
 

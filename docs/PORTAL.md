@@ -34,3 +34,8 @@
 - La alumna puede activar o retirar su autorización; al retirarla se borran sus mediciones.
 - Mocca (`site/mocca.js`): asistente flotante con preguntas frecuentes y respuestas fijas; las dudas de salud o de clave las deriva a Yohi por WhatsApp. No es un chat libre.
 - Pendiente: Google Calendar y avisos.
+
+## Informe PDF de Body Pro Go (v4)
+- Migración `0004_pdf.sql` (ya aplicada en `yohi-portal`). El PDF (máx. 4 MB, se verifica que sea PDF de verdad) se guarda en la base en trozos, porque R2 no está activado en la cuenta.
+- Lo sube Yohi al cargar una medición (puede ir con valores o sola). Solo lo ve la dueña (con su autorización de salud vigente) y Yohi. Al retirar la autorización se borra junto con las mediciones.
+- Si algún día se activa R2 en Cloudflare, se puede mover el almacenamiento allí.

@@ -12,6 +12,17 @@ async function api(path, body) {
   }
 }
 
+// Envío de formularios con archivos (FormData).
+async function apiForm(path, formData) {
+  try {
+    const res = await fetch(path, { method: 'POST', credentials: 'same-origin', body: formData });
+    const data = await res.json().catch(() => ({}));
+    return { status: res.status, ok: res.ok && data.ok !== false, data };
+  } catch {
+    return { status: 0, ok: false, data: { error: 'Sin conexión. Revisa tu internet e intenta de nuevo.' } };
+  }
+}
+
 // Crea un elemento con texto seguro (nunca interpreta HTML: los nombres los escriben las alumnas).
 function el(tag, attrs, ...kids) {
   const n = document.createElement(tag);

@@ -132,18 +132,26 @@
         const date = el('input', { name: 'date', type: 'date', value: today, max: today, 'aria-label': 'Fecha' });
         const fw = inp('weight_kg', 'Peso (kg)', '0.1'), ff = inp('fat_pct', 'Grasa (%)', '0.1'), fm = inp('muscle_kg', 'Músculo (kg)', '0.1');
         const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar medición');
+        const pdf = el('input', { name: 'pdf', type: 'file', accept: 'application/pdf,.pdf', 'aria-label': 'Informe PDF de Body Pro Go' });
         const form = el('form', { class: 'form', novalidate: '' }, el('label', {}, 'Fecha del control', date),
-          el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px' }, fw, ff, fm), msg, go);
+          el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px' }, fw, ff, fm),
+          el('label', {}, 'Informe PDF de Body Pro Go (opcional, máx. 4 MB)', pdf), msg, go);
         form.addEventListener('submit', async (e) => {
           e.preventDefault(); msg.textContent = ''; go.disabled = true;
-          const body = { userId: st.id, date: date.value, weight_kg: fw.value, fat_pct: ff.value, muscle_kg: fm.value };
-          const x = await api('/api/admin/measurement', body); go.disabled = false;
+          const file = pdf.files && pdf.files[0];
+          if (file && file.size > 4 * 1024 * 1024) { msg.textContent = 'El PDF pesa más de 4 MB.'; go.disabled = false; return; }
+          const fd = new FormData();
+          fd.set('userId', String(st.id)); fd.set('date', date.value); fd.set('weight_kg', fw.value); fd.set('fat_pct', ff.value); fd.set('muscle_kg', fm.value);
+          if (file) fd.set('pdf', file);
+          go.textContent = file ? 'Subiendo…' : 'Guardando…';
+          const x = await apiForm('/api/admin/measurement', fd); go.disabled = false; go.textContent = 'Guardar medición';
           if (!x.ok) { msg.textContent = x.data.error || 'No se pudo guardar.'; return; }
           load();
         });
         const list = r.data.items.map((i) => el('div', { class: 'item', style: 'padding:8px 0;border-bottom:1px solid rgba(255,214,232,.1)' },
-          el('span', { style: 'font-size:14px' }, fmtDate(i.measured_on) + ' · ' + [i.weight_kg !== null ? i.weight_kg + ' kg' : null, i.fat_pct !== null ? i.fat_pct + ' % grasa' : null, i.muscle_kg !== null ? i.muscle_kg + ' kg músculo' : null].filter(Boolean).join(' · ')),
-          el('button', { class: 'btn ghost small', type: 'button', onclick: async () => { if (!confirm('¿Borrar esta medición?')) return; await api('/api/admin/measurement/delete', { id: i.id }); load(); } }, 'Borrar')));
+          el('span', { style: 'font-size:14px' }, fmtDate(i.measured_on) + ' · ' + ([i.weight_kg !== null ? i.weight_kg + ' kg' : null, i.fat_pct !== null ? i.fat_pct + ' % grasa' : null, i.muscle_kg !== null ? i.muscle_kg + ' kg músculo' : null].filter(Boolean).join(' · ') || 'Solo informe PDF')),
+          el('span', { class: 'row' }, i.has_pdf ? el('a', { class: 'btn ghost small', href: '/api/measurements/pdf?id=' + i.id, target: '_blank', rel: 'noopener' }, 'PDF') : '',
+          el('button', { class: 'btn ghost small', type: 'button', onclick: async () => { if (!confirm('¿Borrar esta medición?')) return; await api('/api/admin/measurement/delete', { id: i.id }); load(); } }, 'Borrar'))));
         box.replaceChildren(form, el('div', { style: 'margin-top:14px' }, ...(list.length ? list : [el('p', { class: 'muted' }, 'Aún no hay mediciones.')])));
       }
       return { box, load };
