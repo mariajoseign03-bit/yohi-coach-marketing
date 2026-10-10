@@ -127,3 +127,32 @@ input[type=file]::file-selector-button{ margin-right:12px; min-height:36px; padd
 .cta h3{ margin:0; font:400 clamp(24px,5vw,32px)/1.1 var(--f-display); letter-spacing:.02em; text-transform:uppercase }
 .cta p{ margin:0; color:var(--accent-soft) }
 .cta .script{ font:400 28px/1.3 var(--f-script); color:var(--accent-text); padding-right:8px }
+
+/* ===== Informe imprimible con logo (informe.js) ===== */
+#yohi-report{ display:none }
+@media print{
+  @page{ size:A4; margin:12mm }
+  html,body{ background:#fff !important; color:#111 !important }
+  body > *:not(#yohi-report){ display:none !important }
+  body::before,body::after{ display:none !important }
+  #yohi-report{ display:block !important; font:500 11pt/1.4 Montserrat,Arial,sans-serif; color:#111; -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  #yohi-report .ir-head{ display:flex; align-items:center; gap:16px; background:#111; color:#fff; padding:14px 18px; border-radius:14px; border-bottom:4px solid #FF4FA3 }
+  #yohi-report .ir-head img{ width:22mm; height:22mm; border-radius:50%; background:#fff }
+  #yohi-report .ir-kicker{ margin:0; font-size:9pt; letter-spacing:.14em; text-transform:uppercase; color:#FFD6E8 }
+  #yohi-report h1{ margin:2px 0; font:400 22pt/1.1 Anton,Impact,sans-serif; letter-spacing:.03em; text-transform:uppercase; color:#fff }
+  #yohi-report .ir-sub{ margin:0; font-size:9.5pt; color:#FF4FA3; font-weight:700 }
+  #yohi-report .ir-meta{ display:flex; gap:10px; margin:12px 0; flex-wrap:wrap }
+  #yohi-report .ir-meta div{ flex:1 1 40mm; border:1px solid #FFD6E8; border-radius:10px; padding:8px 10px; background:#FFF5FA }
+  #yohi-report .ir-meta span{ display:block; font-size:8pt; color:#8C8C8C; text-transform:uppercase; letter-spacing:.08em }
+  #yohi-report .ir-sum{ margin:0 0 6px; padding:8px 12px; border-left:4px solid #FF4FA3; background:#FFF5FA; font-weight:700 }
+  #yohi-report h2{ margin:14px 0 6px; font:400 13pt/1.2 Anton,Impact,sans-serif; text-transform:uppercase; letter-spacing:.04em; color:#111; break-after:avoid }
+  #yohi-report table{ width:100%; border-collapse:collapse; font-size:9.5pt; break-inside:avoid }
+  #yohi-report thead th{ background:#111; color:#fff; text-align:left; padding:6px 8px; font-weight:600; font-size:8.5pt }
+  #yohi-report tbody th{ text-align:left; padding:7px 8px; border-bottom:1px solid #eee; font-weight:700 }
+  #yohi-report td{ padding:7px 8px; border-bottom:1px solid #eee }
+  #yohi-report .ir-cur{ font-weight:800 }
+  #yohi-report .ir-ref{ color:#555; font-size:8.5pt }
+  #yohi-report .ir-chg{ font-weight:800 } .ir-chg.up{ color:#12805c } .ir-chg.dn{ color:#c0392b } .ir-chg.neu,.ir-chg.eq{ color:#555 }
+  #yohi-report .ir-note{ margin:14px 0 8px; font-size:8.5pt; color:#555 }
+  #yohi-report .ir-foot{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 14px; border-radius:12px; background:#FF4FA3; color:#111; font-size:9pt }
+}

@@ -14,6 +14,7 @@
   <p class="muted">Cargando…</p>
 </main>
 <script src="/portal.js"></script>
+<script src="/informe.js"></script>
 <script src="/bodypro.js"></script>
 <script>
 (async function () {
@@ -172,7 +173,9 @@
           el('span', { style: 'font-size:14px' }, fmtDate(i.measured_on) + ' · ' + ([i.weight_kg !== null ? i.weight_kg + ' kg' : null, i.fat_pct !== null ? i.fat_pct + ' % grasa' : null, i.muscle_kg !== null ? i.muscle_kg + ' kg músculo' : null].filter(Boolean).join(' · ') || 'Solo informe PDF')),
           el('span', { class: 'row' }, i.has_pdf ? el('a', { class: 'btn ghost small', href: '/api/measurements/pdf?id=' + i.id, target: '_blank', rel: 'noopener' }, 'PDF') : '',
           el('button', { class: 'btn ghost small', type: 'button', onclick: async () => { if (!confirm('¿Borrar esta medición?')) return; await api('/api/admin/measurement/delete', { id: i.id }); load(); } }, 'Borrar'))));
-        box.replaceChildren(form, el('div', { style: 'margin-top:14px' }, ...(list.length ? list : [el('p', { class: 'muted' }, 'Aún no hay mediciones.')])));
+        const asc = [...r.data.items].reverse().filter((i) => i.weight_kg !== null || i.fat_pct !== null || i.muscle_kg !== null || (i.extra && Object.keys(i.extra).length));
+        const rep = asc.length ? el('button', { class: 'btn small', type: 'button', style: 'margin-top:12px', onclick: () => YohiReport.print({ name: st.name, cur: asc[asc.length - 1], prev: asc.length > 1 ? asc[asc.length - 2] : null }) }, 'Informe con logo (PDF)') : '';
+        box.replaceChildren(form, rep, el('div', { style: 'margin-top:14px' }, ...(list.length ? list : [el('p', { class: 'muted' }, 'Aún no hay mediciones.')])));
       }
       return { box, load };
     }

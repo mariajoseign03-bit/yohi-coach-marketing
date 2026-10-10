@@ -18,6 +18,10 @@
   <section class="card" aria-label="Subir informe">
     <label for="pdf" style="display:block;font-weight:700;margin-bottom:8px">Tu informe en PDF</label>
     <input id="pdf" type="file" accept="application/pdf,.pdf">
+    <label for="pdf0" style="display:block;font-weight:700;margin:14px 0 8px">Medición anterior <span class="muted" style="font-weight:500">(opcional, para ver tu avance)</span></label>
+    <input id="pdf0" type="file" accept="application/pdf,.pdf">
+    <label for="nm" style="display:block;font-weight:700;margin:14px 0 8px">Tu nombre <span class="muted" style="font-weight:500">(opcional, para tu informe)</span></label>
+    <input id="nm" type="text" maxlength="60" autocomplete="name" placeholder="Ej: Camila">
     <p class="err" id="err" role="alert"></p>
     <p class="muted" style="font-size:12.5px;margin:6px 0 0">Máximo 4 MB. Si no lo tienes en PDF, pídelo desde la app al terminar tu medición.</p>
   </section>
@@ -35,22 +39,27 @@
 </main>
 <script src="/portal.js"></script>
 <script src="/bodypro.js"></script>
+<script src="/informe.js"></script>
 <script>
 (function () {
   const input = document.getElementById('pdf'), err = document.getElementById('err'), out = document.getElementById('out'), cta = document.getElementById('cta');
   const NAMES = { weight: ['Peso', 'kg'], muscle: ['Masa muscular', 'kg'], fat: ['Grasa corporal', 'kg'], water: ['Agua corporal', 'kg'], protein: ['Proteína', 'kg'], skeletal: ['Músculo esquelético', 'kg'] };
   const VAL = { weight: (r) => r.core.weight_kg, muscle: (r) => r.core.muscle_kg, fat: (r) => r.extra.fat_kg, water: (r) => r.extra.water_kg, protein: (r) => r.extra.protein_kg, skeletal: (r) => r.extra.skeletal_kg };
 
-  input.addEventListener('change', async () => {
-    err.textContent = ''; out.hidden = true; out.replaceChildren();
-    const f = input.files && input.files[0];
-    if (!f) return;
+  const input0 = document.getElementById('pdf0'), nm = document.getElementById('nm');
+  let CUR = null, PREV = null;
+  async function load() {
+    err.textContent = ''; out.hidden = true; out.replaceChildren(); CUR = null; PREV = null;
+    const f = input.files && input.files[0], f0 = input0.files && input0.files[0];
+    if (!f) { if (f0) err.textContent = 'Sube también tu medición actual.'; return; }
     err.textContent = 'Leyendo tu informe…';
-    let r;
-    try { r = await BodyPro.read(f); } catch (e) { err.textContent = e.message || 'No pude leer ese archivo.'; return; }
+    try { CUR = await BodyPro.read(f); if (f0) PREV = await BodyPro.read(f0); } catch (e) { err.textContent = e.message || 'No pude leer ese archivo.'; CUR = null; return; }
     err.textContent = '';
-    render(r);
-  });
+    render(CUR);
+  }
+  input.addEventListener('change', load);
+  input0.addEventListener('change', load);
+  const asM = (r) => ({ measured_on: r.date || new Date().toISOString().slice(0, 10), weight_kg: r.core.weight_kg ?? null, fat_pct: r.core.fat_pct ?? null, muscle_kg: r.core.muscle_kg ?? null, extra: r.extra });
 
   function render(r) {
     const kids = [];
@@ -78,6 +87,8 @@
     if (r.core.muscle_kg != null) {
       cta.href = 'https://wa.me/56944500370?text=' + encodeURIComponent('Hola Yohi 👋 Medí mi composición corporal y quiero entrenar contigo para mejorar mi masa muscular');
     }
+    if (PREV) { const c = compareBlock(asM(PREV), asM(r)); if (c) kids.push(el('div', { class: 'card', style: 'margin-top:12px' }, c)); }
+    kids.push(el('div', { style: 'margin-top:14px;text-align:center' }, el('button', { class: 'btn', type: 'button', onclick: () => YohiReport.print({ name: nm.value.trim(), cur: asM(r), prev: PREV ? asM(PREV) : null }) }, 'Descargar mi informe con logo (PDF)')));
     out.append(...kids);
     out.hidden = false;
     out.scrollIntoView({ behavior: 'smooth', block: 'start' });

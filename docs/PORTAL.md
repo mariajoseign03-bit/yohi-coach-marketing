@@ -46,3 +46,4 @@
 - **Visuales**: la alumna ve "Tu avance" (comparación con el control anterior) y "Tu último informe" (barras contra el rango del informe).
 - **/analiza** (pública): cualquiera sube su PDF, se lee en su dispositivo (no se envía a ningún servidor) y ve sus barras, y un banner "Entrena con Yohi" lleva a WhatsApp. Enlazada desde el pie del inicio.
 - Avisar al abogado: informe PDF y métricas extra en la ficha, y herramienta /analiza que procesa en el navegador.
+- **Informe con logo** (`site/informe.js`, logo en `site/logo-yohi.webp`): botón "Descargar informe (PDF)" en la zona de la alumna, "Informe con logo (PDF)" en la ficha del admin y en `/analiza`. Compara último control vs. anterior y se guarda con "Guardar como PDF". Usa lenguaje neutro (sin diagnósticos) y no envía nada a servidores.
