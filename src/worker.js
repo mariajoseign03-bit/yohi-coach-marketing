@@ -345,6 +345,159 @@ async function adminReject(req, env) {
   return json({ ok: true });
 }
 
+/* ---------- agenda y reservas ---------- */
+const TZ = 'America/Santiago';
+// Horas de inicio (sesiones de 1 hora) dentro de las franjas que definió Yohi.
+const SLOTS = {
+  am: ['08:30', '09:30'],            // 8:30 a 10:30
+  pm: ['16:00', '17:00', '18:00', '19:00'], // 16:00 a 20:00
+  wk: ['09:00', '10:00', '11:00', '12:00'], // fines de semana 9:00 a 13:00
+};
+const nowMs = (env) => (env.NOW_MS ? Number(env.NOW_MS) : Date.now());
+
+function tzParts(ms) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', { timeZone: TZ, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(new Date(ms)).map((x) => [x.type, x.value]),
+  );
+  return { day: `${p.year}-${p.month}-${p.day}`, min: Number(p.hour) * 60 + Number(p.minute) };
+}
+const todayCL = (env) => tzParts(nowMs(env)).day;
+// Instante (ms UTC) de una fecha y hora locales de Chile.
+function slotMs(day, time) {
+  const [y, m, d] = day.split('-').map(Number), [h, mi] = time.split(':').map(Number);
+  let guess = Date.UTC(y, m - 1, d, h, mi);
+  for (let i = 0; i < 3; i++) {
+    const p = tzParts(guess);
+    const asUtc = Date.UTC(...p.day.split('-').map((v, k) => (k === 1 ? Number(v) - 1 : Number(v))), Math.floor(p.min / 60), p.min % 60);
+    guess += Date.UTC(y, m - 1, d, h, mi) - asUtc;
+  }
+  return guess;
+}
+const isWeekend = (day) => { const w = new Date(day + 'T12:00:00Z').getUTCDay(); return w === 0 || w === 6; };
+const modeOk = (day, mode) => (isWeekend(day) ? mode === 'wk' : mode === 'am' || mode === 'pm');
+const USED = "(status IN ('requested','confirmed','done') OR (status = 'cancelled' AND late_cancel = 1))";
+
+async function activePlan(env, userId, today) {
+  return env.DB.prepare(
+    `SELECT id, modality, sede, sessions_total, start_date, end_date FROM plans
+      WHERE user_id = ? AND start_date <= ? AND end_date >= ? ORDER BY end_date DESC LIMIT 1`,
+  ).bind(userId, today, today).first();
+}
+async function usedSessions(env, planId) {
+  const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM bookings WHERE plan_id = ? AND ${USED}`).bind(planId).first();
+  return r ? r.n : 0;
+}
+
+async function agenda(req, env) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  const today = todayCL(env);
+  const plan = await activePlan(env, user.id, today);
+  if (!plan || plan.modality !== 'presencial') return json({ ok: true, plan: null, days: [], mine: [] });
+  const used = await usedSessions(env, plan.id);
+  const to = plan.end_date;
+  const { results: days } = await env.DB.prepare(
+    "SELECT day, mode, sede FROM open_days WHERE day >= ? AND day <= ? AND mode != 'closed' AND sede = ? ORDER BY day",
+  ).bind(today, to, plan.sede).all();
+  const { results: taken } = await env.DB.prepare(
+    "SELECT day, time FROM bookings WHERE day >= ? AND day <= ? AND status IN ('requested','confirmed')",
+  ).bind(today, to).all();
+  const takenSet = new Set(taken.map((t) => `${t.day} ${t.time}`));
+  const now = nowMs(env);
+  const out = days.map((d) => ({
+    day: d.day, mode: d.mode,
+    slots: (SLOTS[d.mode] || []).map((time) => ({ time, free: !takenSet.has(`${d.day} ${time}`) && slotMs(d.day, time) > now })),
+  }));
+  const { results: mine } = await env.DB.prepare(
+    "SELECT id, day, time, status FROM bookings WHERE user_id = ? AND plan_id = ? AND status IN ('requested','confirmed') AND day >= ? ORDER BY day, time",
+  ).bind(user.id, plan.id, today).all();
+  return json({ ok: true, plan: { total: plan.sessions_total, used, left: Math.max(0, plan.sessions_total - used), end: plan.end_date }, days: out, mine });
+}
+
+async function createBooking(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  if (await limited(env, `book:${user.id}`, 20, 3600)) return fail(429, 'Demasiados intentos. Espera un momento.');
+  const b = await readBody(req);
+  if (!b || !validDate(String(b.day || '')) || !/^\d\d:\d\d$/.test(String(b.time || ''))) return fail(400, 'Hora inválida.');
+  const { day, time } = b;
+  const today = todayCL(env);
+  const plan = await activePlan(env, user.id, today);
+  if (!plan || plan.modality !== 'presencial') return fail(400, 'Tu plan no tiene agenda de sesiones.');
+  if (day < plan.start_date || day > plan.end_date) return fail(400, 'Ese día está fuera de tu plan.');
+  const open = await env.DB.prepare('SELECT mode, sede FROM open_days WHERE day = ?').bind(day).first();
+  if (!open || open.mode === 'closed' || open.sede !== plan.sede || !(SLOTS[open.mode] || []).includes(time)) return fail(400, 'Ese horario no está disponible.');
+  if (slotMs(day, time) <= nowMs(env)) return fail(400, 'Esa hora ya pasó.');
+  if ((await usedSessions(env, plan.id)) >= plan.sessions_total) return fail(400, 'Ya usaste todas las sesiones de tu plan.');
+  try {
+    await env.DB.prepare('INSERT INTO bookings (user_id, plan_id, day, time, sede, status) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(user.id, plan.id, day, time, plan.sede, 'requested').run();
+  } catch (e) {
+    return fail(409, 'Esa hora acaba de ser tomada. Elige otra.');
+  }
+  const used = await usedSessions(env, plan.id);
+  return json({ ok: true, left: Math.max(0, plan.sessions_total - used) });
+}
+
+async function cancelBooking(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  const b = await readBody(req);
+  const id = Number(b && b.id);
+  if (!Number.isInteger(id)) return fail(400, 'Reserva inválida.');
+  const bk = await env.DB.prepare("SELECT id, day, time, status FROM bookings WHERE id = ? AND user_id = ? AND status IN ('requested','confirmed')").bind(id, user.id).first();
+  if (!bk) return fail(404, 'No se encontró la reserva.');
+  const ms = slotMs(bk.day, bk.time);
+  if (ms <= nowMs(env)) return fail(400, 'Esa hora ya pasó.');
+  // Más de 24 h antes: la sesión vuelve al plan. Menos: se pierde.
+  const late = ms - nowMs(env) < 24 * 3600 * 1000 ? 1 : 0;
+  await env.DB.prepare("UPDATE bookings SET status = 'cancelled', late_cancel = ?, decided_at = ? WHERE id = ?").bind(late, isoNow(), id).run();
+  return json({ ok: true, returned: !late });
+}
+
+async function adminAgenda(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const today = todayCL(env);
+  const { results: days } = await env.DB.prepare('SELECT day, mode, sede FROM open_days WHERE day >= ? ORDER BY day').bind(today).all();
+  const { results: bookings } = await env.DB.prepare(
+    `SELECT b.id, b.day, b.time, b.status, b.sede, u.name FROM bookings b JOIN users u ON u.id = b.user_id
+      WHERE b.status IN ('requested','confirmed') AND b.day >= ? ORDER BY b.day, b.time`,
+  ).bind(today).all();
+  return json({ ok: true, today, days, bookings });
+}
+
+async function adminOpenDay(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  if (!b || !validDate(String(b.day || ''))) return fail(400, 'Fecha inválida.');
+  const mode = b.mode, sede = b.sede || 'quilpue';
+  if (!['am', 'pm', 'wk', 'closed'].includes(mode)) return fail(400, 'Modo inválido.');
+  if (!SEDES.includes(sede)) return fail(400, 'Sede inválida.');
+  if (mode !== 'closed' && !modeOk(b.day, mode)) return fail(400, isWeekend(b.day) ? 'Los fines de semana es horario de 9:00 a 13:00.' : 'De lunes a viernes elige mañana o tarde.');
+  if (b.day < todayCL(env)) return fail(400, 'Ese día ya pasó.');
+  const cur = await env.DB.prepare('SELECT mode FROM open_days WHERE day = ?').bind(b.day).first();
+  if (cur && cur.mode !== mode) {
+    const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM bookings WHERE day = ? AND status IN ('requested','confirmed')").bind(b.day).first();
+    if (n.n > 0) return fail(409, 'Ese día ya tiene horas pedidas. Respóndelas o cancélalas primero.');
+  }
+  await env.DB.prepare('INSERT INTO open_days (day, mode, sede) VALUES (?, ?, ?) ON CONFLICT(day) DO UPDATE SET mode = excluded.mode, sede = excluded.sede').bind(b.day, mode, sede).run();
+  return json({ ok: true });
+}
+
+async function adminBooking(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  const id = Number(b && b.id);
+  const next = { confirm: 'confirmed', reject: 'rejected', cancel: 'cancelled' }[b && b.action];
+  if (!Number.isInteger(id) || !next) return fail(400, 'Solicitud inválida.');
+  const from = next === 'confirmed' ? "status = 'requested'" : "status IN ('requested','confirmed')";
+  const r = await env.DB.prepare(`UPDATE bookings SET status = ?, decided_at = ? WHERE id = ? AND ${from}`).bind(next, isoNow(), id).run();
+  const row = await env.DB.prepare('SELECT status FROM bookings WHERE id = ?').bind(id).first();
+  if (!row || row.status !== next) return fail(404, 'La reserva ya no está en ese estado.');
+  return json({ ok: true });
+}
+
 /* ---------- entrada ---------- */
 export default {
   async fetch(req, env) {
@@ -368,6 +521,12 @@ export default {
         case 'GET /api/admin/students': return await adminStudents(req, env);
         case 'POST /api/admin/approve': return await adminApprove(req, env);
         case 'POST /api/admin/reject': return await adminReject(req, env);
+        case 'GET /api/agenda': return await agenda(req, env);
+        case 'POST /api/bookings': return await createBooking(req, env);
+        case 'POST /api/bookings/cancel': return await cancelBooking(req, env);
+        case 'GET /api/admin/agenda': return await adminAgenda(req, env);
+        case 'POST /api/admin/open-day': return await adminOpenDay(req, env);
+        case 'POST /api/admin/booking': return await adminBooking(req, env);
         default: return fail(404, 'No encontrado.');
       }
     } catch (err) {

@@ -57,3 +57,18 @@ input:focus-visible,select:focus-visible{ outline:none; border-color:var(--accen
 .legal li{ margin-bottom:6px }
 .legal .todo{ background:rgba(242,199,110,.12); border:1px solid rgba(242,199,110,.5); color:var(--gold-light); padding:1px 6px; border-radius:6px; font-weight:700 }
 .legal .draft{ border-radius:18px; padding:14px 16px; background:rgba(242,199,110,.1); border:1px solid rgba(242,199,110,.45); color:var(--gold-light); font-size:14px }
+/* agenda */
+.days{ display:grid; gap:14px }
+.day{ display:grid; gap:10px }
+.day h3{ margin:0; font:800 13px/1.2 var(--f-text); letter-spacing:.08em; text-transform:uppercase; color:var(--accent-soft) }
+.slots{ display:flex; flex-wrap:wrap; gap:8px }
+.slot{ min-height:44px; min-width:84px; padding:0 14px; border-radius:999px; border:1.5px solid rgba(255,109,180,.55); background:rgba(255,79,163,.1); color:var(--fg); font:800 14px/1 var(--f-text); cursor:pointer }
+.slot:disabled{ opacity:.35; cursor:not-allowed; border-color:rgba(255,255,255,.15); background:transparent; text-decoration:line-through }
+.slot:not(:disabled):hover{ background:rgba(255,79,163,.28) }
+.badge{ display:inline-flex; padding:5px 11px; border-radius:999px; font:800 11.5px/1 var(--f-text); letter-spacing:.04em; text-transform:uppercase }
+.badge.wait{ background:rgba(242,199,110,.14); border:1px solid rgba(242,199,110,.5); color:var(--gold) }
+.badge.okb{ background:rgba(255,79,163,.2); border:1px solid var(--accent); color:var(--accent-soft) }
+.seg{ display:flex; flex-wrap:wrap; gap:6px }
+.seg button{ min-height:44px; padding:0 14px; border-radius:999px; border:1.5px solid rgba(255,214,232,.25); background:transparent; color:var(--fg); font:700 13px/1 var(--f-text); cursor:pointer }
+.seg button[aria-pressed="true"]{ background:var(--accent); color:var(--on-accent); border-color:var(--accent) }
+@media (max-width:520px){ .slot{ flex:1 0 calc(50% - 8px) } }

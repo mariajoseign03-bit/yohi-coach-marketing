@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import worker from '../src/worker.js';
 
 const db = new DatabaseSync(':memory:');
-for (const f of ['0001_init.sql', '0002_health_consent.sql']) db.exec(fs.readFileSync('./migrations/' + f, 'utf8'));
+for (const f of ['0001_init.sql', '0002_health_consent.sql', '0003_late_cancel.sql']) db.exec(fs.readFileSync('./migrations/' + f, 'utf8'));
 db.exec('PRAGMA foreign_keys = ON');
 
 function stmt(sql) {
@@ -89,6 +89,59 @@ r = await call('POST', '/api/login', { email: 'camila@x.cl', password: 'Camila12
 r = await call('GET', '/api/me'); t('/me con plan', r.status === 200 && r.data.plan && r.data.plan.sessions_total === 12, r);
 r = await call('GET', '/api/admin/pending'); t('alumna NO accede a admin', r.status === 403, r);
 r = await call('POST', '/api/admin/approve', { userId: vid, modality: 'online', months: 1, start: '2026-10-12' }); t('alumna NO puede aprobar', r.status === 403, r);
+
+// ---------- agenda y reservas (hora simulada: miércoles 14 oct 2026, 12:00 Chile) ----------
+env.NOW_MS = String(new Date('2026-10-14T12:00:00-03:00').getTime());
+const loginAs = async (email, password) => { cookie = ''; return call('POST', '/api/login', { email, password }, { ip: '3.3.3.' + Math.floor(Math.random() * 200) }); };
+r = await call('GET', '/api/agenda'); t('agenda alumna sin días abiertos', r.status === 200 && r.data.days.length === 0 && r.data.plan.left === 12, r);
+r = await call('POST', '/api/admin/open-day', { day: '2026-10-15', mode: 'pm' }); t('alumna NO abre días', r.status === 403, r);
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+r = await call('POST', '/api/admin/open-day', { day: '2026-10-15', mode: 'wk' }); t('día de semana no admite horario de finde', r.status === 400, r);
+r = await call('POST', '/api/admin/open-day', { day: '2026-10-17', mode: 'am' }); t('sábado no admite mañana/tarde', r.status === 400, r);
+r = await call('POST', '/api/admin/open-day', { day: '2026-10-13', mode: 'pm' }); t('no se abre un día pasado', r.status === 400, r);
+r = await call('POST', '/api/admin/open-day', { day: '2026-10-15', mode: 'pm' }); t('abrir jueves tarde', r.status === 200, r);
+r = await call('POST', '/api/admin/open-day', { day: '2026-10-16', mode: 'am' }); t('abrir viernes mañana', r.status === 200, r);
+r = await call('POST', '/api/admin/open-day', { day: '2026-10-17', mode: 'wk' }); t('abrir sábado', r.status === 200, r);
+// segunda alumna con 1 sesión
+await call('POST', '/api/signup', { name: 'Fran', email: 'fran@x.cl', password: 'Francisca123', consent: true }, { ip: '4.4.4.4' });
+const fid = db.prepare("SELECT id FROM users WHERE email='fran@x.cl'").get().id;
+await call('POST', '/api/admin/approve', { userId: fid, modality: 'presencial', sede: 'quilpue', sessions: 1, start: '2026-10-12' });
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('GET', '/api/agenda'); const dPm = r.data.days.find((d) => d.day === '2026-10-15');
+t('agenda muestra tardes 16–19 libres', r.data.days.length === 3 && dPm && dPm.slots.map((x) => x.time).join() === '16:00,17:00,18:00,19:00' && dPm.slots.every((x) => x.free), r.data);
+t('sábado 9–12', r.data.days.find((d) => d.day === '2026-10-17').slots.map((x) => x.time).join() === '09:00,10:00,11:00,12:00');
+r = await call('POST', '/api/bookings', { day: '2026-10-15', time: '17:30' }); t('hora fuera de franja rechazada', r.status === 400, r);
+r = await call('POST', '/api/bookings', { day: '2026-10-18', time: '09:00' }); t('día no abierto rechazado', r.status === 400, r);
+r = await call('POST', '/api/bookings', { day: '2026-10-15', time: '17:00' }); t('pedir hora descuenta sesión (11)', r.status === 200 && r.data.left === 11, r);
+r = await call('GET', '/api/agenda'); t('mis horas: por confirmar', r.data.mine.length === 1 && r.data.mine[0].status === 'requested' && r.data.plan.left === 11, r.data);
+t('hora tomada aparece ocupada', r.data.days.find((d) => d.day === '2026-10-15').slots.find((x) => x.time === '17:00').free === false);
+const bid = r.data.mine[0].id;
+await loginAs('fran@x.cl', 'Francisca123');
+r = await call('POST', '/api/bookings', { day: '2026-10-15', time: '17:00' }); t('misma hora, otra alumna = 409', r.status === 409, r);
+r = await call('POST', '/api/bookings/cancel', { id: bid }); t('no se cancela la hora de otra', r.status === 404, r);
+r = await call('POST', '/api/bookings', { day: '2026-10-16', time: '08:30' }); t('Fran pide su única sesión', r.status === 200 && r.data.left === 0, r);
+r = await call('POST', '/api/bookings', { day: '2026-10-16', time: '09:30' }); t('sin sesiones no puede pedir más', r.status === 400, r);
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+r = await call('GET', '/api/admin/agenda'); t('panel ve solicitudes con nombre', r.data.bookings.length === 2 && r.data.bookings.some((b) => b.name === 'Camila' && b.status === 'requested'), r.data);
+const franB = r.data.bookings.find((b) => b.name === 'Fran').id;
+r = await call('POST', '/api/admin/open-day', { day: '2026-10-15', mode: 'am' }); t('no se cambia un día con horas pedidas', r.status === 409, r);
+r = await call('POST', '/api/admin/booking', { id: bid, action: 'confirm' }); t('Yohi confirma', r.status === 200 && db.prepare('SELECT status FROM bookings WHERE id=?').get(bid).status === 'confirmed', r);
+r = await call('POST', '/api/admin/booking', { id: franB, action: 'reject' }); t('Yohi rechaza', r.status === 200, r);
+await loginAs('fran@x.cl', 'Francisca123');
+r = await call('GET', '/api/agenda'); t('rechazo devuelve la sesión', r.data.plan.left === 1 && r.data.mine.length === 0, r.data);
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('POST', '/api/bookings', { day: '2026-10-17', time: '09:00' }); t('sábado 9:00 pedido', r.status === 200 && r.data.left === 10, r);
+const satId = db.prepare("SELECT id FROM bookings WHERE day='2026-10-17'").get().id;
+r = await call('POST', '/api/bookings/cancel', { id: bid }); t('cancelar >24 h antes devuelve la sesión', r.status === 200 && r.data.returned === true, r);
+r = await call('GET', '/api/agenda'); t('quedan 11 tras devolver', r.data.plan.left === 11, r.data);
+env.NOW_MS = String(new Date('2026-10-16T10:00:00-03:00').getTime()); // 23 h antes del sábado 9:00
+r = await call('POST', '/api/bookings/cancel', { id: satId }); t('cancelar <24 h pierde la sesión', r.status === 200 && r.data.returned === false, r);
+r = await call('GET', '/api/agenda'); t('sesión perdida: queda 11 (1 usada)', r.data.plan.left === 11 && r.data.plan.used === 1, r.data);
+r = await call('POST', '/api/bookings', { day: '2026-10-16', time: '09:30' }); t('hora que ya pasó rechazada', r.status === 400, r);
+env.NOW_MS = String(new Date('2026-11-20T10:00:00-03:00').getTime());
+r = await call('GET', '/api/agenda'); t('plan vencido: sin agenda', r.data.plan === null, r.data);
+r = await call('POST', '/api/bookings', { day: '2026-11-21', time: '09:00' }); t('plan vencido no reserva', r.status === 400, r);
+delete env.NOW_MS;
 // fuerza bruta
 cookie = '';
 let blocked = false;

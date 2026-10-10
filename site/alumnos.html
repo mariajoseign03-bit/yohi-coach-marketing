@@ -47,15 +47,60 @@
   } else {
     cards.push(el('section', { class: 'card' }, el('h1', {}, 'Tu plan'), el('p', { class: 'muted' }, 'Yohi aún no ha cargado tu plan.')));
   }
-  if (plan && plan.modality === 'presencial') {
-    cards.push(el('section', { class: 'card' }, el('span', { class: 'chip gold' }, 'Próximamente'),
-      el('h2', {}, 'Agenda'), el('p', { class: 'muted' }, 'Aquí podrás pedir tus horas de la semana.')));
-  }
+  const agendaBox = el('section', { class: 'card', id: 'agenda', style: 'grid-column:1/-1' });
+  if (plan && plan.modality === 'presencial') cards.push(agendaBox);
   cards.push(el('section', { class: 'card' }, el('span', { class: 'chip gold' }, 'Próximamente'),
     el('h2', {}, 'Mediciones'), el('p', { class: 'muted' },
       user.healthConsent
         ? 'Aquí verás la evolución de tus mediciones Body Pro Go.'
         : 'Para que Yohi cargue tus mediciones necesitas autorizar el tratamiento de datos de salud. Escríbele a Yohi por WhatsApp si quieres activarlo.')));
+
+  const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const dayLabel = (iso) => { const [y, m, d] = iso.split('-').map(Number); return DIAS[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()] + ' ' + d + ' ' + MESES[m - 1]; };
+  const STATUS = { requested: ['Por confirmar', 'wait'], confirmed: ['Confirmada', 'okb'] };
+
+  function slotBtn(s, onclick) {
+    const b = el('button', { class: 'slot', type: 'button', onclick }, s.time);
+    b.disabled = !s.free;
+    return b;
+  }
+
+  async function renderAgenda() {
+    const a = await api('/api/agenda');
+    if (!a.ok || !a.data.plan) { agendaBox.replaceChildren(el('h2', {}, 'Agenda'), el('p', { class: 'muted' }, 'Tu plan no tiene agenda de sesiones.')); return; }
+    const msg = el('p', { class: 'err', role: 'alert' });
+    const mine = a.data.mine.map((b) => el('div', { class: 'item' },
+      el('div', {}, el('strong', {}, dayLabel(b.day) + ' · ' + b.time), ' ', el('span', { class: 'badge ' + STATUS[b.status][1] }, STATUS[b.status][0])),
+      el('button', { class: 'btn ghost small', type: 'button', onclick: async () => {
+        if (!confirm('¿Cancelar esta hora? Si faltan menos de 24 horas, la sesión se pierde.')) return;
+        const r = await api('/api/bookings/cancel', { id: b.id });
+        if (!r.ok) { msg.textContent = r.data.error || 'No se pudo cancelar.'; return; }
+        await renderAgenda();
+        const m2 = document.getElementById('agenda-msg');
+        if (m2) { m2.className = 'ok'; m2.textContent = r.data.returned ? 'Hora cancelada. Tu sesión volvió al plan.' : 'Hora cancelada. Como faltaba menos de 24 horas, la sesión se pierde.'; }
+      } }, 'Cancelar')));
+    const days = a.data.days.map((d) => el('div', { class: 'day' }, el('h3', {}, dayLabel(d.day)),
+      el('div', { class: 'slots' }, d.slots.map((s) => slotBtn(s, async (ev) => {
+        if (!confirm('¿Pedir ' + dayLabel(d.day) + ' a las ' + s.time + '? Se descuenta 1 sesión y Yohi la confirma.')) return;
+        ev.target.disabled = true;
+        const r = await api('/api/bookings', { day: d.day, time: s.time });
+        await renderAgenda();
+        const m2 = document.getElementById('agenda-msg');
+        if (m2) { m2.className = r.ok ? 'ok' : 'err'; m2.textContent = r.ok ? 'Hora pedida. Yohi la confirmará pronto.' : (r.data.error || 'No se pudo pedir la hora.'); }
+      })))));
+    const left = a.data.plan.left;
+    agendaBox.replaceChildren(
+      el('h2', { style: 'margin-top:0' }, 'Agenda'),
+      el('p', {}, el('span', { class: 'chip gold' }, left + (left === 1 ? ' sesión disponible' : ' sesiones disponibles')),
+        ' ', el('span', { class: 'muted', style: 'font-size:13px' }, 'de ' + a.data.plan.total)),
+      el('p', { class: 'muted', style: 'font-size:13px' }, 'Pides una hora y Yohi la confirma. Puedes cancelar hasta 24 horas antes y la sesión vuelve a tu plan. Las sesiones sin usar se pierden al terminar el plan.'),
+      el('p', { id: 'agenda-msg', role: 'status' }),
+      mine.length ? el('div', { class: 'list' }, ...mine) : '',
+      el('h2', {}, 'Horas disponibles'),
+      days.length ? el('div', { class: 'days' }, ...days) : el('p', { class: 'muted' }, 'Yohi aún no abre horarios. Vuelve pronto.'),
+      msg);
+  }
+  if (plan && plan.modality === 'presencial') renderAgenda();
 
   app.replaceChildren(top, el('div', { class: 'grid' }, ...cards),
     el('p', { class: 'muted', style: 'margin-top:24px;font-size:13px' },

@@ -21,3 +21,10 @@
 3. Hacer merge de `portal-alumnos` a `workers-site` (la rama que publica el sitio). El binding de D1 viene en `wrangler.jsonc`.
 4. Abrir `/configurar`, crear la cuenta de Yohi con ese código y su propia clave. Después de eso la página queda inutilizable.
 5. Probar con una cuenta de prueba: crear cuenta → aprobar desde `/admin` → ingresar.
+
+## Agenda y reservas (v2)
+- Migración `0003_late_cancel.sql` (ya aplicada en la base `yohi-portal`).
+- Franjas (sesiones de 1 hora): mañana 08:30 y 09:30; tarde 16:00, 17:00, 18:00 y 19:00; fin de semana 09:00 a 12:00.
+- Pedir una hora descuenta una sesión. Rechazo o cancelación con más de 24 h la devuelve; con menos de 24 h se pierde.
+- Yohi abre días y confirma o rechaza desde `/admin`. Una hora no puede tomarla dos personas (índice único en la base).
+- Pendiente: Google Calendar y avisos.

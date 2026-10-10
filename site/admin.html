@@ -55,8 +55,56 @@
     return form;
   }
 
+  const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+  const dayDate = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 12)); };
+  const dayLabel = (iso) => { const dt = dayDate(iso); return DIAS[dt.getUTCDay()] + ' ' + dt.getUTCDate() + ' ' + MESES[dt.getUTCMonth()]; };
+  const addIso = (iso, n) => new Date(dayDate(iso).getTime() + n * 86400000).toISOString().slice(0, 10);
+  let sedeSel = 'quilpue';
+
+  function agendaSection(ag, reload) {
+    const msg = el('p', { class: 'err', role: 'alert' });
+    const act = (id, action, label, ghost) => el('button', { class: 'btn small' + (ghost ? ' ghost' : ''), type: 'button', onclick: async () => {
+      if (action !== 'confirm' && !confirm('¿' + label + ' esta hora? La sesión vuelve al plan de la alumna.')) return;
+      const r = await api('/api/admin/booking', { id, action });
+      if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return; }
+      reload();
+    } }, label);
+    const asked = ag.bookings.filter((b) => b.status === 'requested');
+    const conf = ag.bookings.filter((b) => b.status === 'confirmed');
+    const row = (b, btns) => el('div', { class: 'card item' }, el('div', {}, el('strong', {}, b.name), el('br'), el('span', { class: 'muted' }, dayLabel(b.day) + ' · ' + b.time)), el('div', { class: 'row' }, ...btns));
+    const openMap = Object.fromEntries(ag.days.map((d) => [d.day, d.mode]));
+    const modes = (iso) => (dayDate(iso).getUTCDay() % 6 === 0 ? [['closed', 'Cerrado'], ['wk', '9:00–13:00']] : [['closed', 'Cerrado'], ['am', 'Mañana 8:30'], ['pm', 'Tarde 16:00']]);
+    const rows = [];
+    for (let i = 0; i < 14; i++) {
+      const iso = addIso(ag.today, i);
+      const cur = openMap[iso] || 'closed';
+      const seg = el('div', { class: 'seg' }, modes(iso).map(([m, t]) => {
+        const b = el('button', { type: 'button', 'aria-pressed': String(cur === m), onclick: async () => {
+          msg.textContent = '';
+          const r = await api('/api/admin/open-day', { day: iso, mode: m, sede: sedeSel });
+          if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return; }
+          reload();
+        } }, t);
+        return b;
+      }));
+      rows.push(el('div', { class: 'card item' }, el('strong', {}, dayLabel(iso)), seg));
+    }
+    const sedeSelect = select('sede', [['quilpue', 'Quilpué'], ['vina', 'Viña del Mar'], ['quillota', 'Quillota']], sedeSel);
+    sedeSelect.addEventListener('change', () => { sedeSel = sedeSelect.value; });
+    return [
+      el('h2', {}, 'Horas por confirmar'),
+      asked.length ? el('div', { class: 'list' }, ...asked.map((b) => row(b, [act(b.id, 'confirm', 'Confirmar'), act(b.id, 'reject', 'Rechazar', true)]))) : el('p', { class: 'muted' }, 'No hay horas por confirmar.'),
+      el('h2', {}, 'Horas confirmadas'),
+      conf.length ? el('div', { class: 'list' }, ...conf.map((b) => row(b, [act(b.id, 'cancel', 'Cancelar', true)]))) : el('p', { class: 'muted' }, 'Aún no hay horas confirmadas.'),
+      el('h2', {}, 'Abrir agenda (próximos 14 días)'),
+      el('p', { class: 'muted', style: 'font-size:13px' }, 'Elige por día mañana o tarde. Los fines de semana son de 9:00 a 13:00. Un día con horas pedidas no se puede cambiar hasta responderlas.'),
+      el('label', { style: 'max-width:260px;margin-bottom:12px' }, 'Sede de los días que abras', sedeSelect),
+      msg,
+      el('div', { class: 'list' }, ...rows)];
+  }
+
   async function render() {
-    const [pend, stu] = await Promise.all([api('/api/admin/pending'), api('/api/admin/students')]);
+    const [pend, stu, ag] = await Promise.all([api('/api/admin/pending'), api('/api/admin/students'), api('/api/admin/agenda')]);
     const top = el('div', { class: 'top' },
       el('div', {}, el('span', { class: 'brand' }, 'YOHI COACH · PANEL'), el('p', { class: 'hello' }, 'Hola, ' + me.data.user.name.split(' ')[0])),
       el('button', { class: 'btn ghost small', type: 'button', onclick: logout }, 'Cerrar sesión'));
@@ -80,6 +128,7 @@
         : 'Sin plan')));
 
     app.replaceChildren(top,
+      ...(ag.ok ? agendaSection(ag.data, render) : []),
       el('h2', {}, 'Cuentas por aprobar'),
       pendingCards.length ? el('div', { class: 'list' }, ...pendingCards) : el('p', { class: 'muted' }, 'No hay cuentas pendientes.'),
       el('h2', {}, 'Alumnos activos'),
