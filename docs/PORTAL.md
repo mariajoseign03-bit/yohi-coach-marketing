@@ -39,3 +39,10 @@
 - Migración `0004_pdf.sql` (ya aplicada en `yohi-portal`). El PDF (máx. 4 MB, se verifica que sea PDF de verdad) se guarda en la base en trozos, porque R2 no está activado en la cuenta.
 - Lo sube Yohi al cargar una medición (puede ir con valores o sola). Solo lo ve la dueña (con su autorización de salud vigente) y Yohi. Al retirar la autorización se borra junto con las mediciones.
 - Si algún día se activa R2 en Cloudflare, se puede mover el almacenamiento allí.
+
+## Plan editable, lectura del PDF y /analiza (v5)
+- **Editar plan** (admin): botón "Editar plan" en cada alumna/o. Cambia modalidad (online ⇄ 1:1), sede, sesiones y fechas, o renueva creando un plan nuevo. `POST /api/admin/plan`. El plan vigente es el de mayor id.
+- **Lectura del PDF Body Pro Go**: `site/bodypro.js` + PDF.js (`site/vendor/pdfjs`, v4.10.38, Apache-2.0) leen el PDF **en el navegador**; al subirlo en el admin se rellenan los campos y las métricas extra (columna `measurements.extra`, migración `0005`, ya aplicada en producción). Calibrado con una captura de un informe Fitdays en español; si un informe real no se lee bien, ajustar `parse()`.
+- **Visuales**: la alumna ve "Tu avance" (comparación con el control anterior) y "Tu último informe" (barras contra el rango del informe).
+- **/analiza** (pública): cualquiera sube su PDF, se lee en su dispositivo (no se envía a ningún servidor) y ve sus barras, y un banner "Entrena con Yohi" lleva a WhatsApp. Enlazada desde el pie del inicio.
+- Avisar al abogado: informe PDF y métricas extra en la ficha, y herramienta /analiza que procesa en el navegador.

@@ -238,7 +238,7 @@ async function me(req, env) {
   if (!user) return fail(401, 'No has iniciado sesión.');
   const plan = await env.DB.prepare(
     `SELECT modality, sede, sessions_total, start_date, end_date FROM plans
-      WHERE user_id = ? ORDER BY end_date DESC LIMIT 1`,
+      WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
   )
     .bind(user.id)
     .first();
@@ -293,7 +293,7 @@ async function adminStudents(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const { results } = await env.DB.prepare(
     `SELECT u.id, u.name, u.email, p.modality, p.sede, p.sessions_total, p.start_date, p.end_date
-       FROM users u LEFT JOIN plans p ON p.id = (SELECT id FROM plans WHERE user_id = u.id ORDER BY end_date DESC LIMIT 1)
+       FROM users u LEFT JOIN plans p ON p.id = (SELECT id FROM plans WHERE user_id = u.id ORDER BY id DESC LIMIT 1)
       WHERE u.role = 'student' AND u.status = 'active' ORDER BY u.name`,
   ).all();
   return json({ ok: true, students: results });
@@ -384,7 +384,7 @@ const USED = "(status IN ('requested','confirmed','done') OR (status = 'cancelle
 async function activePlan(env, userId, today) {
   return env.DB.prepare(
     `SELECT id, modality, sede, sessions_total, start_date, end_date FROM plans
-      WHERE user_id = ? AND start_date <= ? AND end_date >= ? ORDER BY end_date DESC LIMIT 1`,
+      WHERE user_id = ? AND start_date <= ? AND end_date >= ? ORDER BY id DESC LIMIT 1`,
   ).bind(userId, today, today).first();
 }
 async function usedSessions(env, planId) {
@@ -513,9 +513,9 @@ async function myMeasurements(req, env) {
   if (!user) return fail(401, 'No has iniciado sesión.');
   if (!user.health_consent_at) return json({ ok: true, enabled: false, items: [] });
   const { results } = await env.DB.prepare(
-    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg, (pdf_name IS NOT NULL) AS has_pdf FROM measurements WHERE user_id = ? ORDER BY measured_on, id',
+    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg, (pdf_name IS NOT NULL) AS has_pdf, extra FROM measurements WHERE user_id = ? ORDER BY measured_on, id',
   ).bind(user.id).all();
-  return json({ ok: true, enabled: true, items: results });
+  return json({ ok: true, enabled: true, items: results.map(withExtra) });
 }
 
 // La alumna activa o retira su autorización. Al retirarla se borran sus mediciones.
@@ -543,9 +543,40 @@ async function adminMeasurements(req, env, url) {
   if (!u) return fail(404, 'No se encontró la alumna.');
   if (!u.health_consent_at) return json({ ok: true, enabled: false, items: [] });
   const { results } = await env.DB.prepare(
-    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg, (pdf_name IS NOT NULL) AS has_pdf FROM measurements WHERE user_id = ? ORDER BY measured_on DESC, id DESC',
+    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg, (pdf_name IS NOT NULL) AS has_pdf, extra FROM measurements WHERE user_id = ? ORDER BY measured_on DESC, id DESC',
   ).bind(userId).all();
-  return json({ ok: true, enabled: true, items: results });
+  return json({ ok: true, enabled: true, items: results.map(withExtra) });
+}
+
+const EXTRA_KEYS = ['fat_kg', 'water_kg', 'protein_kg', 'bone_kg', 'skeletal_kg', 'lean_kg', 'bmi', 'visceral', 'bmr', 'body_age', 'score', 'subcut_pct', 'whr', 'asmi', 'target_kg'];
+const RANGE_KEYS = ['weight', 'muscle', 'fat', 'water', 'protein', 'skeletal'];
+// Solo se guardan números conocidos y rangos [mínimo, máximo]; cualquier otra cosa se descarta.
+function cleanExtra(raw) {
+  let o = raw;
+  if (typeof raw === 'string') { if (!raw.trim() || raw.length > 4000) return null; try { o = JSON.parse(raw); } catch { return null; } }
+  if (!o || typeof o !== 'object') return null;
+  const out = {};
+  for (const k of EXTRA_KEYS) {
+    const v = Number(o[k]);
+    if (o[k] !== null && o[k] !== undefined && o[k] !== '' && Number.isFinite(v) && v >= 0 && v <= 20000) out[k] = Math.round(v * 100) / 100;
+  }
+  if (o.ranges && typeof o.ranges === 'object') {
+    const r = {};
+    for (const k of RANGE_KEYS) {
+      const a = o.ranges[k];
+      if (Array.isArray(a) && a.length === 2 && a.every((x) => Number.isFinite(Number(x)))) {
+        const lo = Number(a[0]), hi = Number(a[1]);
+        if (lo >= 0 && hi > lo && hi <= 20000) r[k] = [lo, hi];
+      }
+    }
+    if (Object.keys(r).length) out.ranges = r;
+  }
+  return Object.keys(out).length ? out : null;
+}
+function withExtra(row) {
+  let extra = null;
+  try { extra = row.extra ? JSON.parse(row.extra) : null; } catch { extra = null; }
+  return { ...row, extra, has_pdf: !!row.has_pdf };
 }
 
 const PDF_MAX = 4 * 1024 * 1024; // 4 MB
@@ -577,7 +608,8 @@ async function adminAddMeasurement(req, env) {
   if (!validDate(date) || date > todayCL(env)) return fail(400, 'Fecha inválida (no puede ser futura).');
   const w = num(b.weight_kg, 20, 300), f = num(b.fat_pct, 2, 70), m = num(b.muscle_kg, 5, 150);
   if ([w, f, m].some(Number.isNaN)) return fail(400, 'Revisa los valores: peso 20–300 kg, grasa 2–70 %, músculo 5–150 kg.');
-  if (w === null && f === null && m === null && !file) return fail(400, 'Ingresa al menos un valor o sube el PDF.');
+  const extra = cleanExtra(b.extra);
+  if (w === null && f === null && m === null && !file && !extra) return fail(400, 'Ingresa al menos un valor o sube el PDF.');
   let bytes = null;
   if (file) {
     if (file.size > PDF_MAX) return fail(400, 'El PDF pesa más de 4 MB.');
@@ -588,7 +620,7 @@ async function adminAddMeasurement(req, env) {
   if (!u) return fail(404, 'No se encontró la alumna.');
   if (!u.health_consent_at) return fail(403, 'Esta alumna no ha autorizado el registro de datos de salud.');
   const name = file ? String(file.name || 'informe.pdf').replace(/[^\w.\- ]/g, '_').slice(0, 80) : null;
-  const ins = await env.DB.prepare('INSERT INTO measurements (user_id, measured_on, weight_kg, fat_pct, muscle_kg, pdf_name) VALUES (?, ?, ?, ?, ?, ?)').bind(userId, date, w, f, m, name).run();
+  const ins = await env.DB.prepare('INSERT INTO measurements (user_id, measured_on, weight_kg, fat_pct, muscle_kg, pdf_name, extra) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(userId, date, w, f, m, name, extra ? JSON.stringify(extra) : null).run();
   if (bytes) {
     const mid = ins.meta && ins.meta.last_row_id;
     try {
@@ -640,6 +672,54 @@ async function adminDeleteMeasurement(req, env) {
   return json({ ok: true });
 }
 
+// Yohi corrige el plan de una alumna (cambiar modalidad, sede, sesiones o fechas) o lo renueva con uno nuevo.
+async function adminPlan(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const userId = Number(b.userId), modality = b.modality, start = String(b.start || '');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
+  if (!['presencial', 'online'].includes(modality)) return fail(400, 'Elige la modalidad.');
+  if (!validDate(start)) return fail(400, 'Fecha de inicio inválida.');
+  const user = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
+  if (!user) return fail(404, 'No se encontró al alumno.');
+  let sede = null, sessions = null, end;
+  if (modality === 'presencial') {
+    sede = b.sede;
+    if (!SEDES.includes(sede)) return fail(400, 'Elige la sede.');
+    sessions = Number(b.sessions);
+    if (!Number.isInteger(sessions) || sessions < 1 || sessions > 40) return fail(400, 'Sesiones entre 1 y 40.');
+    end = addDays(start, 27);
+  } else {
+    const months = Number(b.months || 1);
+    if (![1, 3].includes(months)) return fail(400, 'Elige 1 o 3 meses.');
+    end = addDays(addMonths(start, months), -1);
+  }
+  if (b.end) {
+    if (!validDate(String(b.end)) || String(b.end) < start) return fail(400, 'La fecha de término no puede ser antes del inicio.');
+    end = String(b.end);
+  }
+  const cur = await env.DB.prepare('SELECT id, modality FROM plans WHERE user_id = ? ORDER BY id DESC LIMIT 1').bind(userId).first();
+  if (b.renew === true || !cur) {
+    await env.DB.prepare('INSERT INTO plans (user_id, modality, sede, sessions_total, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)').bind(userId, modality, sede, sessions, start, end).run();
+    return json({ ok: true, end, renewed: true });
+  }
+  const today = todayCL(env);
+  const { results: active } = await env.DB.prepare("SELECT id FROM bookings WHERE plan_id = ? AND status IN ('requested','confirmed') AND day >= ?").bind(cur.id, today).all();
+  if (modality === 'presencial') {
+    const used = await usedSessions(env, cur.id);
+    if (sessions < used) return fail(400, `La alumna ya usó ${used} sesiones; no puede quedar con menos.`);
+  } else if (active.length && b.cancelBookings !== true) {
+    return fail(409, `Tiene ${active.length} hora(s) pedidas o confirmadas. Si pasa a online se cancelan y se devuelven.`);
+  }
+  const stmts = [env.DB.prepare('UPDATE plans SET modality = ?, sede = ?, sessions_total = ?, start_date = ?, end_date = ? WHERE id = ?').bind(modality, sede, sessions, start, end, cur.id)];
+  if (modality === 'online' && active.length) {
+    stmts.push(env.DB.prepare("UPDATE bookings SET status = 'cancelled', late_cancel = 0, decided_at = ? WHERE plan_id = ? AND status IN ('requested','confirmed') AND day >= ?").bind(isoNow(), cur.id, today));
+  }
+  await env.DB.batch(stmts);
+  return json({ ok: true, end, cancelled: modality === 'online' ? active.length : 0 });
+}
+
 /* ---------- entrada ---------- */
 export default {
   async fetch(req, env) {
@@ -675,6 +755,7 @@ export default {
         case 'GET /api/admin/measurements': return await adminMeasurements(req, env, url);
         case 'POST /api/admin/measurement': return await adminAddMeasurement(req, env);
         case 'POST /api/admin/measurement/delete': return await adminDeleteMeasurement(req, env);
+        case 'POST /api/admin/plan': return await adminPlan(req, env);
         default: return fail(404, 'No encontrado.');
       }
     } catch (err) {

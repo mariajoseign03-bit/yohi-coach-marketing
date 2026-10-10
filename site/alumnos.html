@@ -89,7 +89,14 @@
     const rows = [...items].reverse().map((i) => el('tr', {}, el('td', {}, fmtDate(i.measured_on)),
       ...METRICS.map(([k]) => el('td', {}, i[k] === null ? '–' : String(i[k]))),
       el('td', {}, i.has_pdf ? el('a', { href: '/api/measurements/pdf?id=' + i.id, target: '_blank', rel: 'noopener' }, 'Ver PDF') : '–')));
-    medBox.replaceChildren(head, el('div', { class: 'tiles' }, ...tiles), chart || '',
+    const withData = items.filter((i) => METRICS.some(([k]) => i[k] !== null) || (i.extra && typeof i.extra.score === 'number'));
+    const cmp = withData.length >= 2 ? compareBlock(withData[withData.length - 2], withData[withData.length - 1]) : null;
+    const lastX = withData[withData.length - 1];
+    const RB = [['Peso', 'weight', 'kg', (x) => x.weight_kg], ['Masa muscular', 'muscle', 'kg', (x) => x.muscle_kg], ['Grasa corporal', 'fat', 'kg', (x) => (x.extra ? x.extra.fat_kg : null)], ['Agua', 'water', 'kg', (x) => (x.extra ? x.extra.water_kg : null)]];
+    const bars = lastX && lastX.extra && lastX.extra.ranges
+      ? RB.filter(([, k, , get]) => lastX.extra.ranges[k] && typeof get(lastX) === 'number').map(([l, k, u, get]) => rangeBar(l, get(lastX), u, lastX.extra.ranges[k])) : [];
+    medBox.replaceChildren(head, el('div', { class: 'tiles' }, ...tiles), chart || '', cmp || '',
+      bars.length ? el('div', { style: 'margin-top:18px' }, el('h3', { class: 'cmp-title' }, 'Tu último informe'), ...bars) : '',
       el('div', { style: 'overflow-x:auto;margin-top:12px' }, el('table', { class: 'mtab' },
         el('thead', {}, el('tr', {}, el('th', {}, 'Fecha'), ...METRICS.map(([, l, u]) => el('th', {}, l + ' (' + u + ')')), el('th', {}, 'Informe'))), el('tbody', {}, ...rows))), foot);
   }

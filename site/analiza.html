@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Analiza tu informe Body Pro Go · Yohi Coach</title>
+<meta name="description" content="Sube tu informe de composición corporal (Body Pro Go / Fitdays) y míralo de forma clara. Se lee en tu dispositivo: el archivo no se sube a ningún servidor.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Montserrat:wght@500;600;700;800&family=Yellowtail&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal.css">
+</head>
+<body>
+<main class="wrap narrow" id="app">
+  <div class="top"><a class="brand" href="/">YOHI COACH</a><a class="btn ghost small" href="/">Volver al inicio</a></div>
+  <h1 style="font:400 clamp(30px,8vw,44px)/1.05 var(--f-display);text-transform:uppercase;margin:0 0 8px">Entiende tu <span style="color:var(--accent)">informe</span></h1>
+  <p class="muted" style="margin:0 0 18px">Sube el PDF de tu medición Body Pro Go (Fitdays) y mira tus resultados de forma clara. <strong>Se lee en tu celular o computador: el archivo no se envía a ningún servidor.</strong></p>
+
+  <section class="card" aria-label="Subir informe">
+    <label for="pdf" style="display:block;font-weight:700;margin-bottom:8px">Tu informe en PDF</label>
+    <input id="pdf" type="file" accept="application/pdf,.pdf">
+    <p class="err" id="err" role="alert"></p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Máximo 4 MB. Si no lo tienes en PDF, pídelo desde la app al terminar tu medición.</p>
+  </section>
+
+  <section id="out" hidden></section>
+
+  <section class="card" style="margin-top:22px;text-align:center;border-color:rgba(255,79,163,.45)">
+    <p class="chip gold" style="margin:0 0 10px">Entrena con propósito</p>
+    <h2 style="font:400 clamp(24px,6vw,32px)/1.1 var(--f-display);text-transform:uppercase;margin:0 0 8px">¿Qué esperas para <span style="color:var(--accent)">entrenar con Yohi</span>?</h2>
+    <p class="muted" style="margin:0 0 16px">Deja de entrenar por entrenar: un plan según tus objetivos y tus mediciones.</p>
+    <a class="btn" id="cta" href="https://wa.me/56944500370?text=Hola%20Yohi%20%F0%9F%91%8B%20Quiero%20entrenar%20contigo" target="_blank" rel="noopener">Quiero entrenar con Yohi</a>
+  </section>
+
+  <p class="muted" style="font-size:12.5px;margin-top:18px">Las mediciones por bioimpedancia son estimaciones y varían con la hidratación y otros factores; se interpretan mirando la tendencia en varios controles. Esta herramienta es informativa: no reemplaza una evaluación médica ni nutricional.</p>
+</main>
+<script src="/portal.js"></script>
+<script src="/bodypro.js"></script>
+<script>
+(function () {
+  const input = document.getElementById('pdf'), err = document.getElementById('err'), out = document.getElementById('out'), cta = document.getElementById('cta');
+  const NAMES = { weight: ['Peso', 'kg'], muscle: ['Masa muscular', 'kg'], fat: ['Grasa corporal', 'kg'], water: ['Agua corporal', 'kg'], protein: ['Proteína', 'kg'], skeletal: ['Músculo esquelético', 'kg'] };
+  const VAL = { weight: (r) => r.core.weight_kg, muscle: (r) => r.core.muscle_kg, fat: (r) => r.extra.fat_kg, water: (r) => r.extra.water_kg, protein: (r) => r.extra.protein_kg, skeletal: (r) => r.extra.skeletal_kg };
+
+  input.addEventListener('change', async () => {
+    err.textContent = ''; out.hidden = true; out.replaceChildren();
+    const f = input.files && input.files[0];
+    if (!f) return;
+    err.textContent = 'Leyendo tu informe…';
+    let r;
+    try { r = await BodyPro.read(f); } catch (e) { err.textContent = e.message || 'No pude leer ese archivo.'; return; }
+    err.textContent = '';
+    render(r);
+  });
+
+  function render(r) {
+    const kids = [];
+    kids.push(el('h2', { style: 'font:400 22px/1.1 var(--f-display);text-transform:uppercase;margin:24px 0 4px' }, 'Tu resultado'));
+    if (r.date) kids.push(el('p', { class: 'muted', style: 'margin:0 0 12px' }, 'Medición del ' + fmtDate(r.date)));
+    const tiles = [];
+    if (r.extra.score != null) tiles.push(['Puntaje', r.extra.score + '/100']);
+    if (r.core.weight_kg != null) tiles.push(['Peso', fmtN(r.core.weight_kg) + ' kg']);
+    if (r.core.fat_pct != null) tiles.push(['Grasa', fmtN(r.core.fat_pct) + ' %']);
+    if (r.core.muscle_kg != null) tiles.push(['Músculo', fmtN(r.core.muscle_kg) + ' kg']);
+    if (tiles.length) kids.push(el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:8px' },
+      ...tiles.map((t) => el('div', { class: 'card', style: 'padding:14px;text-align:center' }, el('div', { class: 'muted', style: 'font-size:12px' }, t[0]), el('div', { style: 'font:400 26px/1.1 var(--f-display);margin-top:4px' }, t[1])))));
+
+    const ranges = r.extra.ranges || {}, bars = [], notes = [];
+    for (const k of Object.keys(NAMES)) {
+      const v = VAL[k](r), rg = ranges[k];
+      if (typeof v !== 'number' || !Array.isArray(rg)) continue;
+      bars.push(rangeBar(NAMES[k][0], v, NAMES[k][1], rg));
+      if (k === 'muscle' && v < rg[0]) notes.push('Tu masa muscular está bajo el rango del informe. Con entrenamiento de fuerza progresivo y una buena alimentación, es un indicador que se puede mejorar con el tiempo.');
+      if (k === 'muscle' && v >= rg[0]) notes.push('Tu masa muscular está dentro o sobre el rango del informe. ¡Buena base para seguir progresando en fuerza!');
+      if (k === 'fat' && v > rg[1]) notes.push('Tu grasa corporal está sobre el rango del informe. Es solo una referencia: lo útil es ver cómo cambia en tus próximos controles.');
+    }
+    if (bars.length) kids.push(el('div', { class: 'card', style: 'margin-top:8px' }, el('h3', { class: 'cmp-title' }, 'Dónde estás frente al rango del informe'), ...bars));
+    if (notes.length) kids.push(el('div', { class: 'card', style: 'margin-top:12px' }, el('h3', { class: 'cmp-title' }, 'Qué mirar'), ...notes.map((n) => el('p', { style: 'margin:8px 0 0' }, '✦ ' + n))));
+    if (r.core.muscle_kg != null) {
+      cta.href = 'https://wa.me/56944500370?text=' + encodeURIComponent('Hola Yohi 👋 Medí mi composición corporal y quiero entrenar contigo para mejorar mi masa muscular');
+    }
+    out.append(...kids);
+    out.hidden = false;
+    out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+})();
+</script>
+</body>
+</html>

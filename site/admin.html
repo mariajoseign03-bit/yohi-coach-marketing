@@ -14,6 +14,7 @@
   <p class="muted">Cargando…</p>
 </main>
 <script src="/portal.js"></script>
+<script src="/bodypro.js"></script>
 <script>
 (async function () {
   const app = document.getElementById('app');
@@ -133,9 +134,27 @@
         const fw = inp('weight_kg', 'Peso (kg)', '0.1'), ff = inp('fat_pct', 'Grasa (%)', '0.1'), fm = inp('muscle_kg', 'Músculo (kg)', '0.1');
         const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar medición');
         const pdf = el('input', { name: 'pdf', type: 'file', accept: 'application/pdf,.pdf', 'aria-label': 'Informe PDF de Body Pro Go' });
-        const form = el('form', { class: 'form', novalidate: '' }, el('label', {}, 'Fecha del control', date),
-          el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px' }, fw, ff, fm),
-          el('label', {}, 'Informe PDF de Body Pro Go (opcional, máx. 4 MB)', pdf), msg, go);
+        let extra = null;
+        const read = el('p', { class: 'muted', style: 'font-size:13px;margin:0' });
+        pdf.addEventListener('change', async () => {
+          extra = null; read.textContent = ''; msg.textContent = '';
+          const file = pdf.files && pdf.files[0];
+          if (!file) return;
+          read.textContent = 'Leyendo el informe…';
+          try {
+            const r = await BodyPro.read(file);
+            if (r.date && r.date <= today) date.value = r.date;
+            if (r.core.weight_kg !== undefined) fw.value = r.core.weight_kg;
+            if (r.core.fat_pct !== undefined) ff.value = r.core.fat_pct;
+            if (r.core.muscle_kg !== undefined) fm.value = r.core.muscle_kg;
+            extra = r.extra;
+            const n = Object.keys(r.extra).filter((k) => k !== 'ranges').length;
+            read.textContent = '✦ Leí el informe: llené peso, grasa y músculo' + (n ? ' y guardaré ' + n + ' datos más' : '') + '. Revisa que coincidan con el PDF antes de guardar.';
+          } catch (e) { read.textContent = e.message + ' Puedes ingresar los valores a mano; el PDF igual se guarda.'; }
+        });
+        const form = el('form', { class: 'form', novalidate: '' }, el('label', {}, 'Informe PDF de Body Pro Go (opcional, máx. 4 MB). Si lo subes, leo los valores solo.', pdf), read,
+          el('label', {}, 'Fecha del control', date),
+          el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px' }, fw, ff, fm), msg, go);
         form.addEventListener('submit', async (e) => {
           e.preventDefault(); msg.textContent = ''; go.disabled = true;
           const file = pdf.files && pdf.files[0];
@@ -143,6 +162,7 @@
           const fd = new FormData();
           fd.set('userId', String(st.id)); fd.set('date', date.value); fd.set('weight_kg', fw.value); fd.set('fat_pct', ff.value); fd.set('muscle_kg', fm.value);
           if (file) fd.set('pdf', file);
+          if (extra) fd.set('extra', JSON.stringify(extra));
           go.textContent = file ? 'Subiendo…' : 'Guardando…';
           const x = await apiForm('/api/admin/measurement', fd); go.disabled = false; go.textContent = 'Guardar medición';
           if (!x.ok) { msg.textContent = x.data.error || 'No se pudo guardar.'; return; }
@@ -156,17 +176,51 @@
       }
       return { box, load };
     }
+    function planPanel(st) {
+      const msg = el('p', { class: 'err', role: 'alert' });
+      const modality = select('modality', [['presencial', 'Presencial 1:1'], ['online', 'Asesoría online']], st.modality || 'presencial');
+      const sede = select('sede', [['quilpue', 'Quilpué'], ['vina', 'Viña del Mar'], ['quillota', 'Quillota']], st.sede || 'quilpue');
+      const sessions = el('input', { name: 'sessions', type: 'number', min: '1', max: '40', inputmode: 'numeric', value: String(st.sessions_total || 12) });
+      const months = select('months', [['1', '1 mes'], ['3', '3 meses']], '1');
+      const start = el('input', { name: 'start', type: 'date', value: st.start_date || today });
+      const end = el('input', { name: 'end', type: 'date', value: st.end_date || '' });
+      const renew = el('input', { type: 'checkbox', name: 'renew', style: 'width:auto;min-height:0' });
+      const wPres = el('div', { class: 'form' }, el('label', {}, 'Sede', sede), el('label', {}, 'Sesiones del plan', sessions));
+      const wOn = el('div', { class: 'form' }, el('label', {}, 'Duración (si cambias las fechas)', months));
+      const sync = () => { const p = modality.value === 'presencial'; wPres.hidden = !p; wOn.hidden = p; };
+      modality.addEventListener('change', sync); sync();
+      const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar cambios');
+      renew.addEventListener('change', () => { go.textContent = renew.checked ? 'Renovar con un plan nuevo' : 'Guardar cambios'; });
+      const form = el('form', { class: 'form', novalidate: '', style: 'margin-top:12px' },
+        el('label', {}, 'Modalidad', modality), wPres, wOn,
+        el('label', {}, 'Inicio del plan', start), el('label', {}, 'Término del plan (puedes extenderlo)', end),
+        el('label', { style: 'display:flex;gap:10px;align-items:center;font-weight:600' }, renew, 'Renovar: crear un plan nuevo (las sesiones vuelven a empezar)'),
+        el('p', { class: 'muted', style: 'font-size:12.5px;margin:0' }, 'Sin marcar "renovar", corriges el plan actual y se conservan las horas ya usadas.'), msg, go);
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault(); msg.textContent = ''; go.disabled = true;
+        const body = { userId: st.id, modality: modality.value, start: start.value, renew: renew.checked };
+        if (end.value) body.end = end.value;
+        if (modality.value === 'presencial') { body.sede = sede.value; body.sessions = Number(sessions.value); } else body.months = Number(months.value);
+        let r = await api('/api/admin/plan', body);
+        if (r.status === 409 && confirm(r.data.error + ' ¿Continuar?')) r = await api('/api/admin/plan', { ...body, cancelBookings: true });
+        go.disabled = false;
+        if (!r.ok) { if (r.status !== 409) msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
+        render();
+      });
+      return form;
+    }
     const rows = (stu.data.students || []).map((s) => {
       const mp = medPanel(s);
       const det = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, 'Mediciones'), mp.box);
       det.addEventListener('toggle', () => { if (det.open) mp.load(); });
+      const planDet = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, 'Editar plan'), planPanel(s));
       return el('div', { class: 'card' },
         el('div', { class: 'item' },
           el('div', {}, el('strong', {}, s.name), el('br'), el('span', { class: 'muted' }, s.email)),
           el('div', { class: 'muted', style: 'font-size:13px' }, s.modality
             ? [s.modality === 'presencial' ? `1:1 · ${SEDE_NOMBRE[s.sede] || ''} · ${s.sessions_total} sesiones` : 'Online', ' · vence ', fmtDate(s.end_date)]
             : 'Sin plan')),
-        el('div', { style: 'margin-top:12px' }, det));
+        el('div', { class: 'row', style: 'margin-top:12px;align-items:flex-start' }, planDet, det));
     });
 
     app.replaceChildren(top,

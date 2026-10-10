@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import worker from '../src/worker.js';
 
 const db = new DatabaseSync(':memory:');
-for (const f of ['0001_init.sql', '0002_health_consent.sql', '0003_late_cancel.sql', '0004_pdf.sql']) db.exec(fs.readFileSync('./migrations/' + f, 'utf8'));
+for (const f of ['0001_init.sql', '0002_health_consent.sql', '0003_late_cancel.sql', '0004_pdf.sql', '0005_extra_metrics.sql']) db.exec(fs.readFileSync('./migrations/' + f, 'utf8'));
 db.exec('PRAGMA foreign_keys = ON');
 
 function stmt(sql) {
@@ -204,6 +204,43 @@ t('sin sesión NO accede al PDF', anon.status === 401);
 await loginAs('camila@x.cl', 'Camila12345');
 r = await call('POST', '/api/health-consent', { enabled: false });
 t('retirar autorización borra también los PDF', db.prepare('SELECT count(*) c FROM pdf_chunks').get().c === 0 && db.prepare('SELECT count(*) c FROM measurements WHERE user_id=?').get(cid).c === 0, r);
+delete env.NOW_MS;
+
+// ---------- editar / renovar plan ----------
+env.NOW_MS = String(new Date('2026-10-20T12:00:00-03:00').getTime());
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+const planOf = (id) => db.prepare('SELECT * FROM plans WHERE user_id=? ORDER BY end_date DESC, id DESC').get(id);
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'presencial', sede: 'quilpue', sessions: 6, start: '2026-10-12' }); t('Yohi sube sesiones del plan (1→6)', r.status === 200 && planOf(fid).sessions_total === 6, r);
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'online', months: 3, start: '2026-10-12' }); t('1:1 → online (sin horas pedidas)', r.status === 200 && planOf(fid).modality === 'online' && planOf(fid).sede === null && planOf(fid).end_date === '2027-01-11', planOf(fid));
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'presencial', sede: 'vina', sessions: 3, start: '2026-10-19' }); t('online → 1:1 con sede y sesiones', r.status === 200 && planOf(fid).modality === 'presencial' && planOf(fid).sede === 'vina' && planOf(fid).end_date === '2026-11-15', planOf(fid));
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'presencial', sede: 'mars', sessions: 3, start: '2026-10-19' }); t('sede inválida rechazada', r.status === 400, r);
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'presencial', sede: 'quilpue', sessions: 3, start: '2026-10-19', end: '2026-10-01' }); t('término antes del inicio rechazado', r.status === 400, r);
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'presencial', sede: 'quilpue', sessions: 3, start: '2026-10-19', end: '2026-11-30' }); t('Yohi extiende la fecha de término', r.status === 200 && planOf(fid).end_date === '2026-11-30' && planOf(fid).sede === 'quilpue', planOf(fid));
+await call('POST', '/api/admin/open-day', { day: '2026-10-22', mode: 'pm', sede: 'quilpue' });
+await loginAs('fran@x.cl', 'Francisca123');
+r = await call('POST', '/api/bookings', { day: '2026-10-22', time: '16:00' }); t('Fran pide una hora tras el cambio', r.status === 200 && r.data.left === 2, r);
+r = await call('POST', '/api/bookings', { day: '2026-10-22', time: '17:00' }); t('Fran pide otra', r.status === 200 && r.data.left === 1, r);
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'presencial', sede: 'quilpue', sessions: 1, start: '2026-10-19' }); t('no deja bajar a menos sesiones de las ya usadas', r.status === 400, r);
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'online', months: 1, start: '2026-10-19' }); t('a online con horas pedidas pide confirmar (409)', r.status === 409, r);
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'online', months: 1, start: '2026-10-19', cancelBookings: true }); t('a online cancelando y devolviendo las horas', r.status === 200 && r.data.cancelled === 2 && db.prepare("SELECT count(*) c FROM bookings WHERE user_id=? AND status='cancelled' AND late_cancel=0").get(fid).c >= 2, r);
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'presencial', sede: 'quilpue', sessions: 4, start: '2026-10-20', renew: true }); t('renovar crea un plan nuevo', r.status === 200 && r.data.renewed === true && db.prepare('SELECT count(*) c FROM plans WHERE user_id=?').get(fid).c === 2, r);
+await loginAs('fran@x.cl', 'Francisca123');
+r = await call('GET', '/api/agenda'); t('plan renovado parte con todas las sesiones', r.data.plan && r.data.plan.total === 4 && r.data.plan.left === 4, r.data);
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('POST', '/api/admin/plan', { userId: fid, modality: 'online', months: 1, start: '2026-10-19' }); t('alumna NO edita planes', r.status === 403, r);
+
+// ---------- datos extra del informe ----------
+await loginAs('camila@x.cl', 'Camila12345');
+await call('POST', '/api/health-consent', { enabled: true });
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+const ex = { fat_kg: '38.8', score: 64, visceral: 17, hack: 'x', bmr: 'abc', ranges: { weight: [42.9, 58], muscle: [30.6, 39], fat: [16, 10], bogus: [1, 2] } };
+const fd2 = new FormData(); fd2.set('userId', String(cid)); fd2.set('date', '2026-10-19'); fd2.set('weight_kg', '61.2'); fd2.set('extra', JSON.stringify(ex));
+r = await call('POST', '/api/admin/measurement', fd2); t('guarda datos extra del informe', r.status === 200, r);
+const ext = JSON.parse(db.prepare("SELECT extra FROM measurements WHERE user_id=? AND extra IS NOT NULL").get(cid).extra);
+t('extra: solo números y rangos válidos', ext.fat_kg === 38.8 && ext.score === 64 && ext.visceral === 17 && !('hack' in ext) && !('bmr' in ext) && ext.ranges.weight[1] === 58 && !ext.ranges.fat && !ext.ranges.bogus, ext);
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('GET', '/api/measurements'); t('la alumna recibe extra como objeto', r.data.items.some((i) => i.extra && i.extra.score === 64), r.data);
 delete env.NOW_MS;
 // fuerza bruta
 cookie = '';

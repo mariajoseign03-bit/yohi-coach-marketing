@@ -96,4 +96,47 @@ function lineChart(items, key, unit) {
   return svg;
 }
 
+const fmtN = (v) => (Math.round(v * 10) / 10).toString().replace('.', ',');
+const WA_NUM = '56944500370';
+
+// Barra con la zona "rango del informe" y un marcador con el valor medido.
+function rangeBar(label, value, unit, range) {
+  const lo = range[0], hi = range[1];
+  const min = Math.min(lo, value) * 0.85, max = Math.max(hi, value) * 1.12;
+  const pct = (v) => Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100));
+  const state = value < lo ? 'Bajo el rango' : value > hi ? 'Sobre el rango' : 'Dentro del rango';
+  const track = el('div', { class: 'rb-track', role: 'img', 'aria-label': `${label}: ${fmtN(value)} ${unit}. ${state} del informe (${fmtN(lo)} a ${fmtN(hi)} ${unit}).` },
+    el('div', { class: 'rb-zone', style: `left:${pct(lo)}%;width:${pct(hi) - pct(lo)}%` }),
+    el('div', { class: 'rb-dot', style: `left:${pct(value)}%` }));
+  return el('div', { class: 'rb' },
+    el('div', { class: 'rb-head' }, el('span', {}, label), el('strong', {}, fmtN(value) + ' ' + unit)),
+    track,
+    el('div', { class: 'rb-foot' }, el('span', {}, 'Rango del informe: ' + fmtN(lo) + '–' + fmtN(hi)), el('span', { class: 'rb-state' }, state)));
+}
+
+// Comparación "antes → ahora" entre dos controles.
+function compareBlock(prev, cur) {
+  const defs = [['Peso', 'kg', (x) => x.weight_kg], ['Grasa corporal', '%', (x) => x.fat_pct], ['Masa muscular', 'kg', (x) => x.muscle_kg], ['Puntaje corporal', 'pts', (x) => (x.extra ? x.extra.score : null)]];
+  const rows = [], notes = [];
+  for (const [label, unit, get] of defs) {
+    const a = get(prev), b = get(cur);
+    if (typeof a !== 'number' || typeof b !== 'number') continue;
+    const d = Math.round((b - a) * 10) / 10;
+    const max = Math.max(a, b) || 1;
+    const arrow = d > 0 ? '↑' : d < 0 ? '↓' : '=';
+    rows.push(el('div', { class: 'cmp' },
+      el('div', { class: 'cmp-head' }, el('span', {}, label), el('span', { class: 'chip' + (d === 0 ? '' : ' gold') }, arrow + ' ' + (d > 0 ? '+' : d < 0 ? '−' : '') + fmtN(Math.abs(d)) + ' ' + unit)),
+      el('div', { class: 'cmp-bar' }, el('span', { class: 'cmp-l' }, 'Antes'), el('div', { class: 'cmp-t' }, el('i', { class: 'a', style: `width:${Math.max(6, (a / max) * 100)}%` })), el('span', { class: 'cmp-v' }, fmtN(a))),
+      el('div', { class: 'cmp-bar' }, el('span', { class: 'cmp-l' }, 'Ahora'), el('div', { class: 'cmp-t' }, el('i', { class: 'b', style: `width:${Math.max(6, (b / max) * 100)}%` })), el('span', { class: 'cmp-v' }, fmtN(b)))));
+    if (label === 'Masa muscular' && d > 0) notes.push('Subiste ' + fmtN(d) + ' kg de masa muscular.');
+    if (label === 'Grasa corporal' && d < 0) notes.push('Tu porcentaje de grasa bajó ' + fmtN(Math.abs(d)) + ' puntos.');
+  }
+  if (!rows.length) return null;
+  return el('div', { class: 'cmp-wrap' },
+    el('h3', { class: 'cmp-title' }, 'Tu avance'),
+    el('p', { class: 'muted', style: 'font-size:13px;margin:0 0 12px' }, 'Tu control del ' + fmtDate(cur.measured_on) + ' comparado con el del ' + fmtDate(prev.measured_on) + '.'),
+    notes.length ? el('p', { class: 'ok', style: 'margin:0 0 12px' }, '✦ ' + notes.join(' ')) : '',
+    ...rows);
+}
+
 sparkles();
