@@ -28,3 +28,9 @@
 - Pedir una hora descuenta una sesión. Rechazo o cancelación con más de 24 h la devuelve; con menos de 24 h se pierde.
 - Yohi abre días y confirma o rechaza desde `/admin`. Una hora no puede tomarla dos personas (índice único en la base).
 - Pendiente: Google Calendar y avisos.
+
+## Mediciones y Mocca (v3)
+- Mediciones (peso, % grasa, masa muscular): solo si la alumna autorizó datos de salud. Yohi las carga y borra desde `/admin` (botón Mediciones de cada alumna). La alumna ve tarjetas, gráfico y tabla en `/alumnos`.
+- La alumna puede activar o retirar su autorización; al retirarla se borran sus mediciones.
+- Mocca (`site/mocca.js`): asistente flotante con preguntas frecuentes y respuestas fijas; las dudas de salud o de clave las deriva a Yohi por WhatsApp. No es un chat libre.
+- Pendiente: Google Calendar y avisos.

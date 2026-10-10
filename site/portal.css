@@ -72,3 +72,34 @@ input:focus-visible,select:focus-visible{ outline:none; border-color:var(--accen
 .seg button{ min-height:44px; padding:0 14px; border-radius:999px; border:1.5px solid rgba(255,214,232,.25); background:transparent; color:var(--fg); font:700 13px/1 var(--f-text); cursor:pointer }
 .seg button[aria-pressed="true"]{ background:var(--accent); color:var(--on-accent); border-color:var(--accent) }
 @media (max-width:520px){ .slot{ flex:1 0 calc(50% - 8px) } }
+/* mediciones */
+.tiles{ display:grid; grid-template-columns:repeat(auto-fit,minmax(98px,1fr)); gap:10px; margin-bottom:14px }
+.tile{ padding:12px 12px!important }
+#mediciones svg{ max-width:560px; margin:0 auto }
+.tile{ display:grid; gap:4px; text-align:left; padding:12px 14px; border-radius:18px; border:1.5px solid rgba(255,214,232,.2); background:rgba(255,255,255,.04); color:var(--fg); font-family:var(--f-text); cursor:pointer; min-height:44px }
+.tile[aria-pressed="true"]{ border-color:var(--accent); background:rgba(255,79,163,.14) }
+.tile .tl{ font:800 11.5px/1 var(--f-text); letter-spacing:.08em; text-transform:uppercase; color:var(--accent-soft) }
+.tile .tv{ font:400 26px/1.1 var(--f-display); letter-spacing:.02em }
+.tile .td{ font-size:12px; color:var(--muted) }
+.mtab{ width:100%; border-collapse:collapse; font-size:13.5px }
+.mtab th,.mtab td{ padding:9px 5px; text-align:left; border-bottom:1px solid rgba(255,214,232,.1) }
+.mtab td:first-child{ white-space:nowrap }
+.mtab th{ font:800 10.5px/1.2 var(--f-text); letter-spacing:.06em; text-transform:uppercase; color:var(--accent-soft) }
+/* Mocca */
+.mc-fab{ position:fixed; right:max(16px,env(safe-area-inset-right)); bottom:max(16px,env(safe-area-inset-bottom)); z-index:20; width:64px; height:64px; padding:0; border-radius:50%; border:2px solid #FF6DB4; background:#191919; cursor:pointer; display:grid; place-items:center; overflow:hidden; box-shadow:0 0 0 4px rgba(255,79,163,.18),0 10px 30px -6px rgba(255,79,163,.8) }
+.mc-fab img{ width:56px; height:56px; object-fit:contain }
+.mc-panel{ position:fixed; right:max(16px,env(safe-area-inset-right)); bottom:calc(max(16px,env(safe-area-inset-bottom)) + 76px); z-index:21; width:min(380px,calc(100vw - 32px)); max-height:min(560px,calc(100dvh - 130px)); display:flex; flex-direction:column; border-radius:26px; border:1px solid rgba(255,214,232,.2); background:radial-gradient(100% 60% at 50% 0,rgba(255,79,163,.22),transparent 70%),#191919; box-shadow:0 24px 60px -12px rgba(0,0,0,.8) }
+.mc-head{ display:flex; align-items:center; gap:10px; padding:14px 14px 10px }
+.mc-head img{ border-radius:50% }
+.mc-head div{ display:grid; flex:1; line-height:1.2 }
+.mc-head strong{ font:400 20px/1.1 var(--f-display); letter-spacing:.03em; text-transform:uppercase }
+.mc-head span{ font-size:12px; color:var(--muted) }
+.mc-x{ width:44px; height:44px; border:0; border-radius:50%; background:transparent; color:var(--muted); font-size:26px; cursor:pointer }
+.mc-body{ display:flex; flex-direction:column; gap:10px; padding:4px 14px 16px; overflow-y:auto }
+.mc-msg{ align-self:flex-start; max-width:92%; padding:12px 14px; border-radius:18px 18px 18px 6px; background:rgba(255,255,255,.07); font-size:14px; line-height:1.5 }
+.mc-me{ align-self:flex-end; max-width:86%; padding:10px 14px; border-radius:18px 18px 6px 18px; background:var(--accent); color:var(--on-accent); font-size:13.5px; font-weight:700; line-height:1.4 }
+.mc-opt{ display:flex; align-items:center; min-height:44px; padding:10px 16px; border-radius:999px; border:1.5px solid rgba(255,109,180,.5); background:rgba(255,79,163,.08); color:var(--fg); font:700 13.5px/1.25 var(--f-text); text-align:left; text-decoration:none; cursor:pointer }
+.mc-opt:hover{ background:rgba(255,79,163,.22) }
+.mc-opt.back{ border-color:rgba(255,214,232,.35); background:transparent; justify-content:center }
+.mc-opt.wa{ background:var(--accent); color:var(--on-accent); border-color:var(--accent); justify-content:center }
+@media (prefers-reduced-motion:no-preference){ .mc-panel:not([hidden]){ animation:mcin .22s var(--ease-out) } @keyframes mcin{ from{opacity:0;transform:translateY(8px) scale(.98)} } }

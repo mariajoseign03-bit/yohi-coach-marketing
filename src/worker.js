@@ -498,6 +498,80 @@ async function adminBooking(req, env) {
   return json({ ok: true });
 }
 
+/* ---------- mediciones (datos de salud: solo con autorización expresa) ---------- */
+const num = (v, min, max) => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= min && n <= max ? Math.round(n * 10) / 10 : NaN;
+};
+
+async function myMeasurements(req, env) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  if (!user.health_consent_at) return json({ ok: true, enabled: false, items: [] });
+  const { results } = await env.DB.prepare(
+    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg FROM measurements WHERE user_id = ? ORDER BY measured_on, id',
+  ).bind(user.id).all();
+  return json({ ok: true, enabled: true, items: results });
+}
+
+// La alumna activa o retira su autorización. Al retirarla se borran sus mediciones.
+async function setHealthConsent(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  const b = await readBody(req);
+  if (!b || typeof b.enabled !== 'boolean') return fail(400, 'Solicitud inválida.');
+  if (b.enabled) {
+    await env.DB.prepare('UPDATE users SET health_consent_at = ? WHERE id = ? AND health_consent_at IS NULL').bind(isoNow(), user.id).run();
+  } else {
+    await env.DB.batch([
+      env.DB.prepare('UPDATE users SET health_consent_at = NULL WHERE id = ?').bind(user.id),
+      env.DB.prepare('DELETE FROM measurements WHERE user_id = ?').bind(user.id),
+    ]);
+  }
+  return json({ ok: true });
+}
+
+async function adminMeasurements(req, env, url) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const userId = Number(url.searchParams.get('userId'));
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  const u = await env.DB.prepare("SELECT health_consent_at FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
+  if (!u) return fail(404, 'No se encontró la alumna.');
+  if (!u.health_consent_at) return json({ ok: true, enabled: false, items: [] });
+  const { results } = await env.DB.prepare(
+    'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg FROM measurements WHERE user_id = ? ORDER BY measured_on DESC, id DESC',
+  ).bind(userId).all();
+  return json({ ok: true, enabled: true, items: results });
+}
+
+async function adminAddMeasurement(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const userId = Number(b.userId);
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  const date = String(b.date || '');
+  if (!validDate(date) || date > todayCL(env)) return fail(400, 'Fecha inválida (no puede ser futura).');
+  const w = num(b.weight_kg, 20, 300), f = num(b.fat_pct, 2, 70), m = num(b.muscle_kg, 5, 150);
+  if ([w, f, m].some(Number.isNaN)) return fail(400, 'Revisa los valores: peso 20–300 kg, grasa 2–70 %, músculo 5–150 kg.');
+  if (w === null && f === null && m === null) return fail(400, 'Ingresa al menos un valor.');
+  const u = await env.DB.prepare("SELECT health_consent_at FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
+  if (!u) return fail(404, 'No se encontró la alumna.');
+  if (!u.health_consent_at) return fail(403, 'Esta alumna no ha autorizado el registro de datos de salud.');
+  await env.DB.prepare('INSERT INTO measurements (user_id, measured_on, weight_kg, fat_pct, muscle_kg) VALUES (?, ?, ?, ?, ?)').bind(userId, date, w, f, m).run();
+  return json({ ok: true });
+}
+
+async function adminDeleteMeasurement(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  const id = Number(b && b.id);
+  if (!Number.isInteger(id)) return fail(400, 'Solicitud inválida.');
+  await env.DB.prepare('DELETE FROM measurements WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
 /* ---------- entrada ---------- */
 export default {
   async fetch(req, env) {
@@ -527,6 +601,11 @@ export default {
         case 'GET /api/admin/agenda': return await adminAgenda(req, env);
         case 'POST /api/admin/open-day': return await adminOpenDay(req, env);
         case 'POST /api/admin/booking': return await adminBooking(req, env);
+        case 'GET /api/measurements': return await myMeasurements(req, env);
+        case 'POST /api/health-consent': return await setHealthConsent(req, env);
+        case 'GET /api/admin/measurements': return await adminMeasurements(req, env, url);
+        case 'POST /api/admin/measurement': return await adminAddMeasurement(req, env);
+        case 'POST /api/admin/measurement/delete': return await adminDeleteMeasurement(req, env);
         default: return fail(404, 'No encontrado.');
       }
     } catch (err) {

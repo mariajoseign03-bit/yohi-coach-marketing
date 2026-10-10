@@ -14,6 +14,7 @@
   <p class="muted">Cargando tu espacio…</p>
 </main>
 <script src="/portal.js"></script>
+<script src="/mocca.js"></script>
 <script>
 (async function () {
   const app = document.getElementById('app');
@@ -23,6 +24,7 @@
   const { user, plan } = r.data;
   if (user.role === 'admin') { location.replace('/admin'); return; }
 
+  initMocca(user.name.split(' ')[0]);
   const top = el('div', { class: 'top' },
     el('div', {},
       el('span', { class: 'brand' }, 'YOHI COACH · ZONA ALUMNOS'),
@@ -49,11 +51,48 @@
   }
   const agendaBox = el('section', { class: 'card', id: 'agenda', style: 'grid-column:1/-1' });
   if (plan && plan.modality === 'presencial') cards.push(agendaBox);
-  cards.push(el('section', { class: 'card' }, el('span', { class: 'chip gold' }, 'Próximamente'),
-    el('h2', {}, 'Mediciones'), el('p', { class: 'muted' },
-      user.healthConsent
-        ? 'Aquí verás la evolución de tus mediciones Body Pro Go.'
-        : 'Para que Yohi cargue tus mediciones necesitas autorizar el tratamiento de datos de salud. Escríbele a Yohi por WhatsApp si quieres activarlo.')));
+  const medBox = el('section', { class: 'card', id: 'mediciones', style: 'grid-column:1/-1' });
+  cards.push(medBox);
+
+  const METRICS = [['weight_kg', 'Peso', 'kg'], ['fat_pct', 'Grasa', '%'], ['muscle_kg', 'Músculo', 'kg']];
+  let metric = 'weight_kg';
+  async function renderMed() {
+    const m = await api('/api/measurements');
+    const head = el('h2', { style: 'margin-top:0' }, 'Mediciones');
+    if (!m.ok) { medBox.replaceChildren(head, el('p', { class: 'err' }, 'No pudimos cargar tus mediciones.')); return; }
+    if (!m.data.enabled) {
+      medBox.replaceChildren(head,
+        el('p', { class: 'muted' }, 'Aquí verás cómo evolucionan tu peso, tu porcentaje de grasa y tu masa muscular, medidos por Yohi con Body Pro Go. Son datos de salud: Yohi solo puede cargarlos si tú lo autorizas. Es opcional y puedes retirarlo cuando quieras.'),
+        el('button', { class: 'btn small', type: 'button', onclick: async () => { await api('/api/health-consent', { enabled: true }); renderMed(); } }, 'Autorizo el registro de mis mediciones'));
+      return;
+    }
+    const items = m.data.items;
+    const foot = el('div', { style: 'margin-top:18px' },
+      el('p', { class: 'muted', style: 'font-size:12.5px' }, 'La bioimpedancia da estimaciones y varía con la hidratación, la comida y la hora del día. Lo que importa es la tendencia en varios controles, no un solo número.'),
+      el('button', { class: 'btn ghost small', type: 'button', onclick: async () => {
+        if (!confirm('Si retiras tu autorización se borran todas tus mediciones y Yohi no podrá cargar nuevas. ¿Continuar?')) return;
+        await api('/api/health-consent', { enabled: false }); renderMed();
+      } }, 'Retirar mi autorización y borrar mis mediciones'));
+    if (!items.length) { medBox.replaceChildren(head, el('p', { class: 'muted' }, 'Yohi aún no ha cargado tus mediciones. Aparecerán aquí después de tu primer control.'), foot); return; }
+    const first = items[0], last = items[items.length - 1];
+    const tiles = METRICS.filter(([k]) => last[k] !== null).map(([k, label, unit]) => {
+      const base = items.find((i) => i[k] !== null);
+      const diff = Math.round((last[k] - base[k]) * 10) / 10;
+      return el('button', { type: 'button', class: 'tile', 'aria-pressed': String(metric === k), onclick: () => { metric = k; renderMed(); } },
+        el('span', { class: 'tl' }, label),
+        el('span', { class: 'tv' }, last[k] + ' ' + unit),
+        el('span', { class: 'td' }, items.length > 1 && base !== last ? (diff > 0 ? '+' : '') + diff + ' ' + unit + ' desde ' + fmtDate(base.measured_on) : 'Primer control'));
+    });
+    if (!last[metric]) metric = (METRICS.find(([k]) => items.some((i) => i[k] !== null)) || ['weight_kg'])[0];
+    const mu = METRICS.find(([k]) => k === metric);
+    const chart = lineChart(items, metric, mu[2]);
+    const rows = [...items].reverse().map((i) => el('tr', {}, el('td', {}, fmtDate(i.measured_on)),
+      ...METRICS.map(([k]) => el('td', {}, i[k] === null ? '–' : String(i[k])))));
+    medBox.replaceChildren(head, el('div', { class: 'tiles' }, ...tiles), chart || '',
+      el('div', { style: 'overflow-x:auto;margin-top:12px' }, el('table', { class: 'mtab' },
+        el('thead', {}, el('tr', {}, el('th', {}, 'Fecha'), ...METRICS.map(([, l, u]) => el('th', {}, l + ' (' + u + ')')))), el('tbody', {}, ...rows))), foot);
+  }
+  renderMed();
 
   const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const dayLabel = (iso) => { const [y, m, d] = iso.split('-').map(Number); return DIAS[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()] + ' ' + d + ' ' + MESES[m - 1]; };

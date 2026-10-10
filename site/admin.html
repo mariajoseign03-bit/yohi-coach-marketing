@@ -121,11 +121,45 @@
         el('div', { style: 'margin-top:14px' }, det));
     });
 
-    const rows = (stu.data.students || []).map((s) => el('div', { class: 'card item' },
-      el('div', {}, el('strong', {}, s.name), el('br'), el('span', { class: 'muted' }, s.email)),
-      el('div', { class: 'muted', style: 'font-size:13px' }, s.modality
-        ? [s.modality === 'presencial' ? `1:1 · ${SEDE_NOMBRE[s.sede] || ''} · ${s.sessions_total} sesiones` : 'Online', ' · vence ', fmtDate(s.end_date)]
-        : 'Sin plan')));
+    function medPanel(st) {
+      const box = el('div', { style: 'margin-top:12px' }, el('p', { class: 'muted' }, 'Cargando…'));
+      async function load() {
+        const r = await api('/api/admin/measurements?userId=' + st.id);
+        if (!r.ok) { box.replaceChildren(el('p', { class: 'err' }, r.data.error || 'No se pudo cargar.')); return; }
+        if (!r.data.enabled) { box.replaceChildren(el('p', { class: 'muted' }, 'Esta alumna no ha autorizado el registro de mediciones (datos de salud). No se pueden cargar.')); return; }
+        const msg = el('p', { class: 'err', role: 'alert' });
+        const inp = (name, ph, step) => el('input', { name, type: 'number', step, inputmode: 'decimal', placeholder: ph, 'aria-label': ph });
+        const date = el('input', { name: 'date', type: 'date', value: today, max: today, 'aria-label': 'Fecha' });
+        const fw = inp('weight_kg', 'Peso (kg)', '0.1'), ff = inp('fat_pct', 'Grasa (%)', '0.1'), fm = inp('muscle_kg', 'Músculo (kg)', '0.1');
+        const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar medición');
+        const form = el('form', { class: 'form', novalidate: '' }, el('label', {}, 'Fecha del control', date),
+          el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px' }, fw, ff, fm), msg, go);
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault(); msg.textContent = ''; go.disabled = true;
+          const body = { userId: st.id, date: date.value, weight_kg: fw.value, fat_pct: ff.value, muscle_kg: fm.value };
+          const x = await api('/api/admin/measurement', body); go.disabled = false;
+          if (!x.ok) { msg.textContent = x.data.error || 'No se pudo guardar.'; return; }
+          load();
+        });
+        const list = r.data.items.map((i) => el('div', { class: 'item', style: 'padding:8px 0;border-bottom:1px solid rgba(255,214,232,.1)' },
+          el('span', { style: 'font-size:14px' }, fmtDate(i.measured_on) + ' · ' + [i.weight_kg !== null ? i.weight_kg + ' kg' : null, i.fat_pct !== null ? i.fat_pct + ' % grasa' : null, i.muscle_kg !== null ? i.muscle_kg + ' kg músculo' : null].filter(Boolean).join(' · ')),
+          el('button', { class: 'btn ghost small', type: 'button', onclick: async () => { if (!confirm('¿Borrar esta medición?')) return; await api('/api/admin/measurement/delete', { id: i.id }); load(); } }, 'Borrar')));
+        box.replaceChildren(form, el('div', { style: 'margin-top:14px' }, ...(list.length ? list : [el('p', { class: 'muted' }, 'Aún no hay mediciones.')])));
+      }
+      return { box, load };
+    }
+    const rows = (stu.data.students || []).map((s) => {
+      const mp = medPanel(s);
+      const det = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, 'Mediciones'), mp.box);
+      det.addEventListener('toggle', () => { if (det.open) mp.load(); });
+      return el('div', { class: 'card' },
+        el('div', { class: 'item' },
+          el('div', {}, el('strong', {}, s.name), el('br'), el('span', { class: 'muted' }, s.email)),
+          el('div', { class: 'muted', style: 'font-size:13px' }, s.modality
+            ? [s.modality === 'presencial' ? `1:1 · ${SEDE_NOMBRE[s.sede] || ''} · ${s.sessions_total} sesiones` : 'Online', ' · vence ', fmtDate(s.end_date)]
+            : 'Sin plan')),
+        el('div', { style: 'margin-top:12px' }, det));
+    });
 
     app.replaceChildren(top,
       ...(ag.ok ? agendaSection(ag.data, render) : []),

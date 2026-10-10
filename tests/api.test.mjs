@@ -142,6 +142,34 @@ env.NOW_MS = String(new Date('2026-11-20T10:00:00-03:00').getTime());
 r = await call('GET', '/api/agenda'); t('plan vencido: sin agenda', r.data.plan === null, r.data);
 r = await call('POST', '/api/bookings', { day: '2026-11-21', time: '09:00' }); t('plan vencido no reserva', r.status === 400, r);
 delete env.NOW_MS;
+
+// ---------- mediciones (datos de salud) ----------
+env.NOW_MS = String(new Date('2026-10-20T12:00:00-03:00').getTime());
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+r = await call('POST', '/api/admin/measurement', { userId: cid, date: '2026-10-19', weight_kg: 60 }); t('sin autorización de salud NO se cargan mediciones', r.status === 403, r);
+r = await call('GET', '/api/admin/measurements?userId=' + cid); t('admin: sin autorización no hay datos', r.data.enabled === false && r.data.items.length === 0, r);
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('GET', '/api/measurements'); t('alumna sin autorización: vacío', r.data.enabled === false, r);
+r = await call('POST', '/api/health-consent', { enabled: true }); t('alumna autoriza datos de salud', r.status === 200 && !!db.prepare('SELECT health_consent_at h FROM users WHERE id=?').get(cid).h, r);
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+r = await call('POST', '/api/admin/measurement', { userId: cid, date: '2026-10-21', weight_kg: 60 }); t('fecha futura rechazada', r.status === 400, r);
+r = await call('POST', '/api/admin/measurement', { userId: cid, date: '2026-10-19', weight_kg: 5, fat_pct: 25 }); t('peso fuera de rango rechazado', r.status === 400, r);
+r = await call('POST', '/api/admin/measurement', { userId: cid, date: '2026-10-19' }); t('sin valores rechazado', r.status === 400, r);
+r = await call('POST', '/api/admin/measurement', { userId: cid, date: '2026-10-05', weight_kg: 62.34, fat_pct: 28.1, muscle_kg: 24.5 }); t('carga medición 1', r.status === 200, r);
+r = await call('POST', '/api/admin/measurement', { userId: cid, date: '2026-10-19', weight_kg: 61.5, fat_pct: 27.2, muscle_kg: 24.9 }); t('carga medición 2', r.status === 200, r);
+r = await call('GET', '/api/admin/measurements?userId=' + cid); t('admin ve 2 mediciones (más nueva primero)', r.data.items.length === 2 && r.data.items[0].measured_on === '2026-10-19' && r.data.items[1].weight_kg === 62.3, r.data);
+const mid = r.data.items[0].id;
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('GET', '/api/measurements'); t('alumna ve solo las suyas (ordenadas)', r.data.items.length === 2 && r.data.items[0].measured_on === '2026-10-05', r.data);
+r = await call('POST', '/api/admin/measurement', { userId: cid, date: '2026-10-19', weight_kg: 50 }); t('alumna NO carga mediciones', r.status === 403, r);
+r = await call('POST', '/api/admin/measurement/delete', { id: mid }); t('alumna NO borra mediciones', r.status === 403, r);
+await loginAs('fran@x.cl', 'Francisca123');
+r = await call('GET', '/api/measurements'); t('otra alumna no ve las de Camila', r.data.items.length === 0, r);
+await loginAs('yohi@x.cl', 'ClaveSegura123');
+r = await call('POST', '/api/admin/measurement/delete', { id: mid }); t('Yohi borra una medición', r.status === 200 && db.prepare('SELECT count(*) c FROM measurements WHERE user_id=?').get(cid).c === 1, r);
+await loginAs('camila@x.cl', 'Camila12345');
+r = await call('POST', '/api/health-consent', { enabled: false }); t('retirar autorización borra mediciones', r.status === 200 && db.prepare('SELECT count(*) c FROM measurements WHERE user_id=?').get(cid).c === 0 && db.prepare('SELECT health_consent_at h FROM users WHERE id=?').get(cid).h === null, r);
+delete env.NOW_MS;
 // fuerza bruta
 cookie = '';
 let blocked = false;
