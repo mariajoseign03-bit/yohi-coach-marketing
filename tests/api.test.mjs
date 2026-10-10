@@ -65,6 +65,8 @@ r = await call('POST', '/api/login', { email: 'noexiste@x.cl', password: 'loques
 r = await call('GET', '/api/me'); t('/me sin sesión = 401', r.status === 401, r);
 r = await call('GET', '/api/admin/pending'); t('admin sin sesión = 403', r.status === 403, r);
 // admin
+r = await call('POST', '/api/login', { email: ' YOHI@x.cl ', password: 'ClaveSegura123 ' }); t('login tolera espacios al borde (teclado del celular)', r.status === 200, r);
+cookie = '';
 r = await call('POST', '/api/login', { email: 'yohi@x.cl', password: 'ClaveSegura123' }); t('login admin ok', r.status === 200 && r.data.role === 'admin', r);
 t('cookie HttpOnly+Secure+SameSite', /HttpOnly/.test(r.sc) && /Secure/.test(r.sc) && /SameSite=Lax/.test(r.sc), r.sc);
 const sess = db.prepare('SELECT token_hash FROM auth_sessions').get();

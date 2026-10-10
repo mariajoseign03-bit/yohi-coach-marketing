@@ -207,9 +207,12 @@ async function login(req, env, url) {
 
   // Se calcula el hash aunque el usuario no exista, para no revelar cuentas por tiempo de respuesta.
   const dummySalt = 'AAAAAAAAAAAAAAAAAAAAAA==';
-  const okPw = user
-    ? await checkPassword(String(b.password || ''), user.pass_hash, user.pass_salt)
-    : (await pbkdf2(String(b.password || ''), dummySalt, PBKDF2_ITER), false);
+  const typed = String(b.password || '');
+  let okPw = user
+    ? await checkPassword(typed, user.pass_hash, user.pass_salt)
+    : (await pbkdf2(typed, dummySalt, PBKDF2_ITER), false);
+  // Los teclados de celular a veces agregan un espacio al final: se prueba también sin espacios en los bordes.
+  if (user && !okPw && typed !== typed.trim()) okPw = await checkPassword(typed.trim(), user.pass_hash, user.pass_salt);
   if (!user || !okPw) return fail(401, 'Correo o clave incorrectos.');
 
   if (user.status === 'pending') return fail(403, 'Tu cuenta está pendiente: Yohi aún no la aprueba.');
