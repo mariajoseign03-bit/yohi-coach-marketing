@@ -185,7 +185,7 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 
 /* Temporizador */
 .timer-wrap{ display:flex; align-items:center; gap:14px; margin-bottom:14px; position:relative }
-.timer-mascot{ width:clamp(96px,24vw,170px); height:auto; aspect-ratio:1; flex:0 0 auto; object-fit:contain; filter:drop-shadow(0 0 14px rgba(255,79,163,.45)); transition:transform .3s var(--ease-out) }
+.timer-mascot{ height:clamp(140px,26vw,230px); width:auto; max-width:38vw; flex:0 0 auto; object-fit:contain; filter:drop-shadow(0 0 12px rgba(255,79,163,.35)); transition:transform .3s var(--ease-out) }
 .timer-wrap.running .timer-mascot{ animation:mascot-bounce 1s ease infinite }
 @keyframes mascot-bounce{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
 .timer-card{ flex:1; min-width:0; background:rgba(242,199,110,.06); border:2px solid rgba(242,199,110,.35); border-radius:20px; padding:16px 18px; box-shadow:0 0 30px -10px rgba(242,199,110,.2),inset 0 0 30px -15px rgba(242,199,110,.05); transition:border-color .3s var(--ease-out),box-shadow .3s var(--ease-out) }
@@ -296,10 +296,74 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .reg-sets{ font-size:13px; font-variant-numeric:tabular-nums }
 .reg-note{ margin:4px 0 0; padding:6px 10px; border-left:3px solid var(--gold); background:rgba(242,199,110,.07); border-radius:0 10px 10px 0; font-size:13px }
 
+/* Agenda de Yohi: calendario mensual + semana desplegable */
+.cal-nav{ display:flex; align-items:center; gap:10px; margin:6px 0 12px }
+.cal-title{ flex:1; text-align:center; font:400 26px/1 var(--f-display); text-transform:uppercase; letter-spacing:.03em }
+.cal{ display:grid; gap:6px }
+.cal-dow,.cal-week{ display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px }
+.cal-dow span{ text-align:center; font:800 11px/1 var(--f-text); letter-spacing:.08em; color:var(--accent-soft) }
+.cal-week{ padding:6px; border-radius:16px; border:1.5px solid transparent; cursor:pointer }
+.cal-week:hover{ background:rgba(255,255,255,.03) }
+.cal-week.sel{ border-color:var(--accent); background:rgba(255,79,163,.06) }
+.cal-week:focus-visible{ outline:2px solid var(--gold); outline-offset:2px }
+.cal-day{ min-height:64px; min-width:0; padding:6px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,214,232,.1); display:flex; flex-direction:column; gap:3px }
+.cal-day.off{ opacity:.35 }
+.cal-day.past{ opacity:.5 }
+.cal-day.open{ border-color:rgba(255,109,180,.45) }
+.cal-n{ width:24px; height:24px; display:grid; place-items:center; border-radius:50%; font:800 13px/1 var(--f-text) }
+.cal-day.today .cal-n{ background:var(--accent); color:var(--on-accent) }
+.cal-tag{ font:700 10px/1 var(--f-text); letter-spacing:.03em; color:var(--accent-soft); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.cal-dots{ display:flex; flex-wrap:wrap; gap:3px; margin-top:auto }
+.dot{ display:inline-block; width:8px; height:8px; border-radius:50% }
+.dot.req{ background:var(--accent) }
+.dot.ok{ background:var(--green) }
+.cal-legend{ font-size:12px; display:flex; align-items:center; gap:6px; flex-wrap:wrap }
+.wk-detail{ margin:2px 0 8px; padding:14px; border-radius:18px; border:1.5px solid rgba(255,109,180,.35); background:rgba(255,255,255,.02); display:grid; gap:14px }
+.wk-head{ display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px }
+.wk-title{ font:400 22px/1.1 var(--f-display); text-transform:uppercase; letter-spacing:.02em }
+.wk-tools{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px }
+.wk-sede{ display:grid; gap:4px; font-size:11px; font-weight:700; color:var(--muted) }
+.wk-sede select{ min-height:36px; font-size:13px }
+.wk-days{ display:grid; gap:10px; grid-template-columns:1fr }
+.wk-day{ min-width:0; display:grid; gap:10px; align-content:start; padding:12px; border-radius:14px; background:rgba(255,255,255,.03); border:1px solid rgba(255,214,232,.1) }
+.wk-day.today{ border-color:var(--accent) }
+.wk-day.past{ opacity:.55 }
+.wk-day-main{ display:grid; gap:8px; align-content:start }
+.wk-day-head{ display:flex; align-items:baseline; justify-content:space-between; gap:6px }
+.wk-date{ font-size:12px; color:var(--muted) }
+.wk-seg button{ min-height:36px; padding:0 10px; font-size:12px }
+.wk-sede-tag{ font:700 11px/1 var(--f-text); letter-spacing:.04em; text-transform:uppercase; color:var(--gold) }
+.slot-list{ display:grid; gap:6px; align-content:start }
+.wk-closed{ margin:0; font-size:12.5px }
+.slot-row{ display:grid; gap:4px; padding:8px 10px; border-radius:10px; border-left:3px solid rgba(255,214,232,.2); background:rgba(255,255,255,.03); font-size:13px }
+.slot-row.free{ display:flex; align-items:center; gap:8px; border-left-style:dashed; background:transparent }
+.slot-row.req{ border-left-color:var(--accent); background:rgba(255,79,163,.08) }
+.slot-row.ok{ border-left-color:var(--green); background:var(--green-soft) }
+.slot-top{ display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap }
+.slot-t{ font:800 13px/1 var(--f-text); font-variant-numeric:tabular-nums }
+.slot-name{ font-weight:700; overflow-wrap:anywhere }
+.slot-btns{ display:flex; flex-wrap:wrap; gap:6px }
+.slot-btns .btn{ min-height:34px; padding:0 12px; font-size:12px }
+@media (min-width:560px) and (max-width:999px){
+  .wk-day{ grid-template-columns:210px minmax(0,1fr); align-items:start }
+}
+@media (min-width:1000px){
+  .wk-days{ grid-template-columns:repeat(7,minmax(0,1fr)); gap:6px }
+  .wk-day{ padding:8px }
+  .wk-detail{ padding:16px 10px }
+  .wk-day-head{ flex-direction:column; align-items:flex-start; gap:2px }
+  .wk-seg{ gap:4px }
+  .wk-seg button{ min-height:32px; padding:0 8px; font-size:11px }
+  .slot-row{ padding:7px 8px }
+  .slot-top .badge{ font-size:9.5px; padding:4px 7px }
+  .slot-btns .btn{ flex:1 1 100%; min-height:32px; padding:0 6px; font-size:11px; letter-spacing:.02em }
+}
+
 @media (max-width:420px){
   .set-row,.set-row.set-header{ grid-template-columns:36px 1fr 1fr 1fr 1fr; gap:4px }
   .set-input{ padding:0 4px; font-size:14px }
-  .timer-wrap{ gap:10px }
+  .timer-wrap{ gap:8px }
+  .timer-mascot{ height:128px }
   .timer-card{ padding:14px }
 }
 @media (prefers-reduced-motion:reduce){

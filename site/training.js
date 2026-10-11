@@ -169,7 +169,7 @@ function trainingSection(container) {
 
     const wrap = el('div', { class: 'timer-wrap' });
     const card = el('div', { class: 'timer-card' });
-    const mascot = el('img', { class: 'timer-mascot', src: '/yohi-timer.webp', alt: 'Yohi Coach', width: '360', height: '360' });
+    const mascot = el('img', { class: 'timer-mascot', src: '/yohi-timer.webp', alt: 'Yohi Coach', width: '428', height: '520' });
     const startBtn = el('button', { class: 'timer-btn start', type: 'button' }, '▶  Iniciar');
     const pauseBtn = el('button', { class: 'timer-btn pause', type: 'button', hidden: '' }, '⏸ Pausa');
     const resetBtn = el('button', { class: 'timer-btn reset', type: 'button', hidden: '' }, '↺');

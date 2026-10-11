@@ -65,46 +65,147 @@
   const addIso = (iso, n) => new Date(dayDate(iso).getTime() + n * 86400000).toISOString().slice(0, 10);
   let sedeSel = 'quilpue';
 
-  function agendaSection(ag, reload) {
+  const MES_FULL = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const DIA_CORTO = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  const DIA_LARGO = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+  const MODE_TAG = { am: 'Mañana', pm: 'Tarde', wk: '9–13' };
+  const SLOT_TIMES = { am: ['08:30', '09:30'], pm: ['16:00', '17:00', '18:00', '19:00'], wk: ['09:00', '10:00', '11:00', '12:00'] };
+  const mondayOf = (iso) => addIso(iso, -((dayDate(iso).getUTCDay() + 6) % 7));
+  let agState = null; // { month: 'AAAA-MM', week: lunes 'AAAA-MM-DD' | null } — se conserva al refrescar
+
+  // Agenda de Yohi: calendario mensual; al tocar una semana se despliegan sus 7 días (disponibilidad + horas pedidas).
+  function agendaSection(ag0) {
+    let ag = ag0;
+    if (!agState) agState = { month: ag.today.slice(0, 7), week: mondayOf(ag.today) };
     const msg = el('p', { class: 'err', role: 'alert' });
-    const act = (id, action, label, ghost) => el('button', { class: 'btn small' + (ghost ? ' ghost' : ''), type: 'button', onclick: async () => {
+    const pendingBox = el('div');
+    const calBox = el('div');
+
+    async function refresh() {
+      const r = await api('/api/admin/agenda');
+      if (r.ok) { ag = r.data; paint(); } else msg.textContent = r.data.error || 'No se pudo actualizar la agenda.';
+    }
+    async function bookingAct(id, action, label) {
       if (action !== 'confirm' && !confirm('¿' + label + ' esta hora? La sesión vuelve al plan de la alumna.')) return;
       const r = await api('/api/admin/booking', { id, action });
       if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return; }
-      reload();
-    } }, label);
-    const asked = ag.bookings.filter((b) => b.status === 'requested');
-    const conf = ag.bookings.filter((b) => b.status === 'confirmed');
-    const row = (b, btns) => el('div', { class: 'card item' }, el('div', {}, el('strong', {}, b.name), el('br'), el('span', { class: 'muted' }, dayLabel(b.day) + ' · ' + b.time)), el('div', { class: 'row' }, ...btns));
-    const openMap = Object.fromEntries(ag.days.map((d) => [d.day, d.mode]));
-    const modes = (iso) => (dayDate(iso).getUTCDay() % 6 === 0 ? [['closed', 'Cerrado'], ['wk', '9:00–13:00']] : [['closed', 'Cerrado'], ['am', 'Mañana 8:30'], ['pm', 'Tarde 16:00']]);
-    const rows = [];
-    for (let i = 0; i < 14; i++) {
-      const iso = addIso(ag.today, i);
-      const cur = openMap[iso] || 'closed';
-      const seg = el('div', { class: 'seg' }, modes(iso).map(([m, t]) => {
-        const b = el('button', { type: 'button', 'aria-pressed': String(cur === m), onclick: async () => {
-          msg.textContent = '';
-          const r = await api('/api/admin/open-day', { day: iso, mode: m, sede: sedeSel });
-          if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return; }
-          reload();
-        } }, t);
+      msg.textContent = ''; refresh();
+    }
+    const bkBtn = (b, action, label, ghost) => el('button', { class: 'btn small' + (ghost ? ' ghost' : ''), type: 'button', onclick: () => bookingAct(b.id, action, label) }, label);
+    async function setMode(iso, mode) {
+      msg.textContent = '';
+      const r = await api('/api/admin/open-day', { day: iso, mode, sede: sedeSel });
+      if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return false; }
+      return true;
+    }
+
+    function bookedRow(b) {
+      const ok = b.status === 'confirmed';
+      return el('div', { class: 'slot-row ' + (ok ? 'ok' : 'req') },
+        el('div', { class: 'slot-top' }, el('span', { class: 'slot-t' }, b.time), el('span', { class: 'badge ' + (ok ? 'okb' : 'wait') }, ok ? 'Confirmada' : 'Por confirmar')),
+        el('div', { class: 'slot-name' }, b.name),
+        el('div', { class: 'slot-btns' }, ...(ok ? [bkBtn(b, 'cancel', 'Cancelar', true)] : [bkBtn(b, 'confirm', 'Confirmar'), bkBtn(b, 'reject', 'Rechazar', true)])));
+    }
+
+    function dayCard(iso, i, o, bs) {
+      const past = iso < ag.today;
+      const cur = o ? o.mode : 'closed';
+      const modes = i >= 5 ? [['closed', 'Cerrado'], ['wk', '9–13']] : [['closed', 'Cerrado'], ['am', 'Mañana'], ['pm', 'Tarde']];
+      const seg = el('div', { class: 'seg wk-seg' }, modes.map(([m, t]) => {
+        const b = el('button', { type: 'button', 'aria-pressed': String(cur === m), onclick: async () => { if (cur === m) return; if (await setMode(iso, m)) refresh(); } }, t);
+        if (past) b.disabled = true;
         return b;
       }));
-      rows.push(el('div', { class: 'card item' }, el('strong', {}, dayLabel(iso)), seg));
+      const times = [...new Set([...(SLOT_TIMES[cur] || []), ...bs.map((b) => b.time)])].sort();
+      const slots = times.map((t) => { const b = bs.find((x) => x.time === t); return b ? bookedRow(b) : el('div', { class: 'slot-row free' }, el('span', { class: 'slot-t' }, t), el('span', { class: 'muted' }, 'libre')); });
+      const dd = dayDate(iso);
+      return el('div', { class: 'wk-day' + (past ? ' past' : '') + (iso === ag.today ? ' today' : '') },
+        el('div', { class: 'wk-day-main' },
+          el('div', { class: 'wk-day-head' }, el('strong', {}, DIA_LARGO[i]), el('span', { class: 'wk-date' }, dd.getUTCDate() + ' ' + MESES[dd.getUTCMonth()])),
+          seg,
+          cur !== 'closed' && o ? el('div', { class: 'wk-sede-tag' }, SEDE_NOMBRE[o.sede] || '') : ''),
+        slots.length ? el('div', { class: 'slot-list' }, ...slots) : el('p', { class: 'muted wk-closed' }, past ? 'Ya pasó' : 'Sin atención'));
     }
-    const sedeSelect = select('sede', [['quilpue', 'Quilpué'], ['vina', 'Viña del Mar'], ['quillota', 'Quillota']], sedeSel);
-    sedeSelect.addEventListener('change', () => { sedeSel = sedeSelect.value; });
-    return [
-      el('h2', {}, 'Horas por confirmar'),
-      asked.length ? el('div', { class: 'list' }, ...asked.map((b) => row(b, [act(b.id, 'confirm', 'Confirmar'), act(b.id, 'reject', 'Rechazar', true)]))) : el('p', { class: 'muted' }, 'No hay horas por confirmar.'),
-      el('h2', {}, 'Horas confirmadas'),
-      conf.length ? el('div', { class: 'list' }, ...conf.map((b) => row(b, [act(b.id, 'cancel', 'Cancelar', true)]))) : el('p', { class: 'muted' }, 'Aún no hay horas confirmadas.'),
-      el('h2', {}, 'Abrir agenda (próximos 14 días)'),
-      el('p', { class: 'muted', style: 'font-size:13px' }, 'Elige por día mañana o tarde. Los fines de semana son de 9:00 a 13:00. Un día con horas pedidas no se puede cambiar hasta responderlas.'),
-      el('label', { style: 'max-width:260px;margin-bottom:12px' }, 'Sede de los días que abras', sedeSelect),
-      msg,
-      el('div', { class: 'list' }, ...rows)];
+
+    function weekDetail(wk, days, byDay, openMap) {
+      const all = days.flatMap((d) => byDay[d] || []);
+      const nReq = all.filter((b) => b.status === 'requested').length;
+      const wd = dayDate(wk), we = dayDate(addIso(wk, 6));
+      const title = 'Semana del ' + wd.getUTCDate() + (wd.getUTCMonth() !== we.getUTCMonth() ? ' ' + MESES[wd.getUTCMonth()] : '') + ' al ' + we.getUTCDate() + ' ' + MESES[we.getUTCMonth()];
+      const sedeSelect = select('sede', [['quilpue', 'Quilpué'], ['vina', 'Viña del Mar'], ['quillota', 'Quillota']], sedeSel);
+      sedeSelect.addEventListener('change', () => { sedeSel = sedeSelect.value; });
+      const bulk = async (mode, label) => {
+        const targets = days.filter((iso, i) => iso >= ag.today && (mode === 'closed' || i < 5));
+        if (!targets.length) { msg.textContent = 'Esa semana ya pasó.'; return; }
+        if (mode === 'closed' && !confirm('¿Cerrar toda la semana? Los días con horas pedidas no se cierran.')) return;
+        let bad = 0;
+        for (const iso of targets) { if (!(await setMode(iso, mode))) bad++; }
+        await refresh();
+        if (bad) msg.textContent = bad + (bad === 1 ? ' día no se pudo cambiar' : ' días no se pudieron cambiar') + ' (tienen horas pedidas: respóndelas primero).';
+      };
+      const head = el('div', { class: 'wk-head' },
+        el('div', {}, el('strong', { class: 'wk-title' }, title),
+          el('div', { class: 'muted', style: 'font-size:12.5px;margin-top:2px' }, nReq + (nReq === 1 ? ' por confirmar' : ' por confirmar') + ' · ' + (all.length - nReq) + (all.length - nReq === 1 ? ' confirmada' : ' confirmadas'))),
+        el('div', { class: 'wk-tools' },
+          el('label', { class: 'wk-sede' }, 'Sede al abrir', sedeSelect),
+          el('button', { class: 'btn ghost small', type: 'button', onclick: () => bulk('am') }, 'Lun–Vie mañana'),
+          el('button', { class: 'btn ghost small', type: 'button', onclick: () => bulk('pm') }, 'Lun–Vie tarde'),
+          el('button', { class: 'btn ghost small', type: 'button', onclick: () => bulk('closed') }, 'Cerrar semana')));
+      return el('div', { class: 'wk-detail' }, head, el('div', { class: 'wk-days' }, ...days.map((iso, i) => dayCard(iso, i, openMap[iso], byDay[iso] || []))));
+    }
+
+    function calendar(byDay, openMap) {
+      const [Y, M] = agState.month.split('-').map(Number);
+      const shiftMonth = (n) => { agState.month = new Date(Date.UTC(Y, M - 1 + n, 1, 12)).toISOString().slice(0, 7); paint(); };
+      const nav = el('div', { class: 'cal-nav' },
+        el('button', { class: 'btn ghost small', type: 'button', 'aria-label': 'Mes anterior', onclick: () => shiftMonth(-1) }, '‹'),
+        el('strong', { class: 'cal-title' }, MES_FULL[M - 1] + ' ' + Y),
+        el('button', { class: 'btn ghost small', type: 'button', 'aria-label': 'Mes siguiente', onclick: () => shiftMonth(1) }, '›'),
+        el('button', { class: 'btn ghost small', type: 'button', onclick: () => { agState.month = ag.today.slice(0, 7); agState.week = mondayOf(ag.today); paint(); } }, 'Hoy'));
+      const cell = (iso) => {
+        const o = openMap[iso], bs = byDay[iso] || [];
+        const req = bs.filter((b) => b.status === 'requested').length, conf = bs.length - req;
+        const dots = [...Array(Math.min(req, 4)).fill('req'), ...Array(Math.min(conf, 4)).fill('ok')].map((k) => el('i', { class: 'dot ' + k }));
+        const isOpen = o && o.mode !== 'closed';
+        return el('div', { class: 'cal-day' + (iso.slice(0, 7) === agState.month ? '' : ' off') + (iso === ag.today ? ' today' : '') + (iso < ag.today ? ' past' : '') + (isOpen ? ' open' : '') },
+          el('span', { class: 'cal-n' }, String(dayDate(iso).getUTCDate())),
+          el('span', { class: 'cal-tag' }, isOpen ? MODE_TAG[o.mode] : ''),
+          el('span', { class: 'cal-dots' }, ...dots));
+      };
+      const grid = el('div', { class: 'cal' }, el('div', { class: 'cal-dow' }, ...DIA_CORTO.map((l) => el('span', {}, l))));
+      const last = new Date(Date.UTC(Y, M, 0, 12)).toISOString().slice(0, 10);
+      for (let wk = mondayOf(Y + '-' + String(M).padStart(2, '0') + '-01'); wk <= last; wk = addIso(wk, 7)) {
+        const days = Array.from({ length: 7 }, (_, i) => addIso(wk, i));
+        const sel = agState.week === wk;
+        const toggle = () => { agState.week = sel ? null : wk; paint(); };
+        grid.append(el('div', { class: 'cal-week' + (sel ? ' sel' : ''), role: 'button', tabindex: '0', 'aria-expanded': String(sel), 'aria-label': 'Semana del ' + dayLabel(wk), onclick: toggle,
+          onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } } }, ...days.map(cell)));
+        if (sel) grid.append(weekDetail(wk, days, byDay, openMap));
+      }
+      return [
+        el('h2', {}, 'Agenda'),
+        el('p', { class: 'muted', style: 'font-size:13px' }, 'Toca una semana para abrirla: ahí eliges la disponibilidad de cada día y ves las horas que piden las alumnas. Un día con horas pedidas no se puede cambiar hasta responderlas.'),
+        nav, grid,
+        el('p', { class: 'cal-legend muted' }, el('i', { class: 'dot req' }), ' por confirmar  ', el('i', { class: 'dot ok' }), ' confirmada  · el texto bajo el número es la disponibilidad'),
+      ];
+    }
+
+    function paint() {
+      const byDay = {};
+      for (const b of ag.bookings) (byDay[b.day] = byDay[b.day] || []).push(b);
+      const openMap = Object.fromEntries(ag.days.map((d) => [d.day, d]));
+      const asked = ag.bookings.filter((b) => b.status === 'requested');
+      pendingBox.replaceChildren(
+        el('h2', {}, 'Horas por confirmar'),
+        asked.length
+          ? el('div', { class: 'list' }, ...asked.map((b) => el('div', { class: 'card item' },
+            el('div', {}, el('strong', {}, b.name), el('br'), el('span', { class: 'muted' }, dayLabel(b.day) + ' · ' + b.time)),
+            el('div', { class: 'row' }, bkBtn(b, 'confirm', 'Confirmar'), bkBtn(b, 'reject', 'Rechazar', true)))))
+          : el('p', { class: 'muted' }, 'No hay horas por confirmar.'));
+      calBox.replaceChildren(...calendar(byDay, openMap));
+    }
+    paint();
+    return [pendingBox, calBox, msg];
   }
 
   async function render() {
@@ -398,7 +499,7 @@
     });
 
     app.replaceChildren(top,
-      ...(ag.ok ? agendaSection(ag.data, render) : []),
+      ...(ag.ok ? agendaSection(ag.data) : []),
       el('h2', {}, 'Cuentas por aprobar'),
       pendingCards.length ? el('div', { class: 'list' }, ...pendingCards) : el('p', { class: 'muted' }, 'No hay cuentas pendientes.'),
       el('h2', {}, 'Alumnos activos'),
