@@ -188,6 +188,19 @@ t('PDF guardado en trozos y nombre saneado', pm && db.prepare('SELECT count(*) c
 r = await call('POST', '/api/admin/measurement', formFor(mkPdf(5000), 'solo.pdf')); t('PDF sin valores también se acepta', r.status === 200, r);
 r = await call('POST', '/api/admin/measurement', formFor(new TextEncoder().encode('esto no es pdf'), 'x.pdf', { weight_kg: '60' })); t('archivo que no es PDF rechazado', r.status === 400, r);
 r = await call('POST', '/api/admin/measurement', formFor(mkPdf(4 * 1024 * 1024 + 10), 'grande.pdf')); t('PDF de más de 4 MB rechazado', r.status === 400 || r.status === 413, r);
+{
+  const jpg = new Uint8Array(3000); jpg.set([0xff, 0xd8, 0xff, 0xe0]);
+  r = await call('POST', '/api/admin/measurement', formFor(jpg, 'informe-bodypro.jpg', { weight_kg: '60.5', extra: JSON.stringify({ visceral: 9, whr: 0.82, score: 71 }) })); t('sube imagen JPG del informe', r.status === 200, r);
+  const jm = db.prepare("SELECT id, extra FROM measurements WHERE pdf_name = 'informe-bodypro.jpg'").get();
+  const jr = await worker.fetch(new Request(ORIGIN + '/api/measurements/pdf?id=' + jm.id, { headers: { cookie } }), env);
+  t('la imagen se entrega como image/jpeg', jr.status === 200 && jr.headers.get('content-type') === 'image/jpeg' && /\.jpg"/.test(jr.headers.get('content-disposition')), jr.headers.get('content-type'));
+  t('datos extra de la imagen guardados', JSON.parse(jm.extra).whr === 0.82 && JSON.parse(jm.extra).score === 71, jm.extra);
+  const png = new Uint8Array(2000); png.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  r = await call('POST', '/api/admin/measurement', formFor(png, 'captura.png')); t('sube imagen PNG del informe', r.status === 200, r);
+  const gif = new TextEncoder().encode('GIF89a' + 'x'.repeat(100));
+  r = await call('POST', '/api/admin/measurement', formFor(gif, 'x.gif')); t('GIF u otro formato rechazado', r.status === 400, r);
+  db.prepare("DELETE FROM measurements WHERE pdf_name IN ('informe-bodypro.jpg','captura.png')").run();
+}
 const res = await worker.fetch(new Request(ORIGIN + '/api/measurements/pdf?id=' + pm.id, { headers: { cookie } }), env);
 const got = new Uint8Array(await res.arrayBuffer());
 t('Yohi descarga el PDF idéntico', res.status === 200 && res.headers.get('content-type') === 'application/pdf' && got.length === big.length && got.every((v, i) => v === big[i]), res.status);

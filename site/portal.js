@@ -139,4 +139,36 @@ function compareBlock(prev, cur) {
     ...rows);
 }
 
+// Análisis completo en palabras simples (usa METRICAS de /metricas.js). cur y prev: {measured_on, weight_kg, ..., extra}.
+function analysisBlock(cur, prev) {
+  const C = window.METRICAS; if (!C || !cur) return null;
+  const secs = [];
+  for (const [sec, title] of C.secs) {
+    const items = [];
+    for (const d of C.list.filter((x) => x.sec === sec)) {
+      const v = C.get(cur, d); if (v === null) continue;
+      const rg = d.range && cur.extra && cur.extra.ranges ? cur.extra.ranges[d.range] : null;
+      const a = prev ? C.get(prev, d) : null;
+      let chip = '';
+      if (a !== null) {
+        const diff = Math.round((v - a) * Math.pow(10, d.dec)) / Math.pow(10, d.dec);
+        const tone = diff === 0 || d.good === 0 ? '' : (diff > 0) === (d.good > 0) ? ' up' : ' dn';
+        chip = el('span', { class: 'mx-chg' + tone, title: 'Cambio desde ' + fmtDate(prev.measured_on) }, (diff > 0 ? '+' : diff < 0 ? '−' : '') + fmtN(Math.abs(diff)) + (d.unit && d.unit !== '/100' ? ' ' + d.unit : '') + ' vs. anterior');
+      }
+      const unit = d.unit === '/100' ? '/100' : d.unit;
+      const val = (d.dec === 2 ? v.toFixed(2).replace('.', ',') : fmtN(v)) + (unit ? (unit === '/100' ? '' : ' ') + unit : '');
+      const top = rg ? rangeBar(d.label, v, d.unit, rg) : el('div', { class: 'rb-head' }, el('span', {}, d.label), el('strong', {}, val));
+      items.push(el('div', { class: 'mx' }, top, chip ? el('div', {}, chip) : '', el('p', { class: 'mx-what' }, d.what)));
+    }
+    if (items.length) secs.push(el('div', { class: 'mx-sec' }, el('h3', { class: 'cmp-title' }, title), ...items));
+  }
+  if (!secs.length) return null;
+  return el('div', { class: 'mx-wrap' }, ...secs,
+    el('p', { class: 'muted', style: 'font-size:12.5px;margin:14px 0 0' }, C.BIA_NOTE),
+    disclaimerBox());
+}
+function disclaimerBox() {
+  return el('p', { class: 'disc', role: 'note' }, el('strong', {}, 'Importante: '), window.METRICAS ? window.METRICAS.DISCLAIMER : 'Yohi es preparadora física. Este análisis es una ayuda y no reemplaza una consulta nutricional ni médica.');
+}
+
 sparkles();

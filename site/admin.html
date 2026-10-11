@@ -13,6 +13,7 @@
 <main class="wrap" id="app" aria-live="polite">
   <p class="muted">Cargando…</p>
 </main>
+<script src="/metricas.js"></script>
 <script src="/portal.js"></script>
 <script src="/informe.js"></script>
 <script src="/bodypro.js"></script>
@@ -134,14 +135,21 @@
         const date = el('input', { name: 'date', type: 'date', value: today, max: today, 'aria-label': 'Fecha' });
         const fw = inp('weight_kg', 'Peso (kg)', '0.1'), ff = inp('fat_pct', 'Grasa (%)', '0.1'), fm = inp('muscle_kg', 'Músculo (kg)', '0.1');
         const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar medición');
-        const pdf = el('input', { name: 'pdf', type: 'file', accept: 'application/pdf,.pdf', 'aria-label': 'Informe PDF de Body Pro Go' });
+        const pdf = el('input', { name: 'pdf', type: 'file', accept: 'image/*,application/pdf,.pdf', 'aria-label': 'Imagen del informe de Body Pro Go' });
+        const xin = {};
+        const extraFields = METRICAS.list.filter((d) => d.src === 'extra').map((d) => {
+          xin[d.key] = el('input', { type: 'number', step: d.dec === 2 ? '0.01' : d.dec === 1 ? '0.1' : '1', inputmode: 'decimal', min: String(d.min), max: String(d.max), 'aria-label': d.label });
+          return el('label', { style: 'font-size:12.5px' }, d.label + (d.unit ? ' (' + d.unit + ')' : ''), xin[d.key]);
+        });
+        const more = el('details', { class: 'more' }, el('summary', {}, 'Más datos del informe (se llenan solos con la imagen)'),
+          el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px' }, ...extraFields));
         let extra = null;
         const read = el('p', { class: 'muted', style: 'font-size:13px;margin:0' });
         pdf.addEventListener('change', async () => {
           extra = null; read.textContent = ''; msg.textContent = '';
           const file = pdf.files && pdf.files[0];
           if (!file) return;
-          read.textContent = 'Leyendo el informe…';
+          read.textContent = BodyPro.isImage(file) ? 'Leyendo la imagen… (la primera vez tarda unos segundos)' : 'Leyendo el informe…';
           try {
             const r = await BodyPro.read(file);
             if (r.date && r.date <= today) date.value = r.date;
@@ -149,17 +157,24 @@
             if (r.core.fat_pct !== undefined) ff.value = r.core.fat_pct;
             if (r.core.muscle_kg !== undefined) fm.value = r.core.muscle_kg;
             extra = r.extra;
+            for (const [k, i] of Object.entries(xin)) i.value = typeof r.extra[k] === 'number' ? r.extra[k] : '';
             const n = Object.keys(r.extra).filter((k) => k !== 'ranges').length;
-            read.textContent = '✦ Leí el informe: llené peso, grasa y músculo' + (n ? ' y guardaré ' + n + ' datos más' : '') + '. Revisa que coincidan con el PDF antes de guardar.';
-          } catch (e) { read.textContent = e.message + ' Puedes ingresar los valores a mano; el PDF igual se guarda.'; }
+            if (n) more.open = true;
+            read.textContent = '✦ Leí ' + r.found + ' datos del informe. Revísalos con la imagen antes de guardar: la lectura automática puede equivocarse.';
+          } catch (e) { read.textContent = e.message + ' Puedes escribir los valores a mano; el archivo igual se guarda.'; }
         });
-        const form = el('form', { class: 'form', novalidate: '' }, el('label', {}, 'Informe PDF de Body Pro Go (opcional, máx. 4 MB). Si lo subes, leo los valores solo.', pdf), read,
+        const form = el('form', { class: 'form', novalidate: '' }, el('label', {}, 'Imagen del informe Body Pro Go (o PDF). Si la subes, leo los valores sola.', pdf), read,
           el('label', {}, 'Fecha del control', date),
-          el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px' }, fw, ff, fm), msg, go);
+          el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px' }, el('label', { style: 'font-size:12.5px' }, 'Peso (kg)', fw), el('label', { style: 'font-size:12.5px' }, 'Grasa (%)', ff), el('label', { style: 'font-size:12.5px' }, 'Masa muscular (kg)', fm)), more, msg, go);
         form.addEventListener('submit', async (e) => {
           e.preventDefault(); msg.textContent = ''; go.disabled = true;
-          const file = pdf.files && pdf.files[0];
-          if (file && file.size > 4 * 1024 * 1024) { msg.textContent = 'El PDF pesa más de 4 MB.'; go.disabled = false; return; }
+          let file = pdf.files && pdf.files[0];
+          if (file && BodyPro.isImage(file)) { try { file = await BodyPro.cleanJpeg(file); } catch (err) { msg.textContent = 'No pude preparar la imagen. Prueba con otra captura.'; go.disabled = false; return; } }
+          if (file && file.size > 4 * 1024 * 1024) { msg.textContent = 'El archivo pesa más de 4 MB.'; go.disabled = false; return; }
+          const ex = {};
+          for (const [k, i] of Object.entries(xin)) if (i.value !== '') ex[k] = Number(i.value);
+          if (extra && extra.ranges) ex.ranges = extra.ranges;
+          extra = Object.keys(ex).length ? ex : null;
           const fd = new FormData();
           fd.set('userId', String(st.id)); fd.set('date', date.value); fd.set('weight_kg', fw.value); fd.set('fat_pct', ff.value); fd.set('muscle_kg', fm.value);
           if (file) fd.set('pdf', file);
@@ -170,8 +185,8 @@
           load();
         });
         const list = r.data.items.map((i) => el('div', { class: 'item', style: 'padding:8px 0;border-bottom:1px solid rgba(255,214,232,.1)' },
-          el('span', { style: 'font-size:14px' }, fmtDate(i.measured_on) + ' · ' + ([i.weight_kg !== null ? i.weight_kg + ' kg' : null, i.fat_pct !== null ? i.fat_pct + ' % grasa' : null, i.muscle_kg !== null ? i.muscle_kg + ' kg músculo' : null].filter(Boolean).join(' · ') || 'Solo informe PDF')),
-          el('span', { class: 'row' }, i.has_pdf ? el('a', { class: 'btn ghost small', href: '/api/measurements/pdf?id=' + i.id, target: '_blank', rel: 'noopener' }, 'PDF') : '',
+          el('span', { style: 'font-size:14px' }, fmtDate(i.measured_on) + ' · ' + ([i.weight_kg !== null ? i.weight_kg + ' kg' : null, i.fat_pct !== null ? i.fat_pct + ' % grasa' : null, i.muscle_kg !== null ? i.muscle_kg + ' kg músculo' : null].filter(Boolean).join(' · ') || 'Solo informe')),
+          el('span', { class: 'row' }, i.has_pdf ? el('a', { class: 'btn ghost small', href: '/api/measurements/pdf?id=' + i.id, target: '_blank', rel: 'noopener' }, 'Ver informe') : '',
           el('button', { class: 'btn ghost small', type: 'button', onclick: async () => { if (!confirm('¿Borrar esta medición?')) return; await api('/api/admin/measurement/delete', { id: i.id }); load(); } }, 'Borrar'))));
         const asc = [...r.data.items].reverse().filter((i) => i.weight_kg !== null || i.fat_pct !== null || i.muscle_kg !== null || (i.extra && Object.keys(i.extra).length));
         const rep = asc.length ? el('button', { class: 'btn small', type: 'button', style: 'margin-top:12px', onclick: () => YohiReport.print({ name: st.name, cur: asc[asc.length - 1], prev: asc.length > 1 ? asc[asc.length - 2] : null }) }, 'Informe con logo (PDF)') : '';

@@ -592,7 +592,7 @@ async function adminAddMeasurement(req, env) {
   const ct = req.headers.get('content-type') || '';
   let b, file = null;
   if (ct.includes('multipart/form-data')) {
-    if (Number(req.headers.get('content-length') || 0) > PDF_MAX + 100000) return fail(413, 'El PDF pesa más de 4 MB.');
+    if (Number(req.headers.get('content-length') || 0) > PDF_MAX + 100000) return fail(413, 'El archivo pesa más de 4 MB.');
     let fd;
     try { fd = await req.formData(); } catch { return fail(400, 'Solicitud inválida.'); }
     b = Object.fromEntries([...fd.entries()].filter(([, v]) => typeof v === 'string'));
@@ -609,17 +609,17 @@ async function adminAddMeasurement(req, env) {
   const w = num(b.weight_kg, 20, 300), f = num(b.fat_pct, 2, 70), m = num(b.muscle_kg, 5, 150);
   if ([w, f, m].some(Number.isNaN)) return fail(400, 'Revisa los valores: peso 20–300 kg, grasa 2–70 %, músculo 5–150 kg.');
   const extra = cleanExtra(b.extra);
-  if (w === null && f === null && m === null && !file && !extra) return fail(400, 'Ingresa al menos un valor o sube el PDF.');
+  if (w === null && f === null && m === null && !file && !extra) return fail(400, 'Ingresa al menos un valor o sube el informe.');
   let bytes = null;
   if (file) {
-    if (file.size > PDF_MAX) return fail(400, 'El PDF pesa más de 4 MB.');
+    if (file.size > PDF_MAX) return fail(400, 'El archivo pesa más de 4 MB.');
     bytes = new Uint8Array(await file.arrayBuffer());
-    if (String.fromCharCode(...bytes.subarray(0, 5)) !== '%PDF-') return fail(400, 'El archivo no es un PDF válido.');
+    if (!fileKind(bytes)) return fail(400, 'El archivo debe ser una imagen (JPG o PNG) o un PDF.');
   }
   const u = await env.DB.prepare("SELECT health_consent_at FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
   if (!u) return fail(404, 'No se encontró la alumna.');
   if (!u.health_consent_at) return fail(403, 'Esta alumna no ha autorizado el registro de datos de salud.');
-  const name = file ? String(file.name || 'informe.pdf').replace(/[^\w.\- ]/g, '_').slice(0, 80) : null;
+  const name = file ? String(file.name || 'informe').replace(/[^\w.\- ]/g, '_').slice(0, 80) : null;
   const ins = await env.DB.prepare('INSERT INTO measurements (user_id, measured_on, weight_kg, fat_pct, muscle_kg, pdf_name, extra) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(userId, date, w, f, m, name, extra ? JSON.stringify(extra) : null).run();
   if (bytes) {
     const mid = ins.meta && ins.meta.last_row_id;
@@ -631,13 +631,22 @@ async function adminAddMeasurement(req, env) {
       await env.DB.batch(stmts);
     } catch (e) {
       await env.DB.prepare('DELETE FROM measurements WHERE id = ?').bind(mid).run();
-      return fail(500, 'No se pudo guardar el PDF. Intenta de nuevo.');
+      return fail(500, 'No se pudo guardar el archivo. Intenta de nuevo.');
     }
   }
   return json({ ok: true });
 }
 
-// Descarga del informe PDF: solo la dueña (con su autorización de salud vigente) o Yohi.
+// Tipos de archivo aceptados para el informe, reconocidos por sus primeros bytes (no por el nombre).
+const FILE_KINDS = { pdf: { type: 'application/pdf', ext: 'pdf' }, jpg: { type: 'image/jpeg', ext: 'jpg' }, png: { type: 'image/png', ext: 'png' } };
+function fileKind(b) {
+  if (b.length > 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46 && b[4] === 0x2d) return FILE_KINDS.pdf;
+  if (b.length > 2 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return FILE_KINDS.jpg;
+  if (b.length > 7 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 && b[4] === 0x0d && b[5] === 0x0a && b[6] === 0x1a && b[7] === 0x0a) return FILE_KINDS.png;
+  return null;
+}
+
+// Descarga del informe (PDF o imagen): solo la dueña (con su autorización de salud vigente) o Yohi.
 async function measurementPdf(req, env, url) {
   const user = await currentUser(req, env);
   if (!user) return fail(401, 'No has iniciado sesión.');
@@ -652,10 +661,11 @@ async function measurementPdf(req, env, url) {
   const body = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
   let off = 0;
   for (const p of parts) { body.set(p, off); off += p.length; }
+  const kind = fileKind(body) || FILE_KINDS.pdf;
   return new Response(body, {
     headers: {
-      'content-type': 'application/pdf',
-      'content-disposition': `inline; filename="bodypro-${row.measured_on}.pdf"`,
+      'content-type': kind.type,
+      'content-disposition': `inline; filename="bodypro-${row.measured_on}.${kind.ext}"`,
       'cache-control': 'private, no-store',
       'x-content-type-options': 'nosniff',
       'content-security-policy': 'sandbox',

@@ -13,17 +13,17 @@
 <main class="wrap narrow" id="app">
   <div class="top"><a class="brand" href="/">YOHI COACH</a><a class="btn ghost small" href="/">Volver al inicio</a></div>
   <h1 style="font:400 clamp(30px,8vw,44px)/1.05 var(--f-display);text-transform:uppercase;margin:0 0 8px">Entiende tu <span style="color:var(--accent)">informe</span></h1>
-  <p class="muted" style="margin:0 0 18px">Sube el PDF de tu medición Body Pro Go (Fitdays) y mira tus resultados de forma clara. <strong>Se lee en tu celular o computador: el archivo no se envía a ningún servidor.</strong></p>
+  <p class="muted" style="margin:0 0 18px">Sube la imagen del informe que te entrega la báscula Body Pro Go (app Fitdays) y te explico cada dato en palabras simples, con gráficos. <strong>Se lee en tu celular o computador: la imagen no se envía a ningún servidor.</strong></p>
 
   <section class="card" aria-label="Subir informe">
-    <label for="pdf" style="display:block;font-weight:700;margin-bottom:8px">Tu informe en PDF</label>
-    <input id="pdf" type="file" accept="application/pdf,.pdf">
+    <label for="pdf" style="display:block;font-weight:700;margin-bottom:8px">Tu informe (imagen o captura)</label>
+    <input id="pdf" type="file" accept="image/*,application/pdf,.pdf">
     <label for="pdf0" style="display:block;font-weight:700;margin:14px 0 8px">Medición anterior <span class="muted" style="font-weight:500">(opcional, para ver tu avance)</span></label>
-    <input id="pdf0" type="file" accept="application/pdf,.pdf">
+    <input id="pdf0" type="file" accept="image/*,application/pdf,.pdf">
     <label for="nm" style="display:block;font-weight:700;margin:14px 0 8px">Tu nombre <span class="muted" style="font-weight:500">(opcional, para tu informe)</span></label>
     <input id="nm" type="text" maxlength="60" autocomplete="name" placeholder="Ej: Camila">
     <p class="err" id="err" role="alert"></p>
-    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Máximo 4 MB. Si no lo tienes en PDF, pídelo desde la app al terminar tu medición.</p>
+    <p class="muted" style="font-size:12.5px;margin:6px 0 0">Usa la imagen completa del informe, sin recortar. La primera lectura tarda unos segundos porque se descarga el lector.</p>
   </section>
 
   <section id="out" hidden></section>
@@ -35,16 +35,15 @@
     <a class="btn" id="cta" href="https://wa.me/56944500370?text=Hola%20Yohi%20%F0%9F%91%8B%20Quiero%20entrenar%20contigo" target="_blank" rel="noopener">Quiero entrenar con Yohi</a>
   </section>
 
-  <p class="muted" style="font-size:12.5px;margin-top:18px">Las mediciones por bioimpedancia son estimaciones y varían con la hidratación y otros factores; se interpretan mirando la tendencia en varios controles. Esta herramienta es informativa: no reemplaza una evaluación médica ni nutricional.</p>
+  <p class="disc" role="note"><strong>Importante:</strong> Yohi es preparadora física. Este análisis es una ayuda para entender tu medición y no reemplaza una consulta nutricional ni médica.</p>
 </main>
+<script src="/metricas.js"></script>
 <script src="/portal.js"></script>
 <script src="/bodypro.js"></script>
 <script src="/informe.js"></script>
 <script>
 (function () {
   const input = document.getElementById('pdf'), err = document.getElementById('err'), out = document.getElementById('out'), cta = document.getElementById('cta');
-  const NAMES = { weight: ['Peso', 'kg'], muscle: ['Masa muscular', 'kg'], fat: ['Grasa corporal', 'kg'], water: ['Agua corporal', 'kg'], protein: ['Proteína', 'kg'], skeletal: ['Músculo esquelético', 'kg'] };
-  const VAL = { weight: (r) => r.core.weight_kg, muscle: (r) => r.core.muscle_kg, fat: (r) => r.extra.fat_kg, water: (r) => r.extra.water_kg, protein: (r) => r.extra.protein_kg, skeletal: (r) => r.extra.skeletal_kg };
 
   const input0 = document.getElementById('pdf0'), nm = document.getElementById('nm');
   let CUR = null, PREV = null;
@@ -73,21 +72,12 @@
     if (tiles.length) kids.push(el('div', { style: 'display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:8px' },
       ...tiles.map((t) => el('div', { class: 'card', style: 'padding:14px;text-align:center' }, el('div', { class: 'muted', style: 'font-size:12px' }, t[0]), el('div', { style: 'font:400 26px/1.1 var(--f-display);margin-top:4px' }, t[1])))));
 
-    const ranges = r.extra.ranges || {}, bars = [], notes = [];
-    for (const k of Object.keys(NAMES)) {
-      const v = VAL[k](r), rg = ranges[k];
-      if (typeof v !== 'number' || !Array.isArray(rg)) continue;
-      bars.push(rangeBar(NAMES[k][0], v, NAMES[k][1], rg));
-      if (k === 'muscle' && v < rg[0]) notes.push('Tu masa muscular está bajo el rango del informe. Con entrenamiento de fuerza progresivo y una buena alimentación, es un indicador que se puede mejorar con el tiempo.');
-      if (k === 'muscle' && v >= rg[0]) notes.push('Tu masa muscular está dentro o sobre el rango del informe. ¡Buena base para seguir progresando en fuerza!');
-      if (k === 'fat' && v > rg[1]) notes.push('Tu grasa corporal está sobre el rango del informe. Es solo una referencia: lo útil es ver cómo cambia en tus próximos controles.');
-    }
-    if (bars.length) kids.push(el('div', { class: 'card', style: 'margin-top:8px' }, el('h3', { class: 'cmp-title' }, 'Dónde estás frente al rango del informe'), ...bars));
-    if (notes.length) kids.push(el('div', { class: 'card', style: 'margin-top:12px' }, el('h3', { class: 'cmp-title' }, 'Qué mirar'), ...notes.map((n) => el('p', { style: 'margin:8px 0 0' }, '✦ ' + n))));
+    if (PREV) { const c = compareBlock(asM(PREV), asM(r)); if (c) kids.push(el('div', { class: 'card', style: 'margin-top:12px' }, c)); }
+    const ana = analysisBlock(asM(r), PREV ? asM(PREV) : null);
+    if (ana) kids.push(el('div', { class: 'card', style: 'margin-top:12px' }, el('h3', { class: 'cmp-title', style: 'font-size:22px' }, 'Qué significa cada dato'), ana));
     if (r.core.muscle_kg != null) {
       cta.href = 'https://wa.me/56944500370?text=' + encodeURIComponent('Hola Yohi 👋 Medí mi composición corporal y quiero entrenar contigo para mejorar mi masa muscular');
     }
-    if (PREV) { const c = compareBlock(asM(PREV), asM(r)); if (c) kids.push(el('div', { class: 'card', style: 'margin-top:12px' }, c)); }
     kids.push(el('div', { style: 'margin-top:14px;text-align:center' }, el('button', { class: 'btn', type: 'button', onclick: () => YohiReport.print({ name: nm.value.trim(), cur: asM(r), prev: PREV ? asM(PREV) : null }) }, 'Descargar mi informe con logo (PDF)')));
     out.append(...kids);
     out.hidden = false;

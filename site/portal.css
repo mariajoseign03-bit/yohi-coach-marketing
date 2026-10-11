@@ -156,3 +156,23 @@ input[type=file]::file-selector-button{ margin-right:12px; min-height:36px; padd
   #yohi-report .ir-note{ margin:14px 0 8px; font-size:8.5pt; color:#555 }
   #yohi-report .ir-foot{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 14px; border-radius:12px; background:#FF4FA3; color:#111; font-size:9pt }
 }
+
+/* ===== Análisis en palabras simples ===== */
+.mx-sec{ margin-top:18px }
+.mx{ padding:12px 0; border-top:1px solid rgba(255,214,232,.1) }
+.mx .rb{ margin:0 }
+.mx .rb-head strong{ font:400 20px/1 var(--f-display) }
+.mx-what{ margin:8px 0 0; font-size:13.5px; line-height:1.5; color:var(--muted) }
+.mx-chg{ display:inline-block; margin-top:6px; padding:4px 10px; border-radius:999px; font:800 11.5px/1.2 var(--f-text); background:rgba(255,255,255,.07); color:var(--fg) }
+.mx-chg.up{ background:rgba(255,79,163,.18); color:var(--accent-soft) }
+.mx-chg.dn{ background:rgba(255,255,255,.06); color:var(--muted) }
+.disc{ margin:14px 0 0; padding:12px 14px; border-radius:16px; border:1px solid rgba(242,199,110,.45); background:rgba(242,199,110,.08); font-size:13px; line-height:1.5 }
+@media print{
+  #yohi-report .ir-break{ margin-top:18px }
+  #yohi-report .ir-gl{ margin:0; display:grid; grid-template-columns:42mm 1fr; gap:6px 12px; font-size:9.5pt }
+  #yohi-report .ir-gl dt{ font-weight:800 }
+  #yohi-report .ir-gl dd{ margin:0; color:#333 }
+  #yohi-report .ir-disc{ margin:14px 0 0; padding:10px 12px; border:1.5px solid #FF4FA3; border-radius:10px; background:#FFF5FA; font-size:9.5pt }
+}
+details.more{ border:1px solid rgba(255,214,232,.15); border-radius:16px; padding:10px 14px }
+details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-height:28px; display:flex; align-items:center }

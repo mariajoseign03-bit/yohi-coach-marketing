@@ -47,3 +47,10 @@
 - **/analiza** (pública): cualquiera sube su PDF, se lee en su dispositivo (no se envía a ningún servidor) y ve sus barras, y un banner "Entrena con Yohi" lleva a WhatsApp. Enlazada desde el pie del inicio.
 - Avisar al abogado: informe PDF y métricas extra en la ficha, y herramienta /analiza que procesa en el navegador.
 - **Informe con logo** (`site/informe.js`, logo en `site/logo-yohi.webp`): botón "Descargar informe (PDF)" en la zona de la alumna, "Informe con logo (PDF)" en la ficha del admin y en `/analiza`. Compara último control vs. anterior y se guarda con "Guardar como PDF". Usa lenguaje neutro (sin diagnósticos) y no envía nada a servidores.
+
+## Lectura de la imagen de Body Pro Go y análisis explicado (v6)
+- Body Pro Go (app Fitdays) entrega **una imagen**; ahora el admin y `/analiza` aceptan imagen (JPG/PNG) o PDF.
+- **OCR en el navegador**: `site/ocr-worker.js` + `site/vendor/tesseract/` (tesseract.js-core v7.0.0 LSTM + `spa.traineddata` de tessdata_fast, Apache-2.0, ~5 MB). La imagen se pasa a escala de grises "mínimo de canal" (el naranjo queda oscuro), se separa en 2 columnas y se lee. Probado con un informe real: 18/18 datos correctos. Los valores imposibles se descartan (rangos en `metricas.js`) y Yohi revisa todo antes de guardar (todos los campos son editables).
+- Al guardar, la imagen se recodifica a JPEG ≤1600 px **sin metadatos** (ubicación, etc.). El servidor valida el tipo por los primeros bytes (PDF/JPG/PNG) y la sirve con su tipo correcto.
+- `site/metricas.js`: catálogo único (nombre, unidad, rango posible, explicación en palabras simples, descargo). Fuentes en `fuentes/composicion-corporal-bioimpedancia.md`.
+- La alumna ve "Tu último informe, explicado" (cada dato con barra de rango, cambio vs. anterior y explicación) + el descargo "Yohi es preparadora física…". El informe PDF con logo incluye un glosario y el mismo descargo.
