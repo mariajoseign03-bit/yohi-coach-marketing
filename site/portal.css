@@ -234,6 +234,8 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .set-col.rest{ justify-content:center }
 .set-row .set-col.num span,
 .set-row .set-col.num{ font:800 13px/1 var(--f-text); color:var(--accent-soft); width:32px; height:32px; border-radius:50%; background:rgba(255,79,163,.1); border:1.5px solid rgba(255,109,180,.3); display:grid; place-items:center }
+.set-row.set-header .set-col.num{ width:auto; height:auto; border:0; background:none; border-radius:0; display:flex; font:inherit; color:inherit }
+.set-row.set-header .set-col{ white-space:nowrap }
 .set-row.warmup .set-col.num span,
 .set-row.warmup .set-col.num{ background:rgba(242,199,110,.1); border-color:rgba(242,199,110,.3); color:var(--gold); font-size:11px }
 .set-input{ width:100%; min-height:40px; padding:0 8px; border-radius:12px; border:1.5px solid rgba(255,214,232,.15); background:rgba(255,255,255,.04); color:var(--fg); font:600 15px/1 var(--f-text); text-align:center; font-variant-numeric:tabular-nums }

@@ -17,7 +17,7 @@ function infoButton(key) {
     el('strong', {}, TRAINING_INFO[key].title), el('br'), TRAINING_INFO[key].text);
   const btn = el('button', { type: 'button', class: 'info-btn' + (isGold ? ' gold' : ''),
     onclick: (e) => { e.stopPropagation(); open = !open; tip.hidden = !open; }
-  }, 'ℹ');
+  }, 'i');
   return el('span', { class: 'info-wrap' }, btn, tip);
 }
 

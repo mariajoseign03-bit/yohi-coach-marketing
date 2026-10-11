@@ -1,3 +1,4 @@
+import { gcalConfigured, gcalCreate, gcalDelete } from './gcal.js';
 // Portal de alumnos de Yohi Coach — API sobre Cloudflare Workers + D1.
 // Solo atiende /api/*; el resto del sitio lo sirven los archivos estáticos (ASSETS).
 
@@ -443,6 +444,42 @@ async function createBooking(req, env) {
   return json({ ok: true, left: Math.max(0, plan.sessions_total - used) });
 }
 
+// Google Calendar: nunca debe romper una reserva. Devuelve 'off' | 'ok' | 'error'.
+async function gcalAdd(env, id) {
+  if (!gcalConfigured(env)) return 'off';
+  try {
+    const r = await env.DB.prepare(
+      `SELECT b.id, b.day, b.time, b.sede, b.status, b.gcal_event_id, u.name FROM bookings b JOIN users u ON u.id = b.user_id WHERE b.id = ?`,
+    ).bind(id).first();
+    if (!r || r.status !== 'confirmed' || r.gcal_event_id) return 'ok';
+    const firstName = String(r.name || 'Alumna').trim().split(/\s+/)[0];
+    const evId = await gcalCreate(env, { firstName, day: r.day, time: r.time, sedeName: SEDE_LABEL[r.sede] || r.sede, status: r.status });
+    if (evId) await env.DB.prepare('UPDATE bookings SET gcal_event_id = ? WHERE id = ?').bind(evId, id).run();
+    return 'ok';
+  } catch (e) { console.error('gcal add', e.message); return 'error'; }
+}
+async function gcalRemove(env, id) {
+  if (!gcalConfigured(env)) return 'off';
+  try {
+    const r = await env.DB.prepare('SELECT gcal_event_id FROM bookings WHERE id = ?').bind(id).first();
+    if (r && r.gcal_event_id) {
+      await gcalDelete(env, r.gcal_event_id);
+      await env.DB.prepare('UPDATE bookings SET gcal_event_id = NULL WHERE id = ?').bind(id).run();
+    }
+    return 'ok';
+  } catch (e) { console.error('gcal remove', e.message); return 'error'; }
+}
+const SEDE_LABEL = { quilpue: 'Quilpué', vina: 'Viña del Mar', quillota: 'Quillota' };
+
+async function adminGcalSync(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  if (!gcalConfigured(env)) return fail(400, 'Google Calendar aún no está configurado.');
+  const { results } = await env.DB.prepare("SELECT id FROM bookings WHERE status = 'confirmed' AND gcal_event_id IS NULL AND day >= ?").bind(todayCL(env)).all();
+  let ok = 0, errors = 0;
+  for (const r of results) { (await gcalAdd(env, r.id)) === 'ok' ? ok++ : errors++; }
+  return json({ ok: true, synced: ok, errors });
+}
+
 async function cancelBooking(req, env) {
   const user = await currentUser(req, env);
   if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
@@ -456,6 +493,7 @@ async function cancelBooking(req, env) {
   // Más de 24 h antes: la sesión vuelve al plan. Menos: se pierde.
   const late = ms - nowMs(env) < 24 * 3600 * 1000 ? 1 : 0;
   await env.DB.prepare("UPDATE bookings SET status = 'cancelled', late_cancel = ?, decided_at = ? WHERE id = ?").bind(late, isoNow(), id).run();
+  await gcalRemove(env, id);
   return json({ ok: true, returned: !late });
 }
 
@@ -467,7 +505,7 @@ async function adminAgenda(req, env) {
     `SELECT b.id, b.day, b.time, b.status, b.sede, u.name FROM bookings b JOIN users u ON u.id = b.user_id
       WHERE b.status IN ('requested','confirmed') AND b.day >= ? ORDER BY b.day, b.time`,
   ).bind(today).all();
-  return json({ ok: true, today, days, bookings });
+  return json({ ok: true, today, days, bookings, gcal: gcalConfigured(env) });
 }
 
 async function adminOpenDay(req, env) {
@@ -498,7 +536,8 @@ async function adminBooking(req, env) {
   const r = await env.DB.prepare(`UPDATE bookings SET status = ?, decided_at = ? WHERE id = ? AND ${from}`).bind(next, isoNow(), id).run();
   const row = await env.DB.prepare('SELECT status FROM bookings WHERE id = ?').bind(id).first();
   if (!row || row.status !== next) return fail(404, 'La reserva ya no está en ese estado.');
-  return json({ ok: true });
+  const gcal = next === 'confirmed' ? await gcalAdd(env, id) : await gcalRemove(env, id);
+  return json({ ok: true, gcal });
 }
 
 /* ---------- mediciones (datos de salud: solo con autorización expresa) ---------- */
@@ -1010,6 +1049,7 @@ export default {
         case 'GET /api/admin/agenda': return await adminAgenda(req, env);
         case 'POST /api/admin/open-day': return await adminOpenDay(req, env);
         case 'POST /api/admin/booking': return await adminBooking(req, env);
+        case 'POST /api/admin/gcal-sync': return await adminGcalSync(req, env);
         case 'GET /api/measurements': return await myMeasurements(req, env);
         case 'POST /api/health-consent': return await setHealthConsent(req, env);
         case 'GET /api/measurements/pdf': return await measurementPdf(req, env, url);

@@ -89,7 +89,16 @@
       if (action !== 'confirm' && !confirm('¿' + label + ' esta hora? La sesión vuelve al plan de la alumna.')) return;
       const r = await api('/api/admin/booking', { id, action });
       if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return; }
-      msg.textContent = ''; refresh();
+      msg.textContent = r.data.gcal === 'error' ? 'Listo, pero no se pudo actualizar Google Calendar. Usa «Sincronizar».' : '';
+      refresh();
+    }
+    async function syncGcal(btn) {
+      btn.disabled = true; msg.textContent = '';
+      const r = await api('/api/admin/gcal-sync', {});
+      btn.disabled = false;
+      if (!r.ok) { msg.textContent = r.data.error || 'No se pudo sincronizar.'; return; }
+      msg.textContent = r.data.errors ? 'Se sincronizaron ' + r.data.synced + ' y fallaron ' + r.data.errors + '. Revisa que el calendario esté compartido con la cuenta de servicio.' : 'Google Calendar al día (' + r.data.synced + ' horas nuevas).';
+      refresh();
     }
     const bkBtn = (b, action, label, ghost) => el('button', { class: 'btn small' + (ghost ? ' ghost' : ''), type: 'button', onclick: () => bookingAct(b.id, action, label) }, label);
     async function setMode(iso, mode) {
@@ -202,7 +211,13 @@
             el('div', {}, el('strong', {}, b.name), el('br'), el('span', { class: 'muted' }, dayLabel(b.day) + ' · ' + b.time)),
             el('div', { class: 'row' }, bkBtn(b, 'confirm', 'Confirmar'), bkBtn(b, 'reject', 'Rechazar', true)))))
           : el('p', { class: 'muted' }, 'No hay horas por confirmar.'));
-      calBox.replaceChildren(...calendar(byDay, openMap));
+      const syncBtn = el('button', { class: 'btn ghost small', type: 'button' }, 'Sincronizar horas confirmadas');
+      syncBtn.onclick = () => syncGcal(syncBtn);
+      calBox.replaceChildren(
+        ag.gcal
+          ? el('div', { class: 'row', style: 'align-items:center;gap:10px;margin:6px 0' }, el('span', { class: 'muted' }, '📅 Conectado a Google Calendar: las horas confirmadas aparecen allí solas.'), syncBtn)
+          : el('p', { class: 'muted' }, '📅 Google Calendar sin conectar.'),
+        ...calendar(byDay, openMap));
     }
     paint();
     return [pendingBox, calBox, msg];
