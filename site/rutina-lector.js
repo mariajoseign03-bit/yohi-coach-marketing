@@ -82,13 +82,15 @@
       const flush = () => {
         if (!line.length) return;
         line.sort((a, b) => a.x - b.x);
-        const cells = []; let cur = '', end = null;
+        const cells = [], xs = []; let cur = '', start = 0, end = null;
+        const commit = () => { const t = clean(cur); if (t) { cells.push(t); xs.push((start + end) / 2); } cur = ''; };
         for (const it of line) {
-          if (end !== null && it.x - end > 10) { cells.push(clean(cur)); cur = ''; }
+          if (end !== null && it.x - end > 10) commit();
+          if (!cur) start = it.x;
           cur += it.s; end = it.x + it.w;
         }
-        cells.push(clean(cur));
-        rows.push(cells.filter(Boolean)); line = [];
+        commit();
+        cells.xs = xs; rows.push(cells); line = [];
       };
       for (const it of items) { if (y0 !== null && Math.abs(it.y - y0) > 3) flush(); if (!line.length) y0 = it.y; line.push(it); }
       flush();
@@ -103,7 +105,7 @@
 
   // ---------- Interpretación de filas ----------
   function restFrom(raw, bare) {
-    const t = norm(raw).replace(',', '.');
+    const t = norm(raw).replace(',', '.').replace(/[′’ʼ´‘]/g, "'").replace(/[″”“]/g, '"');
     let m = t.match(/(\d+)\s*[:'’](\d{2})/); if (m) return +m[1] * 60 + +m[2];
     m = t.match(/(\d+(?:\.\d+)?)\s*(?:min|minutos?|m\b|')/); if (m) return Math.round(parseFloat(m[1]) * 60);
     m = t.match(/(\d+)\s*(?:s\b|seg|segundos?|")/); if (m) return +m[1];
@@ -113,25 +115,36 @@
   const cleanName = (s) => clean(s).replace(/^\s*(?:\d{1,2}\s*[.)\-–]|[•·*\-–])\s*/, '').replace(/[:\-–|]+$/, '').trim();
   const BAD_NAME = /^(ejercicios?|series?|reps?|repeticiones|descanso|pausa|nota|notas|observaciones?|calentamiento|total|semana|dia|rutina|plan|nombre|alumna?|fecha|rir|peso|kg|tempo|carga)\b/;
   const okName = (n) => n.length >= 3 && n.length <= 80 && /[a-záéíóúñ]{3}/i.test(n) && !BAD_NAME.test(norm(n)) && !DAY_RE.test(norm(n));
+  const noteClean = (t) => (/^[-–—.·\s]*$/.test(t || '') ? '' : clean(t).slice(0, 200));
   const repsClean = (s) => clean(s).replace(/[–—]/g, '-').replace(/\s*-\s*/g, '-').slice(0, 20);
 
+  const HEAD = [['name', /^(ejercicio|ejercicios|movimiento|nombre)/], ['sets', /^(series?|sets?)\b/], ['reps', /^(reps?|repeticiones|rango)/],
+    ['rest', /^(desc|pausa|rest)/], ['warm', /^(calent|warm)/], ['notes', /^(nota|notas|obs|indicacion|comentario|cue)/]];
   function headerMap(row) {
-    const map = {}; let hits = 0;
+    const map = {};
     row.forEach((c, i) => {
       const t = norm(c);
-      if (/^(ejercicio|ejercicios|movimiento|nombre)/.test(t) && map.name === undefined) { map.name = i; hits++; }
-      else if (/^(series?|sets?|set)\b/.test(t) && map.sets === undefined) { map.sets = i; hits++; }
-      else if (/^(reps?|repeticiones|rango)/.test(t) && map.reps === undefined) { map.reps = i; hits++; }
-      else if (/^(desc|pausa|rest)/.test(t) && map.rest === undefined) { map.rest = i; hits++; }
-      else if (/^(calent|warm)/.test(t) && map.warm === undefined) { map.warm = i; hits++; }
-      else if (/^(nota|notas|obs|indicacion|comentario|cue)/.test(t) && map.notes === undefined) { map.notes = i; hits++; }
+      for (const [k, re] of HEAD) if (map[k] === undefined && re.test(t)) { map[k] = i; if (row.xs) (map.hx = map.hx || {})[k] = row.xs[i]; break; }
     });
     return map.name !== undefined && (map.sets !== undefined || map.reps !== undefined) ? map : null;
+  }
+  // Cada celda va a la columna del encabezado más cercana (en PDF faltan celdas vacías y los índices se corren).
+  function getter(row, map) {
+    if (map.hx && row.xs) {
+      const got = {};
+      row.forEach((c, i) => {
+        let best = null, bd = 1e9;
+        for (const k in map.hx) { const d = Math.abs(row.xs[i] - map.hx[k]); if (d < bd) { bd = d; best = k; } }
+        if (best && bd < 90) got[best] = (got[best] ? got[best] + ' ' : '') + c;
+      });
+      return (k) => clean(got[k] || '');
+    }
+    return (k) => (map[k] !== undefined ? clean(row[map[k]] || '') : '');
   }
 
   function parseRows(rows) {
     const out = []; let map = null, day = '';
-    const push = (ex) => { if (okName(ex.name) && out.length < 40) out.push(ex); };
+    const push = (ex) => { if (okName(ex.name) && out.length < 60) out.push(ex); };
     for (const row of rows) {
       const text = clean(row.join(' '));
       if (!text) continue;
@@ -142,7 +155,7 @@
 
       let ex = null;
       if (map) {
-        const g = (k) => (map[k] !== undefined ? clean(row[map[k]] || '') : '');
+        const g = getter(row, map);
         const name = cleanName(g('name'));
         if (name) {
           let sets = parseInt(g('sets'), 10), reps = repsClean(g('reps'));
@@ -174,14 +187,17 @@
         }
       }
       if (ex) {
-        if (day && !ex.notes) ex.notes = day;
-        else if (day && ex.notes && !ex.notes.startsWith(day)) ex.notes = day + ' · ' + ex.notes;
-        ex.notes = (ex.notes || '').slice(0, 200);
+        ex.day = day;
+        ex.notes = noteClean(ex.notes);
         push(ex);
       }
     }
     const missingRest = out.filter((e) => e.restSec == null || !(e.restSec >= 0)).length;
-    for (const e of out) { if (e.restSec == null || !(e.restSec >= 0)) e.restSec = 90; e.restSec = Math.min(600, Math.round(e.restSec)); }
+    for (const e of out) {
+      if (e.restSec == null || !(e.restSec >= 0)) e.restSec = 90;
+      if (e.restSec > 0 && e.restSec < 10) e.restSec *= 60; // un descanso de 1–9 s no existe: era en minutos
+      e.restSec = Math.min(600, Math.round(e.restSec));
+    }
     return { exercises: out, missingRest, rows: rows.length };
   }
 

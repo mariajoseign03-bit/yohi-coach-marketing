@@ -16,7 +16,7 @@ function infoButton(key) {
   const tip = el('div', { class: 'info-tip' + (isGold ? ' gold' : ''), hidden: '' },
     el('strong', {}, TRAINING_INFO[key].title), el('br'), TRAINING_INFO[key].text);
   const btn = el('button', { type: 'button', class: 'info-btn' + (isGold ? ' gold' : ''),
-    onclick: (e) => { e.stopPropagation(); open = !open; tip.hidden = open ? null : ''; }
+    onclick: (e) => { e.stopPropagation(); open = !open; tip.hidden = !open; }
   }, 'ℹ');
   return el('span', { class: 'info-wrap' }, btn, tip);
 }
@@ -35,6 +35,9 @@ function trainingSection(container) {
     }
 
     const { routine, exercises, logs } = r.data;
+    // Última observación de la alumna por ejercicio (vienen ordenadas por fecha)
+    const notesByEx = {};
+    for (const n of (r.data.notes || [])) notesByEx[n.exercise_id] = n.note;
 
     // Encabezado
     const head = el('h2', { style: 'margin-top:0' }, 'Mi rutina');
@@ -59,8 +62,8 @@ function trainingSection(container) {
     // Temporizador
     const timerCard = buildTimer();
 
-    // Ejercicios
-    const exCards = exercises.map((ex, i) => buildExercise(ex, i, logsByEx[ex.id] || [], routine.week_of));
+    // Ejercicios, agrupados por día cuando la rutina los tiene
+    const exBlock = buildDays(exercises, logsByEx, notesByEx, routine.week_of);
 
     // Progreso resumen
     const summary = buildSummary(exercises, logsByEx);
@@ -73,7 +76,40 @@ function trainingSection(container) {
         'Semana del ', el('strong', {}, fmtDate(routine.week_of))),
       summary,
       timerCard,
-      el('div', { class: 'training-exercises' }, ...exCards));
+      exBlock);
+  }
+
+  // Cada día es un bloque que se despliega; se abre solo el de hoy (si los días tienen nombre de la semana).
+  function buildDays(exercises, logsByEx, notesByEx, weekOf) {
+    const groups = [];
+    for (const ex of exercises) {
+      const d = (ex.day || '').trim();
+      let g = groups.find((x) => x.day === d);
+      if (!g) { g = { day: d, items: [] }; groups.push(g); }
+      g.items.push(ex);
+    }
+    const card = (ex, i) => buildExercise(ex, i, logsByEx[ex.id] || [], weekOf, notesByEx[ex.id] || '');
+    if (groups.length === 1 && !groups[0].day) return el('div', { class: 'training-exercises' }, ...exercises.map(card));
+    const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    const today = DIAS[new Date().getDay()];
+    const plain = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    return el('div', { class: 'day-groups' }, ...groups.map((g) => {
+      const total = g.items.length;
+      const isDone = (ex) => (logsByEx[ex.id] || []).filter((l) => l.set_type === 'work').length >= ex.sets;
+      const count = el('span', { class: 'day-count' });
+      const det = el('details', { class: 'day-group' },
+        el('summary', { class: 'day-sum' }, el('span', { class: 'day-name' }, g.day || 'Otros ejercicios'), count),
+        el('div', { class: 'training-exercises' }, ...g.items.map((ex, i) => card(ex, i))));
+      const recount = () => {
+        const n = det.querySelectorAll('.ex-badge.done').length;
+        count.textContent = n + '/' + total + ' ejercicios';
+        count.classList.toggle('done', n === total);
+      };
+      recount();
+      det.addEventListener('saved', recount);
+      if (g.day && plain(g.day) === today) det.open = true;
+      return det;
+    }));
   }
 
   async function renderWeekSelector(container, afterEl) {
@@ -133,7 +169,7 @@ function trainingSection(container) {
 
     const wrap = el('div', { class: 'timer-wrap' });
     const card = el('div', { class: 'timer-card' });
-    const mascot = el('img', { class: 'timer-mascot', src: '/logo-yohi.webp', alt: 'Yohi Coach' });
+    const mascot = el('img', { class: 'timer-mascot', src: '/yohi-timer.webp', alt: 'Yohi Coach', width: '360', height: '360' });
     const startBtn = el('button', { class: 'timer-btn start', type: 'button' }, '▶  Iniciar');
     const pauseBtn = el('button', { class: 'timer-btn pause', type: 'button', hidden: '' }, '⏸ Pausa');
     const resetBtn = el('button', { class: 'timer-btn reset', type: 'button', hidden: '' }, '↺');
@@ -198,7 +234,7 @@ function trainingSection(container) {
     return wrap;
   }
 
-  function buildExercise(ex, idx, existingLogs, weekOf) {
+  function buildExercise(ex, idx, existingLogs, weekOf, existingNote) {
     const workLogs = existingLogs.filter(l => l.set_type === 'work');
     const warmupLogs = existingLogs.filter(l => l.set_type === 'warmup');
     const isDone = workLogs.length >= ex.sets;
@@ -212,7 +248,7 @@ function trainingSection(container) {
 
     const toggle = () => {
       expanded = !expanded;
-      body.hidden = expanded ? null : '';
+      body.hidden = !expanded;
       exDiv.classList.toggle('open', expanded);
     };
 
@@ -274,6 +310,12 @@ function trainingSection(container) {
       body.append(el('p', { class: 'ex-note' }, '💬 ', ex.notes));
     }
 
+    // Observaciones de la alumna (Yohi las ve en su panel)
+    const initialNote = existingNote || '';
+    const obsIn = el('textarea', { class: 'ex-obs', maxlength: '500', placeholder: 'Cómo te sentiste, molestias, cambios que hiciste…' });
+    obsIn.rows = 2; obsIn.value = initialNote;
+    body.append(el('label', { class: 'ex-obs-wrap' }, el('span', { class: 'ex-obs-label' }, '📝 Observaciones para Yohi'), obsIn));
+
     // Botón guardar
     const msg = el('p', { class: 'set-msg', role: 'status' });
     const saveBtn = el('button', { class: 'btn small', type: 'button', style: 'margin-top:10px',
@@ -285,19 +327,26 @@ function trainingSection(container) {
           reps: s.repsIn.value !== '' ? Number(s.repsIn.value) : null,
           rir: s.rirIn && s.rirIn.value !== '' ? Number(s.rirIn.value) : null,
         })).filter(s => s.kg !== null || s.reps !== null);
-        if (!setsData.length) { msg.className = 'set-msg err'; msg.textContent = 'Llena al menos una serie.'; return; }
+        const noteVal = obsIn.value.trim();
+        const noteChanged = noteVal !== initialNote.trim();
+        if (!setsData.length && !noteChanged) { msg.className = 'set-msg err'; msg.textContent = 'Llena al menos una serie o escribe una observación.'; return; }
+        const payload = { exerciseId: ex.id, loggedOn: todayLocal(), sets: setsData };
+        if (noteChanged) payload.note = noteVal;
         saveBtn.disabled = true;
-        const r = await api('/api/training/log', { exerciseId: ex.id, loggedOn: todayLocal(), sets: setsData });
+        const r = await api('/api/training/log', payload);
         saveBtn.disabled = false;
         if (r.ok) {
           msg.className = 'set-msg ok'; msg.textContent = '✓ Guardado';
-          badge.textContent = '✓'; badge.className = 'ex-badge done';
+          const worked = setsData.filter(s => s.setType === 'work').length;
+          if (worked >= ex.sets) { badge.textContent = '✓'; badge.className = 'ex-badge done'; }
+          else if (worked > 0) { badge.textContent = worked + '/' + ex.sets; badge.className = 'ex-badge partial'; }
+          exDiv.dispatchEvent(new CustomEvent('saved', { bubbles: true }));
           setTimeout(() => { msg.textContent = ''; }, 2000);
         } else {
           msg.className = 'set-msg err'; msg.textContent = r.data.error || 'Error al guardar.';
         }
       }
-    }, 'Guardar serie');
+    }, 'Guardar');
     body.append(el('div', { class: 'set-actions' }, saveBtn, msg));
 
     // Volumen total

@@ -230,7 +230,7 @@
     }
     function routinePanel(st) {
       const box = el('div', { style: 'margin-top:12px' }, el('p', { class: 'muted' }, 'Cargando…'));
-      let exercises = [{ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, notes: '' }];
+      let exercises = [{ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: '', notes: '' }];
       const weekIn = el('input', { name: 'week_of', type: 'date', value: (() => { const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)).toISOString().slice(0, 10); })() });
       const nameIn = el('input', { name: 'name', type: 'text', placeholder: 'Nombre de la rutina (opcional)' });
 
@@ -241,6 +241,7 @@
         const repsI = el('input', { type: 'text', placeholder: '8-12', value: ex.reps, style: 'width:70px', oninput: (e) => { ex.reps = e.target.value; } });
         const restI = el('input', { type: 'number', min: '0', max: '600', value: ex.restSec, style: 'width:70px', oninput: (e) => { ex.restSec = Number(e.target.value); } });
         const warmI = el('input', { type: 'number', min: '0', max: '5', value: ex.warmupSets, style: 'width:60px', oninput: (e) => { ex.warmupSets = Number(e.target.value); } });
+        const dayI = el('input', { type: 'text', placeholder: 'Día (Lunes, Día 1…)', maxlength: '30', value: ex.day || '', style: 'max-width:150px', oninput: (e) => { ex.day = e.target.value; } });
         const noteI = el('input', { type: 'text', placeholder: 'Nota para la alumna', value: ex.notes, oninput: (e) => { ex.notes = e.target.value; } });
         return el('div', { class: 'routine-ex' },
           el('div', { class: 'routine-ex-head' },
@@ -251,13 +252,13 @@
             el('label', { style: 'font-size:12px' }, 'Reps', repsI),
             el('label', { style: 'font-size:12px' }, 'Desc (s)', restI),
             el('label', { style: 'font-size:12px' }, 'Calent.', warmI)),
-          el('div', { style: 'margin-top:6px' }, noteI));
+          el('div', { style: 'margin-top:6px;display:flex;gap:8px;flex-wrap:wrap' }, dayI, el('div', { style: 'flex:1;min-width:160px' }, noteI)));
       }
 
       const exList = el('div');
       const msg = el('p', { class: 'err', role: 'alert' });
       const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar rutina');
-      const addBtn = el('button', { type: 'button', class: 'btn ghost small', style: 'margin-top:8px', onclick: () => { exercises.push({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, notes: '' }); renderForm(); } }, '+ Ejercicio');
+      const addBtn = el('button', { type: 'button', class: 'btn ghost small', style: 'margin-top:8px', onclick: () => { exercises.push({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: (exercises[exercises.length - 1] || {}).day || '', notes: '' }); renderForm(); } }, '+ Ejercicio');
 
       function renderForm() { exList.replaceChildren(...exercises.map(exRow)); }
 
@@ -292,7 +293,7 @@
         if (!valid.length) { msg.textContent = 'Agrega al menos un ejercicio con nombre.'; go.disabled = false; return; }
         const r = await api('/api/admin/routine', {
           userId: st.id, weekOf: weekIn.value, name: nameIn.value,
-          exercises: valid.map(x => ({ name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets || 1, notes: x.notes || '' }))
+          exercises: valid.map(x => ({ name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets ?? 1, day: (x.day || '').trim(), notes: x.notes || '' }))
         });
         go.disabled = false;
         if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
@@ -315,8 +316,41 @@
             if (!rd.ok) return;
             detR.append(...rd.data.exercises.map((ex, i) =>
               el('div', { class: 'routine-log-row' },
-                el('span', { style: 'font-weight:700;font-size:13px' }, (i + 1) + '. ' + ex.name),
+                el('span', { style: 'font-weight:700;font-size:13px' }, (i + 1) + '. ' + ex.name + (ex.day ? ' · ' + ex.day : '')),
                 el('span', { class: 'muted', style: 'font-size:12px' }, ex.sets + '×' + ex.reps + ' · ' + ex.rest_sec + 's desc' + (ex.warmup_sets ? ' · ' + ex.warmup_sets + ' calent.' : '')))));
+          });
+          const detLog = el('details', {}, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex;font-size:13px' }, '📊 Ver registro de la alumna'));
+          detLog.addEventListener('toggle', async () => {
+            if (!detLog.open) return;
+            detLog.dataset.loaded = '';
+            const [rd, lg] = await Promise.all([api('/api/admin/routine?id=' + rt.id), api('/api/admin/training-logs?userId=' + st.id + '&weekOf=' + rt.week_of)]);
+            const body = el('div', { style: 'margin-top:8px' });
+            if (!rd.ok || !lg.ok) body.append(el('p', { class: 'err' }, 'No pude cargar el registro.'));
+            else {
+              const fmtD = (iso) => { const [, mm, dd] = iso.split('-').map(Number); return dd + ' ' + MESES[mm - 1]; };
+              const fmtN = (n) => (n == null ? '–' : String(n));
+              let lastDay = null, any = false;
+              for (const ex of rd.data.exercises) {
+                const exLogs = lg.data.logs.filter((l) => l.exercise_id === ex.id);
+                const exNotes = lg.data.notes.filter((n) => n.exercise_id === ex.id);
+                const dates = [...new Set([...exLogs.map((l) => l.logged_on), ...exNotes.map((n) => n.logged_on)])].sort();
+                if ((ex.day || '') !== lastDay) { lastDay = ex.day || ''; if (lastDay) body.append(el('div', { class: 'reg-day' }, lastDay)); }
+                const item = el('div', { class: 'reg-ex' }, el('div', { class: 'reg-name' }, ex.name, el('span', { class: 'muted', style: 'font-weight:500;font-size:12px' }, '  ' + ex.sets + '×' + ex.reps)));
+                if (!dates.length) item.append(el('div', { class: 'muted', style: 'font-size:12.5px' }, 'Sin registro'));
+                for (const d of dates) {
+                  any = true;
+                  const sets = exLogs.filter((l) => l.logged_on === d);
+                  const fmtSet = (l) => (l.set_type === 'warmup' ? 'C' : 'S') + l.set_num + ': ' + fmtN(l.kg) + ' kg × ' + fmtN(l.reps) + (l.rir != null ? ' (RIR ' + l.rir + ')' : '');
+                  item.append(el('div', { class: 'reg-date' }, fmtD(d)));
+                  if (sets.length) item.append(el('div', { class: 'reg-sets' }, sets.map(fmtSet).join('  ·  ')));
+                  for (const n of exNotes.filter((x) => x.logged_on === d)) item.append(el('p', { class: 'reg-note' }, '📝 ', n.note));
+                }
+                body.append(item);
+              }
+              if (!any) body.prepend(el('p', { class: 'muted', style: 'font-size:13px' }, 'La alumna aún no ha registrado nada esta semana.'));
+            }
+            const old = detLog.querySelector('.reg-wrap'); if (old) old.remove();
+            body.classList.add('reg-wrap'); detLog.append(body);
           });
           const delBtn = el('button', { class: 'btn ghost small', style: 'font-size:12px', type: 'button', onclick: async () => {
             if (!confirm('¿Borrar rutina de ' + d + '/' + m + '?')) return;
@@ -326,7 +360,7 @@
             weekIn.value = rt.week_of; nameIn.value = rt.name || '';
             const rd = await api('/api/admin/routine?id=' + rt.id);
             if (rd.ok) {
-              exercises = rd.data.exercises.map(ex => ({ name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, notes: ex.notes || '' }));
+              exercises = rd.data.exercises.map(ex => ({ name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '' }));
               renderForm();
             }
           } }, 'Editar');
@@ -334,7 +368,7 @@
             el('div', { class: 'row', style: 'align-items:center;gap:8px;flex-wrap:wrap' },
               el('strong', { style: 'font-size:14px' }, d + ' ' + MESES[m - 1] + (rt.name ? ' · ' + rt.name : '')),
               editBtn, delBtn),
-            detR);
+            detR, detLog);
         }));
       }
 

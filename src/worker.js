@@ -697,33 +697,47 @@ async function adminRoutine(req, env) {
   const user = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
   if (!user) return fail(404, 'No se encontró la alumna.');
   const exs = b.exercises;
-  if (!Array.isArray(exs) || exs.length === 0 || exs.length > 30) return fail(400, 'Envía entre 1 y 30 ejercicios.');
+  if (!Array.isArray(exs) || exs.length === 0 || exs.length > 60) return fail(400, 'Envía entre 1 y 60 ejercicios.');
   for (const ex of exs) {
     if (!ex.name || String(ex.name).trim().length < 2) return fail(400, 'Cada ejercicio necesita un nombre.');
   }
   const name = String(b.name || '').trim().slice(0, 120);
 
-  // Upsert: si ya existe rutina para esa semana, la reemplaza.
-  const existing = await env.DB.prepare('SELECT id FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
-  const stmts = [];
-  if (existing) {
-    stmts.push(env.DB.prepare('DELETE FROM routine_exercises WHERE routine_id = ?').bind(existing.id));
-    stmts.push(env.DB.prepare('UPDATE routines SET name = ? WHERE id = ?').bind(name, existing.id));
+  // Upsert: si ya existe rutina para esa semana, la actualiza. Los ejercicios que siguen (mismo nombre y día)
+  // conservan su id, así lo que la alumna ya registró (series y observaciones) no se pierde al corregir la rutina.
+  let routine = await env.DB.prepare('SELECT id FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
+  if (routine) {
+    await env.DB.prepare('UPDATE routines SET name = ? WHERE id = ?').bind(name, routine.id).run();
   } else {
-    stmts.push(env.DB.prepare('INSERT INTO routines (user_id, week_of, name) VALUES (?, ?, ?)').bind(userId, weekOf, name));
+    await env.DB.prepare('INSERT INTO routines (user_id, week_of, name) VALUES (?, ?, ?)').bind(userId, weekOf, name).run();
+    routine = await env.DB.prepare('SELECT id FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
   }
+  const { results: old } = await env.DB.prepare('SELECT id, name, day FROM routine_exercises WHERE routine_id = ?').bind(routine.id).all();
+  const keyOf = (n, d) => String(n).trim().toLowerCase() + '|' + String(d || '').trim().toLowerCase();
+  const pool = new Map();
+  for (const o of old) { const k = keyOf(o.name, o.day); if (!pool.has(k)) pool.set(k, []); pool.get(k).push(o.id); }
+  const keep = new Set();
+  const stmts = [];
+  exs.forEach((ex, i) => {
+    const vals = [
+      String(ex.name).trim().slice(0, 120),
+      Math.max(1, Math.min(20, Number(ex.sets) || 3)),
+      String(ex.reps || '8-12').slice(0, 20),
+      Math.max(0, Math.min(600, Number(ex.restSec) || 90)),
+      ex.warmupSets == null || ex.warmupSets === '' ? 1 : Math.max(0, Math.min(10, Number(ex.warmupSets) || 0)),
+      String(ex.day || '').trim().slice(0, 30),
+      String(ex.notes || '').slice(0, 300),
+    ];
+    const ids = pool.get(keyOf(ex.name, ex.day));
+    if (ids && ids.length) {
+      const id = ids.shift(); keep.add(id);
+      stmts.push(env.DB.prepare('UPDATE routine_exercises SET pos = ?, name = ?, sets = ?, reps = ?, rest_sec = ?, warmup_sets = ?, day = ?, notes = ? WHERE id = ?').bind(i, ...vals, id));
+    } else {
+      stmts.push(env.DB.prepare('INSERT INTO routine_exercises (routine_id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(routine.id, i, ...vals));
+    }
+  });
+  for (const o of old) if (!keep.has(o.id)) stmts.push(env.DB.prepare('DELETE FROM routine_exercises WHERE id = ?').bind(o.id));
   await env.DB.batch(stmts);
-
-  const routine = await env.DB.prepare('SELECT id FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
-  const insStmts = exs.map((ex, i) =>
-    env.DB.prepare('INSERT INTO routine_exercises (routine_id, pos, name, sets, reps, rest_sec, warmup_sets, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(routine.id, i, String(ex.name).trim().slice(0, 120),
-        Math.max(1, Math.min(20, Number(ex.sets) || 3)),
-        String(ex.reps || '8-12').slice(0, 20),
-        Math.max(0, Math.min(600, Number(ex.restSec) || 90)),
-        Math.max(0, Math.min(10, Number(ex.warmupSets) || 1)),
-        String(ex.notes || '').slice(0, 300)));
-  await env.DB.batch(insStmts);
   return json({ ok: true, routineId: routine.id });
 }
 
@@ -756,7 +770,7 @@ async function adminRoutineDetail(req, env, url) {
   const routine = await env.DB.prepare('SELECT id, user_id, week_of, name FROM routines WHERE id = ?').bind(id).first();
   if (!routine) return fail(404, 'Rutina no encontrada.');
   const { results: exercises } = await env.DB.prepare(
-    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
+    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
   ).bind(id).all();
   return json({ ok: true, routine, exercises });
 }
@@ -784,7 +798,18 @@ async function adminTrainingLogs(req, env, url) {
         WHERE tl.user_id = ? ORDER BY tl.logged_on DESC, re.pos, tl.set_type DESC, tl.set_num LIMIT 200`,
     ).bind(userId).all());
   }
-  return json({ ok: true, logs });
+  // Observaciones de la alumna en el mismo período
+  let notes;
+  if (weekOf) {
+    ({ results: notes } = await env.DB.prepare(
+      'SELECT exercise_id, logged_on, note FROM training_notes WHERE user_id = ? AND logged_on >= ? AND logged_on <= ? ORDER BY logged_on',
+    ).bind(userId, weekOf, addDays(weekOf, 6)).all());
+  } else {
+    ({ results: notes } = await env.DB.prepare(
+      'SELECT exercise_id, logged_on, note FROM training_notes WHERE user_id = ? ORDER BY logged_on DESC LIMIT 200',
+    ).bind(userId).all());
+  }
+  return json({ ok: true, logs, notes });
 }
 
 // Alumna: obtener su rutina de la semana actual (o una semana específica)
@@ -806,7 +831,7 @@ async function myRoutine(req, env, url) {
   const routine = await env.DB.prepare('SELECT id, week_of, name FROM routines WHERE user_id = ? AND week_of = ?').bind(user.id, weekOf).first();
   if (!routine) return json({ ok: true, routine: null, exercises: [], logs: [] });
   const { results: exercises } = await env.DB.prepare(
-    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
+    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
   ).bind(routine.id).all();
   // También traer los logs de la alumna para esta semana
   const weekEnd = addDays(weekOf, 6);
@@ -815,7 +840,10 @@ async function myRoutine(req, env, url) {
        FROM training_logs WHERE user_id = ? AND logged_on >= ? AND logged_on <= ?
       ORDER BY exercise_id, set_type DESC, set_num`,
   ).bind(user.id, weekOf, weekEnd).all();
-  return json({ ok: true, routine, exercises, logs });
+  const { results: notes } = await env.DB.prepare(
+    'SELECT exercise_id, logged_on, note FROM training_notes WHERE user_id = ? AND logged_on >= ? AND logged_on <= ? ORDER BY logged_on',
+  ).bind(user.id, weekOf, weekEnd).all();
+  return json({ ok: true, routine, exercises, logs, notes });
 }
 
 // Alumna: listar semanas disponibles con rutina
@@ -845,12 +873,21 @@ async function logSet(req, env) {
       WHERE re.id = ? AND r.user_id = ?`,
   ).bind(exerciseId, user.id).first();
   if (!ex) return fail(404, 'Ejercicio no encontrado en tu rutina.');
-  const sets = b.sets;
-  if (!Array.isArray(sets) || sets.length === 0 || sets.length > 25) return fail(400, 'Envía entre 1 y 25 series.');
-  // Borrar logs anteriores de este ejercicio en esta fecha y recrear (upsert por fecha)
-  const stmts = [
-    env.DB.prepare('DELETE FROM training_logs WHERE user_id = ? AND exercise_id = ? AND logged_on = ?').bind(user.id, exerciseId, loggedOn),
-  ];
+  const sets = b.sets == null ? [] : b.sets;
+  const note = String(b.note || '').trim().slice(0, 500);
+  if (!Array.isArray(sets) || sets.length > 25) return fail(400, 'Envía hasta 25 series.');
+  if (sets.length === 0 && b.note === undefined) return fail(400, 'Llena al menos una serie o escribe una observación.');
+  const stmts = [];
+  // Observación de la alumna: una por ejercicio y fecha; vacía la borra.
+  if (b.note !== undefined) {
+    stmts.push(note
+      ? env.DB.prepare(`INSERT INTO training_notes (user_id, exercise_id, logged_on, note) VALUES (?, ?, ?, ?)
+          ON CONFLICT(user_id, exercise_id, logged_on) DO UPDATE SET note = excluded.note, updated_at = datetime('now')`).bind(user.id, exerciseId, loggedOn, note)
+      : env.DB.prepare('DELETE FROM training_notes WHERE user_id = ? AND exercise_id = ? AND logged_on = ?').bind(user.id, exerciseId, loggedOn));
+  }
+  // Si vienen series: borrar logs anteriores de este ejercicio en esta fecha y recrear (upsert por fecha)
+  if (sets.length) stmts.push(
+    env.DB.prepare('DELETE FROM training_logs WHERE user_id = ? AND exercise_id = ? AND logged_on = ?').bind(user.id, exerciseId, loggedOn));
   for (const s of sets) {
     const setType = s.setType === 'warmup' ? 'warmup' : 'work';
     const setNum = Math.max(1, Math.min(25, Number(s.setNum) || 1));
