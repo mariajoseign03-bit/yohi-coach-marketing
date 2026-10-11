@@ -329,6 +329,32 @@
       });
       return form;
     }
+    function dayGroups(exs) {
+      const g = [];
+      for (const ex of exs) {
+        const d = (ex.day || '').trim();
+        let x = g.find((y) => y.day === d);
+        if (!x) { x = { day: d, items: [] }; g.push(x); }
+        x.items.push(ex);
+      }
+      return g;
+    }
+    // Rutina de una alumna en grande, con un bloque desplegable por día.
+    function routineView(exs) {
+      const row = (ex, i) => el('div', { class: 'rv-ex' },
+        el('div', { class: 'rv-name' }, el('span', { class: 'rv-num' }, String(i + 1)), ex.name),
+        el('div', { class: 'rv-chips' },
+          el('span', { class: 'rv-chip' }, el('b', {}, String(ex.sets)), ' series'),
+          el('span', { class: 'rv-chip' }, el('b', {}, String(ex.reps)), ' reps'),
+          el('span', { class: 'rv-chip' }, el('b', {}, String(ex.rest_sec)), ' s desc'),
+          ex.warmup_sets ? el('span', { class: 'rv-chip gold' }, el('b', {}, String(ex.warmup_sets)), ' calent.') : ''),
+        ex.notes ? el('p', { class: 'rv-note' }, '💬 ', ex.notes) : '');
+      const groups = dayGroups(exs);
+      if (groups.length === 1 && !groups[0].day) return el('div', { class: 'rv-flat' }, ...exs.map(row));
+      return el('div', { class: 'rv-days' }, ...groups.map((g) => el('details', { class: 'rv-day' },
+        el('summary', {}, el('span', { class: 'rv-day-name' }, g.day || 'Otros ejercicios'), el('span', { class: 'rv-day-count' }, g.items.length + (g.items.length === 1 ? ' ejercicio' : ' ejercicios'))),
+        el('div', {}, ...g.items.map(row)))));
+    }
     function routinePanel(st) {
       const box = el('div', { style: 'margin-top:12px' }, el('p', { class: 'muted' }, 'Cargando…'));
       let exercises = [{ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: '', notes: '' }];
@@ -415,10 +441,7 @@
             detR.dataset.loaded = '1';
             const rd = await api('/api/admin/routine?id=' + rt.id);
             if (!rd.ok) return;
-            detR.append(...rd.data.exercises.map((ex, i) =>
-              el('div', { class: 'routine-log-row' },
-                el('span', { style: 'font-weight:700;font-size:13px' }, (i + 1) + '. ' + ex.name + (ex.day ? ' · ' + ex.day : '')),
-                el('span', { class: 'muted', style: 'font-size:12px' }, ex.sets + '×' + ex.reps + ' · ' + ex.rest_sec + 's desc' + (ex.warmup_sets ? ' · ' + ex.warmup_sets + ' calent.' : '')))));
+            detR.append(routineView(rd.data.exercises));
           });
           const detLog = el('details', {}, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex;font-size:13px' }, '📊 Ver registro de la alumna'));
           detLog.addEventListener('toggle', async () => {
@@ -430,23 +453,35 @@
             else {
               const fmtD = (iso) => { const [, mm, dd] = iso.split('-').map(Number); return dd + ' ' + MESES[mm - 1]; };
               const fmtN = (n) => (n == null ? '–' : String(n));
-              let lastDay = null, any = false;
-              for (const ex of rd.data.exercises) {
-                const exLogs = lg.data.logs.filter((l) => l.exercise_id === ex.id);
-                const exNotes = lg.data.notes.filter((n) => n.exercise_id === ex.id);
-                const dates = [...new Set([...exLogs.map((l) => l.logged_on), ...exNotes.map((n) => n.logged_on)])].sort();
-                if ((ex.day || '') !== lastDay) { lastDay = ex.day || ''; if (lastDay) body.append(el('div', { class: 'reg-day' }, lastDay)); }
-                const item = el('div', { class: 'reg-ex' }, el('div', { class: 'reg-name' }, ex.name, el('span', { class: 'muted', style: 'font-weight:500;font-size:12px' }, '  ' + ex.sets + '×' + ex.reps)));
-                if (!dates.length) item.append(el('div', { class: 'muted', style: 'font-size:12.5px' }, 'Sin registro'));
-                for (const d of dates) {
-                  any = true;
-                  const sets = exLogs.filter((l) => l.logged_on === d);
-                  const fmtSet = (l) => (l.set_type === 'warmup' ? 'C' : 'S') + l.set_num + ': ' + fmtN(l.kg) + ' kg × ' + fmtN(l.reps) + (l.rir != null ? ' (RIR ' + l.rir + ')' : '');
-                  item.append(el('div', { class: 'reg-date' }, fmtD(d)));
-                  if (sets.length) item.append(el('div', { class: 'reg-sets' }, sets.map(fmtSet).join('  ·  ')));
-                  for (const n of exNotes.filter((x) => x.logged_on === d)) item.append(el('p', { class: 'reg-note' }, '📝 ', n.note));
+              let any = false;
+              const groups = dayGroups(rd.data.exercises);
+              const multi = !(groups.length === 1 && !groups[0].day);
+              for (const g of groups) {
+                const holder = multi ? el('div') : body;
+                let withData = 0;
+                for (const ex of g.items) {
+                  const exLogs = lg.data.logs.filter((l) => l.exercise_id === ex.id);
+                  const exNotes = lg.data.notes.filter((n) => n.exercise_id === ex.id);
+                  const dates = [...new Set([...exLogs.map((l) => l.logged_on), ...exNotes.map((n) => n.logged_on)])].sort();
+                  const item = el('div', { class: 'reg-ex' }, el('div', { class: 'reg-name' }, ex.name, el('span', { class: 'muted', style: 'font-weight:500;font-size:13px' }, '  ' + ex.sets + '×' + ex.reps)));
+                  if (!dates.length) item.append(el('div', { class: 'muted', style: 'font-size:13px' }, 'Sin registro'));
+                  else withData++;
+                  for (const d of dates) {
+                    any = true;
+                    const sets = exLogs.filter((l) => l.logged_on === d);
+                    const fmtSet = (l) => (l.set_type === 'warmup' ? 'C' : 'S') + l.set_num + ': ' + fmtN(l.kg) + ' kg × ' + fmtN(l.reps) + (l.rir != null ? ' (RIR ' + l.rir + ')' : '');
+                    item.append(el('div', { class: 'reg-date' }, fmtD(d)));
+                    if (sets.length) item.append(el('div', { class: 'reg-sets' }, sets.map(fmtSet).join('  ·  ')));
+                    for (const n of exNotes.filter((x) => x.logged_on === d)) item.append(el('p', { class: 'reg-note' }, '📝 ', n.note));
+                  }
+                  holder.append(item);
                 }
-                body.append(item);
+                if (multi) {
+                  const det = el('details', { class: 'rv-day' },
+                    el('summary', {}, el('span', { class: 'rv-day-name' }, g.day || 'Otros ejercicios'), el('span', { class: 'rv-day-count' }, withData + '/' + g.items.length + ' con registro')), holder);
+                  det.open = withData > 0;
+                  body.append(det);
+                }
               }
               if (!any) body.prepend(el('p', { class: 'muted', style: 'font-size:13px' }, 'La alumna aún no ha registrado nada esta semana.'));
             }

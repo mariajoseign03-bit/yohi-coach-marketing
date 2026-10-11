@@ -90,15 +90,20 @@ function trainingSection(container) {
     }
     const card = (ex, i) => buildExercise(ex, i, logsByEx[ex.id] || [], weekOf, notesByEx[ex.id] || '');
     if (groups.length === 1 && !groups[0].day) return el('div', { class: 'training-exercises' }, ...exercises.map(card));
-    const DIAS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-    const today = DIAS[new Date().getDay()];
-    const plain = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    // La alumna ve "Día 1", "Día 2"…, aunque Yohi haya escrito Lunes, Martes…
+    const plain = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const dayName = (label, n) => {
+      const t = plain(label), m = t.match(/\bdia\s*(\d+)/);
+      if (m) return 'Día ' + m[1];
+      return /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.test(t) ? 'Día ' + (n + 1) : label;
+    };
+    let dayN = 0;
     return el('div', { class: 'day-groups' }, ...groups.map((g) => {
       const total = g.items.length;
       const isDone = (ex) => (logsByEx[ex.id] || []).filter((l) => l.set_type === 'work').length >= ex.sets;
       const count = el('span', { class: 'day-count' });
       const det = el('details', { class: 'day-group' },
-        el('summary', { class: 'day-sum' }, el('span', { class: 'day-name' }, g.day || 'Otros ejercicios'), count),
+        el('summary', { class: 'day-sum' }, el('span', { class: 'day-name' }, g.day ? dayName(g.day, dayN++) : 'Otros ejercicios'), count),
         el('div', { class: 'training-exercises' }, ...g.items.map((ex, i) => card(ex, i))));
       const recount = () => {
         const n = det.querySelectorAll('.ex-badge.done').length;
@@ -107,7 +112,6 @@ function trainingSection(container) {
       };
       recount();
       det.addEventListener('saved', recount);
-      if (g.day && plain(g.day) === today) det.open = true;
       return det;
     }));
   }

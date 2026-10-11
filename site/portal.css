@@ -288,12 +288,35 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .ex-obs{ width:100%; min-height:64px; padding:10px 12px; border-radius:12px; border:1.5px solid rgba(255,214,232,.15); background:rgba(255,255,255,.04); color:var(--fg); font:500 14px/1.4 var(--f-text); resize:vertical; box-sizing:border-box }
 .ex-obs:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(255,79,163,.25) }
 
+/* Rutina de la alumna en grande (vista de Yohi), un bloque por día */
+.rv-days{ display:grid; gap:8px; margin-top:8px }
+.rv-flat{ margin-top:8px }
+.rv-day{ border:1px solid rgba(255,214,232,.14); border-radius:14px; background:rgba(255,255,255,.02) }
+.rv-day[open]{ border-color:rgba(255,109,180,.35) }
+.rv-day > summary{ display:flex; align-items:center; gap:10px; padding:12px 14px; cursor:pointer; list-style:none }
+.rv-day > summary::-webkit-details-marker{ display:none }
+.rv-day > summary::after{ content:'▾'; color:var(--muted); transition:transform .2s var(--ease-out) }
+.rv-day[open] > summary::after{ transform:rotate(180deg); color:var(--accent-soft) }
+.rv-day-name{ flex:1; min-width:0; font:400 22px/1.1 var(--f-display); text-transform:uppercase; letter-spacing:.02em }
+.rv-day-count{ font:800 11px/1 var(--f-text); color:var(--muted); padding:6px 10px; border-radius:999px; border:1px solid rgba(255,214,232,.15); white-space:nowrap }
+.rv-day > div{ padding:0 14px 8px }
+.rv-ex{ padding:12px 0; border-top:1px solid rgba(255,214,232,.08) }
+.rv-ex:first-child{ border-top:0 }
+.rv-name{ display:flex; align-items:center; gap:10px; font:700 16px/1.3 var(--f-text); overflow-wrap:anywhere }
+.rv-num{ flex:0 0 auto; width:28px; height:28px; border-radius:50%; display:grid; place-items:center; background:rgba(255,79,163,.1); border:1px solid rgba(255,109,180,.3); font:800 12px/1 var(--f-text); color:var(--accent-soft) }
+.rv-chips{ display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 0 38px }
+.rv-chip{ padding:7px 12px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,214,232,.15); font-size:13px; color:var(--muted) }
+.rv-chip b{ margin-right:3px; font:800 17px/1 var(--f-text); color:var(--fg); font-variant-numeric:tabular-nums }
+.rv-chip.gold{ border-color:rgba(242,199,110,.4) }
+.rv-chip.gold b{ color:var(--gold) }
+.rv-note{ margin:8px 0 0 38px; font-size:13px; color:var(--muted) }
+
 /* Registro de la alumna (vista de Yohi) */
 .reg-day{ margin:12px 0 4px; font:800 12px/1 var(--f-text); letter-spacing:.08em; text-transform:uppercase; color:var(--accent-soft) }
 .reg-ex{ padding:8px 0; border-bottom:1px solid rgba(255,214,232,.06) }
-.reg-name{ font-weight:700; font-size:13.5px }
+.reg-name{ font-weight:700; font-size:15px }
 .reg-date{ font-size:12px; color:var(--muted); margin-top:4px }
-.reg-sets{ font-size:13px; font-variant-numeric:tabular-nums }
+.reg-sets{ font-size:14px; font-variant-numeric:tabular-nums }
 .reg-note{ margin:4px 0 0; padding:6px 10px; border-left:3px solid var(--gold); background:rgba(242,199,110,.07); border-radius:0 10px 10px 0; font-size:13px }
 
 /* Agenda de Yohi: calendario mensual + semana desplegable */

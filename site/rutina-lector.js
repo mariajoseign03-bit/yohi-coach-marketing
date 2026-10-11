@@ -115,6 +115,12 @@
   const cleanName = (s) => clean(s).replace(/^\s*(?:\d{1,2}\s*[.)\-–]|[•·*\-–])\s*/, '').replace(/[:\-–|]+$/, '').trim();
   const BAD_NAME = /^(ejercicios?|series?|reps?|repeticiones|descanso|pausa|nota|notas|observaciones?|calentamiento|total|semana|dia|rutina|plan|nombre|alumna?|fecha|rir|peso|kg|tempo|carga)\b/;
   const okName = (n) => n.length >= 3 && n.length <= 80 && /[a-záéíóúñ]{3}/i.test(n) && !BAD_NAME.test(norm(n)) && !DAY_RE.test(norm(n));
+  const WEEKDAY_RE = /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/;
+  function normDay(label, idx) {
+    const t = norm(label), m = t.match(/\bdia\s*(\d+)/);
+    if (m) return 'Día ' + m[1];
+    return WEEKDAY_RE.test(t) ? 'Día ' + (idx + 1) : clean(label);
+  }
   const noteClean = (t) => (/^[-–—.·\s]*$/.test(t || '') ? '' : clean(t).slice(0, 200));
   const repsClean = (s) => clean(s).replace(/[–—]/g, '-').replace(/\s*-\s*/g, '-').slice(0, 20);
 
@@ -192,6 +198,11 @@
         push(ex);
       }
     }
+    // Los días se guardan como "Día 1", "Día 2"… (si el archivo dice Lunes, Martes…, se numeran en orden).
+    const labels = [...new Set(out.map((e) => e.day).filter(Boolean))];
+    const dayMap = {};
+    labels.forEach((l, i) => { dayMap[l] = normDay(l, i); });
+    for (const e of out) if (e.day) e.day = dayMap[e.day];
     const missingRest = out.filter((e) => e.restSec == null || !(e.restSec >= 0)).length;
     for (const e of out) {
       if (e.restSec == null || !(e.restSec >= 0)) e.restSec = 90;
@@ -212,7 +223,7 @@
     return parseRows(rows);
   }
 
-  const api = { read, parseRows, restFrom, xlsxRows };
+  const api = { read, parseRows, restFrom, xlsxRows, normDay };
   if (typeof window !== 'undefined') window.RoutineReader = api;
   if (typeof module !== 'undefined') module.exports = api;
 })();
