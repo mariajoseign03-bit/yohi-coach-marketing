@@ -227,18 +227,120 @@
       });
       return form;
     }
+    function routinePanel(st) {
+      const box = el('div', { style: 'margin-top:12px' }, el('p', { class: 'muted' }, 'Cargando…'));
+      let exercises = [{ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, notes: '' }];
+      const weekIn = el('input', { name: 'week_of', type: 'date', value: (() => { const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)).toISOString().slice(0, 10); })() });
+      const nameIn = el('input', { name: 'name', type: 'text', placeholder: 'Nombre de la rutina (opcional)' });
+
+      function exRow(ex, idx) {
+        const rm = el('button', { type: 'button', class: 'btn ghost small', style: 'padding:4px 8px', onclick: () => { exercises.splice(idx, 1); renderForm(); } }, '✕');
+        const nameI = el('input', { type: 'text', placeholder: 'Ej: Press banca', value: ex.name, oninput: (e) => { ex.name = e.target.value; } });
+        const setsI = el('input', { type: 'number', min: '1', max: '20', value: ex.sets, style: 'width:60px', oninput: (e) => { ex.sets = Number(e.target.value); } });
+        const repsI = el('input', { type: 'text', placeholder: '8-12', value: ex.reps, style: 'width:70px', oninput: (e) => { ex.reps = e.target.value; } });
+        const restI = el('input', { type: 'number', min: '0', max: '600', value: ex.restSec, style: 'width:70px', oninput: (e) => { ex.restSec = Number(e.target.value); } });
+        const warmI = el('input', { type: 'number', min: '0', max: '5', value: ex.warmupSets, style: 'width:60px', oninput: (e) => { ex.warmupSets = Number(e.target.value); } });
+        const noteI = el('input', { type: 'text', placeholder: 'Nota para la alumna', value: ex.notes, oninput: (e) => { ex.notes = e.target.value; } });
+        return el('div', { class: 'routine-ex' },
+          el('div', { class: 'routine-ex-head' },
+            el('span', { class: 'routine-ex-num' }, String(idx + 1)),
+            el('div', { style: 'flex:1' }, nameI), rm),
+          el('div', { class: 'routine-ex-fields' },
+            el('label', { style: 'font-size:12px' }, 'Series', setsI),
+            el('label', { style: 'font-size:12px' }, 'Reps', repsI),
+            el('label', { style: 'font-size:12px' }, 'Desc (s)', restI),
+            el('label', { style: 'font-size:12px' }, 'Calent.', warmI)),
+          el('div', { style: 'margin-top:6px' }, noteI));
+      }
+
+      const exList = el('div');
+      const msg = el('p', { class: 'err', role: 'alert' });
+      const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar rutina');
+      const addBtn = el('button', { type: 'button', class: 'btn ghost small', style: 'margin-top:8px', onclick: () => { exercises.push({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, notes: '' }); renderForm(); } }, '+ Ejercicio');
+
+      function renderForm() { exList.replaceChildren(...exercises.map(exRow)); }
+
+      const form = el('form', { class: 'form', novalidate: '' },
+        el('label', {}, 'Semana (lunes)', weekIn),
+        el('label', {}, 'Nombre', nameIn),
+        el('h3', { style: 'margin:14px 0 6px;font-size:15px' }, 'Ejercicios'),
+        exList, addBtn, msg, go);
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault(); msg.textContent = ''; go.disabled = true;
+        const valid = exercises.filter(x => x.name.trim());
+        if (!valid.length) { msg.textContent = 'Agrega al menos un ejercicio con nombre.'; go.disabled = false; return; }
+        const r = await api('/api/admin/routine', {
+          userId: st.id, weekOf: weekIn.value, name: nameIn.value,
+          exercises: valid.map(x => ({ name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets || 1, notes: x.notes || '' }))
+        });
+        go.disabled = false;
+        if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
+        msg.className = 'ok'; msg.textContent = '✓ Rutina guardada';
+        loadRoutines();
+      });
+
+      const routinesList = el('div', { style: 'margin-top:14px' });
+
+      async function loadRoutines() {
+        const r = await api('/api/admin/routines?userId=' + st.id);
+        if (!r.ok || !r.data.routines.length) { routinesList.replaceChildren(el('p', { class: 'muted' }, 'Sin rutinas.')); return; }
+        routinesList.replaceChildren(...r.data.routines.map(rt => {
+          const [, m, d] = rt.week_of.split('-').map(Number);
+          const detR = el('details', {}, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex;font-size:13px' }, 'Ver ejercicios'));
+          detR.addEventListener('toggle', async () => {
+            if (!detR.open || detR.dataset.loaded) return;
+            detR.dataset.loaded = '1';
+            const rd = await api('/api/admin/routine?id=' + rt.id);
+            if (!rd.ok) return;
+            detR.append(...rd.data.exercises.map((ex, i) =>
+              el('div', { class: 'routine-log-row' },
+                el('span', { style: 'font-weight:700;font-size:13px' }, (i + 1) + '. ' + ex.name),
+                el('span', { class: 'muted', style: 'font-size:12px' }, ex.sets + '×' + ex.reps + ' · ' + ex.rest_sec + 's desc' + (ex.warmup_sets ? ' · ' + ex.warmup_sets + ' calent.' : '')))));
+          });
+          const delBtn = el('button', { class: 'btn ghost small', style: 'font-size:12px', type: 'button', onclick: async () => {
+            if (!confirm('¿Borrar rutina de ' + d + '/' + m + '?')) return;
+            await api('/api/admin/routine/delete', { id: rt.id }); loadRoutines();
+          } }, 'Borrar');
+          const editBtn = el('button', { class: 'btn ghost small', style: 'font-size:12px', type: 'button', onclick: async () => {
+            weekIn.value = rt.week_of; nameIn.value = rt.name || '';
+            const rd = await api('/api/admin/routine?id=' + rt.id);
+            if (rd.ok) {
+              exercises = rd.data.exercises.map(ex => ({ name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, notes: ex.notes || '' }));
+              renderForm();
+            }
+          } }, 'Editar');
+          return el('div', { style: 'padding:8px 0;border-bottom:1px solid rgba(255,214,232,.1)' },
+            el('div', { class: 'row', style: 'align-items:center;gap:8px;flex-wrap:wrap' },
+              el('strong', { style: 'font-size:14px' }, d + ' ' + MESES[m - 1] + (rt.name ? ' · ' + rt.name : '')),
+              editBtn, delBtn),
+            detR);
+        }));
+      }
+
+      async function load() {
+        renderForm();
+        await loadRoutines();
+        box.replaceChildren(form, routinesList);
+      }
+      return { box, load };
+    }
+
     const rows = (stu.data.students || []).map((s) => {
       const mp = medPanel(s);
       const det = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, 'Mediciones'), mp.box);
       det.addEventListener('toggle', () => { if (det.open) mp.load(); });
       const planDet = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, 'Editar plan'), planPanel(s));
+      const rp = routinePanel(s);
+      const routineDet = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, '🏋️ Rutinas'), rp.box);
+      routineDet.addEventListener('toggle', () => { if (routineDet.open) rp.load(); });
       return el('div', { class: 'card' },
         el('div', { class: 'item' },
           el('div', {}, el('strong', {}, s.name), el('br'), el('span', { class: 'muted' }, s.email)),
           el('div', { class: 'muted', style: 'font-size:13px' }, s.modality
             ? [s.modality === 'presencial' ? `1:1 · ${SEDE_NOMBRE[s.sede] || ''} · ${s.sessions_total} sesiones` : 'Online', ' · vence ', fmtDate(s.end_date)]
             : 'Sin plan')),
-        el('div', { class: 'row', style: 'margin-top:12px;align-items:flex-start' }, planDet, det));
+        el('div', { class: 'row', style: 'margin-top:12px;align-items:flex-start;flex-wrap:wrap' }, planDet, routineDet, det));
     });
 
     app.replaceChildren(top,

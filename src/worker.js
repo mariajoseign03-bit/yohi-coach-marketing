@@ -682,6 +682,220 @@ async function adminDeleteMeasurement(req, env) {
   return json({ ok: true });
 }
 
+/* ---------- rutinas y registro de entrenamiento ---------- */
+
+// Admin: crear o actualizar la rutina semanal de una alumna.
+// Body: { userId, weekOf, name?, exercises: [{ name, sets, reps, restSec, warmupSets, notes }] }
+async function adminRoutine(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const userId = Number(b.userId);
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  const weekOf = String(b.weekOf || '');
+  if (!validDate(weekOf)) return fail(400, 'Fecha de semana inválida.');
+  const user = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
+  if (!user) return fail(404, 'No se encontró la alumna.');
+  const exs = b.exercises;
+  if (!Array.isArray(exs) || exs.length === 0 || exs.length > 30) return fail(400, 'Envía entre 1 y 30 ejercicios.');
+  for (const ex of exs) {
+    if (!ex.name || String(ex.name).trim().length < 2) return fail(400, 'Cada ejercicio necesita un nombre.');
+  }
+  const name = String(b.name || '').trim().slice(0, 120);
+
+  // Upsert: si ya existe rutina para esa semana, la reemplaza.
+  const existing = await env.DB.prepare('SELECT id FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
+  const stmts = [];
+  if (existing) {
+    stmts.push(env.DB.prepare('DELETE FROM routine_exercises WHERE routine_id = ?').bind(existing.id));
+    stmts.push(env.DB.prepare('UPDATE routines SET name = ? WHERE id = ?').bind(name, existing.id));
+  } else {
+    stmts.push(env.DB.prepare('INSERT INTO routines (user_id, week_of, name) VALUES (?, ?, ?)').bind(userId, weekOf, name));
+  }
+  await env.DB.batch(stmts);
+
+  const routine = await env.DB.prepare('SELECT id FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
+  const insStmts = exs.map((ex, i) =>
+    env.DB.prepare('INSERT INTO routine_exercises (routine_id, pos, name, sets, reps, rest_sec, warmup_sets, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(routine.id, i, String(ex.name).trim().slice(0, 120),
+        Math.max(1, Math.min(20, Number(ex.sets) || 3)),
+        String(ex.reps || '8-12').slice(0, 20),
+        Math.max(0, Math.min(600, Number(ex.restSec) || 90)),
+        Math.max(0, Math.min(10, Number(ex.warmupSets) || 1)),
+        String(ex.notes || '').slice(0, 300)));
+  await env.DB.batch(insStmts);
+  return json({ ok: true, routineId: routine.id });
+}
+
+// Admin: borrar rutina
+async function adminDeleteRoutine(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  const id = Number(b && b.id);
+  if (!Number.isInteger(id)) return fail(400, 'Solicitud inválida.');
+  await env.DB.prepare('DELETE FROM routines WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
+// Admin: listar rutinas de una alumna
+async function adminRoutines(req, env, url) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const userId = Number(url.searchParams.get('userId'));
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  const { results: routines } = await env.DB.prepare(
+    'SELECT id, week_of, name, created_at FROM routines WHERE user_id = ? ORDER BY week_of DESC LIMIT 20',
+  ).bind(userId).all();
+  return json({ ok: true, routines });
+}
+
+// Admin: ver ejercicios de una rutina
+async function adminRoutineDetail(req, env, url) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const id = Number(url.searchParams.get('id'));
+  if (!Number.isInteger(id)) return fail(400, 'Solicitud inválida.');
+  const routine = await env.DB.prepare('SELECT id, user_id, week_of, name FROM routines WHERE id = ?').bind(id).first();
+  if (!routine) return fail(404, 'Rutina no encontrada.');
+  const { results: exercises } = await env.DB.prepare(
+    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
+  ).bind(id).all();
+  return json({ ok: true, routine, exercises });
+}
+
+// Admin: ver logs de entrenamiento de una alumna (para seguimiento)
+async function adminTrainingLogs(req, env, url) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const userId = Number(url.searchParams.get('userId'));
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  const weekOf = url.searchParams.get('weekOf') || '';
+  if (weekOf && !validDate(weekOf)) return fail(400, 'Fecha inválida.');
+  let logs;
+  if (weekOf) {
+    const weekEnd = addDays(weekOf, 6);
+    ({ results: logs } = await env.DB.prepare(
+      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, re.name AS exercise_name
+         FROM training_logs tl JOIN routine_exercises re ON re.id = tl.exercise_id
+        WHERE tl.user_id = ? AND tl.logged_on >= ? AND tl.logged_on <= ?
+        ORDER BY tl.logged_on, re.pos, tl.set_type DESC, tl.set_num`,
+    ).bind(userId, weekOf, weekEnd).all());
+  } else {
+    ({ results: logs } = await env.DB.prepare(
+      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, re.name AS exercise_name
+         FROM training_logs tl JOIN routine_exercises re ON re.id = tl.exercise_id
+        WHERE tl.user_id = ? ORDER BY tl.logged_on DESC, re.pos, tl.set_type DESC, tl.set_num LIMIT 200`,
+    ).bind(userId).all());
+  }
+  return json({ ok: true, logs });
+}
+
+// Alumna: obtener su rutina de la semana actual (o una semana específica)
+async function myRoutine(req, env, url) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  let weekOf = url.searchParams.get('weekOf') || '';
+  if (!weekOf) {
+    // Calcular el lunes de la semana actual en hora de Chile
+    const now = new Date(nowMs(env));
+    const parts = tzParts(nowMs(env));
+    const d = new Date(parts.day + 'T12:00:00Z');
+    const dow = d.getUTCDay(); // 0=dom, 1=lun...
+    const diff = dow === 0 ? -6 : 1 - dow;
+    d.setUTCDate(d.getUTCDate() + diff);
+    weekOf = d.toISOString().slice(0, 10);
+  }
+  if (!validDate(weekOf)) return fail(400, 'Fecha inválida.');
+  const routine = await env.DB.prepare('SELECT id, week_of, name FROM routines WHERE user_id = ? AND week_of = ?').bind(user.id, weekOf).first();
+  if (!routine) return json({ ok: true, routine: null, exercises: [], logs: [] });
+  const { results: exercises } = await env.DB.prepare(
+    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
+  ).bind(routine.id).all();
+  // También traer los logs de la alumna para esta semana
+  const weekEnd = addDays(weekOf, 6);
+  const { results: logs } = await env.DB.prepare(
+    `SELECT id, exercise_id, logged_on, set_type, set_num, kg, reps, rir
+       FROM training_logs WHERE user_id = ? AND logged_on >= ? AND logged_on <= ?
+      ORDER BY exercise_id, set_type DESC, set_num`,
+  ).bind(user.id, weekOf, weekEnd).all();
+  return json({ ok: true, routine, exercises, logs });
+}
+
+// Alumna: listar semanas disponibles con rutina
+async function myRoutineWeeks(req, env) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  const { results } = await env.DB.prepare(
+    'SELECT week_of, name FROM routines WHERE user_id = ? ORDER BY week_of DESC LIMIT 20',
+  ).bind(user.id).all();
+  return json({ ok: true, weeks: results });
+}
+
+// Alumna: registrar un set (o varios sets de un ejercicio a la vez)
+// Body: { exerciseId, loggedOn, sets: [{ setType, setNum, kg, reps, rir }] }
+async function logSet(req, env) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const exerciseId = Number(b.exerciseId);
+  if (!Number.isInteger(exerciseId)) return fail(400, 'Ejercicio inválido.');
+  const loggedOn = String(b.loggedOn || todayCL(env));
+  if (!validDate(loggedOn)) return fail(400, 'Fecha inválida.');
+  // Verificar que el ejercicio pertenece a una rutina de esta alumna
+  const ex = await env.DB.prepare(
+    `SELECT re.id FROM routine_exercises re JOIN routines r ON r.id = re.routine_id
+      WHERE re.id = ? AND r.user_id = ?`,
+  ).bind(exerciseId, user.id).first();
+  if (!ex) return fail(404, 'Ejercicio no encontrado en tu rutina.');
+  const sets = b.sets;
+  if (!Array.isArray(sets) || sets.length === 0 || sets.length > 25) return fail(400, 'Envía entre 1 y 25 series.');
+  // Borrar logs anteriores de este ejercicio en esta fecha y recrear (upsert por fecha)
+  const stmts = [
+    env.DB.prepare('DELETE FROM training_logs WHERE user_id = ? AND exercise_id = ? AND logged_on = ?').bind(user.id, exerciseId, loggedOn),
+  ];
+  for (const s of sets) {
+    const setType = s.setType === 'warmup' ? 'warmup' : 'work';
+    const setNum = Math.max(1, Math.min(25, Number(s.setNum) || 1));
+    const kg = s.kg != null && s.kg !== '' ? Math.max(0, Math.min(999, Number(s.kg) || 0)) : null;
+    const reps = s.reps != null && s.reps !== '' ? Math.max(0, Math.min(200, Number(s.reps) || 0)) : null;
+    const rir = s.rir != null && s.rir !== '' ? Math.max(0, Math.min(10, Number(s.rir) || 0)) : null;
+    stmts.push(env.DB.prepare(
+      'INSERT INTO training_logs (user_id, exercise_id, logged_on, set_type, set_num, kg, reps, rir) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(user.id, exerciseId, loggedOn, setType, setNum, kg, reps, rir));
+  }
+  await env.DB.batch(stmts);
+  return json({ ok: true });
+}
+
+// Alumna: ver progreso de un ejercicio a lo largo de las semanas
+async function exerciseProgress(req, env, url) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  const exName = url.searchParams.get('name') || '';
+  if (!exName) return fail(400, 'Nombre del ejercicio requerido.');
+  // Buscar todas las ocurrencias del ejercicio (por nombre) en las rutinas de la alumna
+  const { results } = await env.DB.prepare(
+    `SELECT tl.logged_on, tl.set_num, tl.kg, tl.reps, tl.rir
+       FROM training_logs tl
+       JOIN routine_exercises re ON re.id = tl.exercise_id
+       JOIN routines r ON r.id = re.routine_id
+      WHERE r.user_id = ? AND re.name = ? AND tl.set_type = 'work'
+      ORDER BY tl.logged_on, tl.set_num
+      LIMIT 500`,
+  ).bind(user.id, exName).all();
+  // Agrupar por fecha y calcular volumen total (kg * reps)
+  const byDate = {};
+  for (const row of results) {
+    if (!byDate[row.logged_on]) byDate[row.logged_on] = { sets: [], totalVol: 0, maxKg: 0 };
+    const vol = (row.kg || 0) * (row.reps || 0);
+    byDate[row.logged_on].sets.push(row);
+    byDate[row.logged_on].totalVol += vol;
+    if ((row.kg || 0) > byDate[row.logged_on].maxKg) byDate[row.logged_on].maxKg = row.kg || 0;
+  }
+  const progress = Object.entries(byDate).map(([date, d]) => ({
+    date, totalVol: Math.round(d.totalVol), maxKg: d.maxKg, sets: d.sets.length,
+  }));
+  return json({ ok: true, exercise: exName, progress });
+}
+
 // Yohi corrige el plan de una alumna (cambiar modalidad, sede, sesiones o fechas) o lo renueva con uno nuevo.
 async function adminPlan(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
@@ -766,6 +980,15 @@ export default {
         case 'POST /api/admin/measurement': return await adminAddMeasurement(req, env);
         case 'POST /api/admin/measurement/delete': return await adminDeleteMeasurement(req, env);
         case 'POST /api/admin/plan': return await adminPlan(req, env);
+        case 'POST /api/admin/routine': return await adminRoutine(req, env);
+        case 'POST /api/admin/routine/delete': return await adminDeleteRoutine(req, env);
+        case 'GET /api/admin/routines': return await adminRoutines(req, env, url);
+        case 'GET /api/admin/routine': return await adminRoutineDetail(req, env, url);
+        case 'GET /api/admin/training-logs': return await adminTrainingLogs(req, env, url);
+        case 'GET /api/routine': return await myRoutine(req, env, url);
+        case 'GET /api/routine/weeks': return await myRoutineWeeks(req, env);
+        case 'POST /api/training/log': return await logSet(req, env);
+        case 'GET /api/training/progress': return await exerciseProgress(req, env, url);
         default: return fail(404, 'No encontrado.');
       }
     } catch (err) {

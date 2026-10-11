@@ -17,6 +17,7 @@
 <script src="/portal.js"></script>
 <script src="/mocca.js"></script>
 <script src="/informe.js"></script>
+<script src="/training.js"></script>
 <script>
 (async function () {
   const app = document.getElementById('app');
@@ -53,6 +54,8 @@
   }
   const agendaBox = el('section', { class: 'card', id: 'agenda', style: 'grid-column:1/-1' });
   if (plan && plan.modality === 'presencial') cards.push(agendaBox);
+  const trainingBox = el('section', { class: 'card', id: 'entrenamiento', style: 'grid-column:1/-1' });
+  cards.push(trainingBox);
   const medBox = el('section', { class: 'card', id: 'mediciones', style: 'grid-column:1/-1' });
   cards.push(medBox);
 
@@ -102,6 +105,7 @@
         el('thead', {}, el('tr', {}, el('th', {}, 'Fecha'), ...METRICS.map(([, l, u]) => el('th', {}, l + ' (' + u + ')')), el('th', {}, 'Informe'))), el('tbody', {}, ...rows))), foot);
   }
   renderMed();
+  trainingSection(trainingBox);
 
   const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
   const dayLabel = (iso) => { const [y, m, d] = iso.split('-').map(Number); return DIAS[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()] + ' ' + d + ' ' + MESES[m - 1]; };
