@@ -17,6 +17,7 @@
 <script src="/portal.js"></script>
 <script src="/informe.js"></script>
 <script src="/bodypro.js"></script>
+<script src="/rutina-lector.js"></script>
 <script>
 (async function () {
   const app = document.getElementById('app');
@@ -260,7 +261,26 @@
 
       function renderForm() { exList.replaceChildren(...exercises.map(exRow)); }
 
+      const upMsg = el('p', { class: 'muted', role: 'status', style: 'font-size:13px;margin:6px 0 0' });
+      const fileIn = el('input', { type: 'file', accept: '.pdf,.xlsx,.csv,.txt,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', style: 'display:none' });
+      const upBtn = el('button', { type: 'button', class: 'btn small', onclick: () => fileIn.click() }, '📄 Subir rutina (PDF o Excel)');
+      fileIn.addEventListener('change', async () => {
+        const f = fileIn.files && fileIn.files[0]; if (!f) return;
+        upBtn.disabled = true; upMsg.className = 'muted'; upMsg.textContent = 'Leyendo ' + f.name + '…';
+        try {
+          const r = await RoutineReader.read(f);
+          if (!r.exercises.length) { upMsg.className = 'err'; upMsg.textContent = 'No pude encontrar ejercicios en ese archivo. Revisa que tenga ejercicio, series y repeticiones, o escríbelos abajo.'; }
+          else {
+            exercises = r.exercises; if (!nameIn.value) nameIn.value = f.name.replace(/\.[^.]+$/, '').slice(0, 60);
+            renderForm(); upMsg.className = 'ok';
+            upMsg.textContent = 'Leí ' + r.exercises.length + (r.exercises.length === 1 ? ' ejercicio' : ' ejercicios') + '. Revisa los datos' + (r.missingRest ? ' (en ' + r.missingRest + ' no encontré el descanso y puse 90 s)' : '') + ', elige la semana y toca Guardar rutina.';
+          }
+        } catch (e) { upMsg.className = 'err'; upMsg.textContent = e.message || 'No pude leer ese archivo.'; }
+        upBtn.disabled = false; fileIn.value = '';
+      });
+
       const form = el('form', { class: 'form', novalidate: '' },
+        el('div', { style: 'margin-bottom:10px' }, upBtn, fileIn, upMsg),
         el('label', {}, 'Semana (lunes)', weekIn),
         el('label', {}, 'Nombre', nameIn),
         el('h3', { style: 'margin:14px 0 6px;font-size:15px' }, 'Ejercicios'),
