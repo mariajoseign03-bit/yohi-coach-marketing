@@ -67,7 +67,7 @@ Imágenes estilo iPhone (`public/emoji/`, paquete `emoji-datasource-apple`). Mis
 
 **Hashtags (5):** #YohiCoach #EntrenaConPropósito #EntrenamientoDeFuerza #RutinaDeGimnasio #EntrenamientoOnline
 
-Nota: el reel no hace afirmaciones de salud ni de resultados. El portal da herramientas de registro; la evidencia de que llevar registro ayuda a progresar no se cita en el video (no hay fuente registrada en `fuentes/`). La opción 3 lo plantea como idea, no como dato. Si quieres citar un estudio, hay que verificarlo y registrarlo antes.
+Nota: el reel no hace afirmaciones de salud ni de resultados. La opción 3 plantea llevar registro como idea, no como dato, y se publica sin fuente (decisión de Yohi). Si más adelante se quiere citar un estudio, hay que verificarlo y registrarlo antes en `fuentes/`.
 
 ## Cómo editar y exportar
 ```bash
