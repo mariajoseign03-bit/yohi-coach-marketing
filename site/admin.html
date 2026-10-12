@@ -419,6 +419,15 @@
       let exercises = [{ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: '', notes: '' }];
       const weekIn = el('input', { name: 'week_of', type: 'date', value: (() => { const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)).toISOString().slice(0, 10); })() });
       const nameIn = el('input', { name: 'name', type: 'text', placeholder: 'Nombre de la rutina (opcional)' });
+      // Semanal (varios días, desde el lunes) o diaria (una fecha puntual).
+      const kindSel = select('kind', [['week', 'Semanal (toda la semana)'], ['day', 'Diaria (un solo día)']], 'week');
+      const dateLbl = el('label', {}, 'Semana (lunes)', weekIn);
+      const syncKind = (keepDate) => {
+        const daily = kindSel.value === 'day';
+        dateLbl.firstChild.textContent = daily ? 'Día' : 'Semana (lunes)';
+        if (!keepDate) weekIn.value = daily ? today : mondayOf(weekIn.value || today);
+      };
+      kindSel.addEventListener('change', () => syncKind(false));
 
       function exRow(ex, idx) {
         const rm = el('button', { type: 'button', class: 'btn ghost small', style: 'padding:4px 8px', onclick: () => { exercises.splice(idx, 1); renderForm(); } }, '✕');
@@ -468,7 +477,8 @@
 
       const form = el('form', { class: 'form', novalidate: '' },
         el('div', { style: 'margin-bottom:10px' }, upBtn, fileIn, upMsg),
-        el('label', {}, 'Semana (lunes)', weekIn),
+        el('label', {}, 'Tipo de rutina', kindSel),
+        dateLbl,
         el('label', {}, 'Nombre', nameIn),
         el('h3', { style: 'margin:14px 0 6px;font-size:15px' }, 'Ejercicios'),
         exList, addBtn, msg, go);
@@ -478,7 +488,7 @@
         const valid = exercises.filter(x => x.name.trim());
         if (!valid.length) { msg.textContent = 'Agrega al menos un ejercicio con nombre.'; go.disabled = false; return; }
         const r = await api('/api/admin/routine', {
-          userId: st.id, weekOf: weekIn.value, name: nameIn.value,
+          userId: st.id, weekOf: weekIn.value, daily: kindSel.value === 'day', name: nameIn.value,
           exercises: valid.map(x => ({ name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets ?? 1, day: (x.day || '').trim(), notes: x.notes || '' }))
         });
         go.disabled = false;
@@ -556,7 +566,7 @@
             await api('/api/admin/routine/delete', { id: rt.id }); loadRoutines();
           } }, 'Borrar');
           const editBtn = el('button', { class: 'btn ghost small', style: 'font-size:12px', type: 'button', onclick: async () => {
-            weekIn.value = rt.week_of; nameIn.value = rt.name || '';
+            kindSel.value = rt.day_on ? 'day' : 'week'; weekIn.value = rt.week_of; syncKind(true); nameIn.value = rt.name || '';
             const rd = await api('/api/admin/routine?id=' + rt.id);
             if (rd.ok) {
               exercises = rd.data.exercises.map(ex => ({ name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '' }));
@@ -565,7 +575,7 @@
           } }, 'Editar');
           return el('div', { style: 'padding:8px 0;border-bottom:1px solid rgba(255,214,232,.1)' },
             el('div', { class: 'row', style: 'align-items:center;gap:8px;flex-wrap:wrap' },
-              el('strong', { style: 'font-size:14px' }, d + ' ' + MESES[m - 1] + (rt.name ? ' · ' + rt.name : '')),
+              el('strong', { style: 'font-size:14px' }, (rt.day_on ? 'Diaria · ' : 'Semana · ') + d + ' ' + MESES[m - 1] + (rt.name ? ' · ' + rt.name : '')),
               editBtn, delBtn),
             detR, detLog);
         }));

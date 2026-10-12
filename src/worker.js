@@ -744,11 +744,18 @@ async function adminRoutine(req, env) {
 
   // Upsert: si ya existe rutina para esa semana, la actualiza. Los ejercicios que siguen (mismo nombre y día)
   // conservan su id, así lo que la alumna ya registró (series y observaciones) no se pierde al corregir la rutina.
-  let routine = await env.DB.prepare('SELECT id FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
+  // Rutina diaria: week_of guarda la fecha del día y day_on la marca como diaria (NULL = semanal).
+  const dayOn = b.daily ? weekOf : null;
+  let routine = await env.DB.prepare('SELECT id, day_on FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
+  if (routine && (routine.day_on || null) !== dayOn) {
+    return fail(409, dayOn
+      ? 'Ese lunes ya tiene la rutina semanal. Agrega ese día dentro de la semanal (campo «Día»).'
+      : 'Ese día ya tiene una rutina diaria. Elige otro lunes o edita la diaria.');
+  }
   if (routine) {
     await env.DB.prepare('UPDATE routines SET name = ? WHERE id = ?').bind(name, routine.id).run();
   } else {
-    await env.DB.prepare('INSERT INTO routines (user_id, week_of, name) VALUES (?, ?, ?)').bind(userId, weekOf, name).run();
+    await env.DB.prepare('INSERT INTO routines (user_id, week_of, name, day_on) VALUES (?, ?, ?, ?)').bind(userId, weekOf, name, dayOn).run();
     routine = await env.DB.prepare('SELECT id FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
   }
   const { results: old } = await env.DB.prepare('SELECT id, name, day FROM routine_exercises WHERE routine_id = ?').bind(routine.id).all();
@@ -796,7 +803,7 @@ async function adminRoutines(req, env, url) {
   const userId = Number(url.searchParams.get('userId'));
   if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
   const { results: routines } = await env.DB.prepare(
-    'SELECT id, week_of, name, created_at FROM routines WHERE user_id = ? ORDER BY week_of DESC LIMIT 20',
+    'SELECT id, week_of, name, day_on, created_at FROM routines WHERE user_id = ? ORDER BY week_of DESC LIMIT 20',
   ).bind(userId).all();
   return json({ ok: true, routines });
 }
@@ -806,7 +813,7 @@ async function adminRoutineDetail(req, env, url) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const id = Number(url.searchParams.get('id'));
   if (!Number.isInteger(id)) return fail(400, 'Solicitud inválida.');
-  const routine = await env.DB.prepare('SELECT id, user_id, week_of, name FROM routines WHERE id = ?').bind(id).first();
+  const routine = await env.DB.prepare('SELECT id, user_id, week_of, name, day_on FROM routines WHERE id = ?').bind(id).first();
   if (!routine) return fail(404, 'Rutina no encontrada.');
   const { results: exercises } = await env.DB.prepare(
     'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
@@ -867,7 +874,12 @@ async function myRoutine(req, env, url) {
     weekOf = d.toISOString().slice(0, 10);
   }
   if (!validDate(weekOf)) return fail(400, 'Fecha inválida.');
-  const routine = await env.DB.prepare('SELECT id, week_of, name FROM routines WHERE user_id = ? AND week_of = ?').bind(user.id, weekOf).first();
+  let routine = await env.DB.prepare('SELECT id, week_of, name, day_on FROM routines WHERE user_id = ? AND week_of = ?').bind(user.id, weekOf).first();
+  // Sin semanal esta semana: si hay una rutina diaria para hoy, mostrar esa.
+  if (!routine && !url.searchParams.get('weekOf')) {
+    routine = await env.DB.prepare('SELECT id, week_of, name, day_on FROM routines WHERE user_id = ? AND day_on = ?').bind(user.id, todayCL(env)).first();
+    if (routine) weekOf = routine.week_of;
+  }
   if (!routine) return json({ ok: true, routine: null, exercises: [], logs: [] });
   const { results: exercises } = await env.DB.prepare(
     'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
@@ -890,7 +902,7 @@ async function myRoutineWeeks(req, env) {
   const user = await currentUser(req, env);
   if (!user) return fail(401, 'No has iniciado sesión.');
   const { results } = await env.DB.prepare(
-    'SELECT week_of, name FROM routines WHERE user_id = ? ORDER BY week_of DESC LIMIT 20',
+    'SELECT week_of, name, day_on FROM routines WHERE user_id = ? ORDER BY week_of DESC LIMIT 30',
   ).bind(user.id).all();
   return json({ ok: true, weeks: results });
 }

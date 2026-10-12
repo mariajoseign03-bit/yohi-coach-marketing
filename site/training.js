@@ -44,7 +44,7 @@ function trainingSection(container) {
 
     if (!routine) {
       container.replaceChildren(head,
-        el('p', { class: 'muted' }, 'Yohi aún no ha cargado tu rutina para esta semana. Aparecerá aquí cuando esté lista.'));
+        el('p', { class: 'muted' }, 'Yohi aún no ha cargado tu rutina para esta semana o este día. Aparecerá aquí cuando esté lista.'));
       // Selector de semanas
       renderWeekSelector(container, head);
       return;
@@ -73,7 +73,7 @@ function trainingSection(container) {
     container.append(
       el('p', { class: 'muted', style: 'margin-bottom:6px' },
         routine.name ? routine.name + ' · ' : '',
-        'Semana del ', el('strong', {}, fmtDate(routine.week_of))),
+        routine.day_on ? 'Rutina del día ' : 'Semana del ', el('strong', {}, fmtDate(routine.week_of))),
       summary,
       timerCard,
       exBlock);
@@ -123,7 +123,7 @@ function trainingSection(container) {
     const seg = el('div', { class: 'seg', style: 'margin-bottom:14px' });
     for (const w of weeks.slice(0, 8)) {
       const [, m, d] = w.week_of.split('-').map(Number);
-      const label = d + ' ' + MESES[m - 1];
+      const label = (w.day_on ? 'Día ' : '') + d + ' ' + MESES[m - 1];
       const btn = el('button', { type: 'button',
         'aria-pressed': String(w.week_of === currentWeekOf),
         onclick: () => { currentWeekOf = w.week_of; render(); }
