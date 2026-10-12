@@ -344,6 +344,50 @@
       });
       return form;
     }
+    // Yohi registra o corrige los pesos de una alumna (misma ficha que ve la alumna).
+    function regEditor(ex, exLogs, rt, userId, openNow, onSaved) {
+      const isoAddDays = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n, 12)).toISOString().slice(0, 10); };
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+      const dates = [...new Set(exLogs.map((l) => l.logged_on))].sort();
+      const inWeek = (d) => d >= rt.week_of && d <= isoAddDays(rt.week_of, 6);
+      const dateIn = el('input', { type: 'date', class: 'set-input', style: 'width:auto;padding:0 10px', value: inWeek(today) ? today : (dates[dates.length - 1] || rt.week_of) });
+      const grid = el('div');
+      const msg = el('p', { class: 'err', role: 'alert', style: 'margin:6px 0 0' });
+      let rows = [];
+      const mk = (type, n, log) => {
+        const num = (attrs) => el('input', Object.assign({ type: 'number', class: 'set-input', placeholder: '—', min: '0' }, attrs));
+        const r = { type, n, kg: num({ max: '999', step: '0.5', value: log && log.kg != null ? log.kg : '' }), reps: num({ max: '200', value: log && log.reps != null ? log.reps : '' }), rir: num({ max: '10', value: log && log.rir != null ? log.rir : '' }) };
+        grid.append(el('div', { class: 'set-row' + (type === 'warmup' ? ' warmup' : '') },
+          el('span', { class: 'set-col num' }, (type === 'warmup' ? 'C' : '') + n), el('span', { class: 'set-col' }, r.kg), el('span', { class: 'set-col' }, r.reps), el('span', { class: 'set-col' }, r.rir)));
+        rows.push(r);
+      };
+      const fill = () => {
+        grid.replaceChildren(el('div', { class: 'set-row set-header' }, el('span', { class: 'set-col num' }, 'Serie'), el('span', { class: 'set-col' }, 'KG'), el('span', { class: 'set-col' }, 'Reps'), el('span', { class: 'set-col' }, 'RIR')));
+        rows = [];
+        const day = exLogs.filter((l) => l.logged_on === dateIn.value);
+        for (let i = 1; i <= (ex.warmup_sets || 0); i++) mk('warmup', i, day.find((l) => l.set_type === 'warmup' && l.set_num === i));
+        for (let i = 1; i <= ex.sets; i++) mk('work', i, day.find((l) => l.set_type === 'work' && l.set_num === i));
+      };
+      dateIn.addEventListener('change', fill);
+      const save = el('button', { class: 'btn small', type: 'button' }, 'Guardar pesos');
+      save.onclick = async () => {
+        msg.textContent = '';
+        if (!dateIn.value) { msg.textContent = 'Elige la fecha.'; return; }
+        const sets = rows.filter((r) => r.kg.value !== '' || r.reps.value !== '' || r.rir.value !== '')
+          .map((r) => ({ setType: r.type, setNum: r.n, kg: r.kg.value, reps: r.reps.value, rir: r.rir.value }));
+        save.disabled = true;
+        const r = await api('/api/admin/training/log', { userId, exerciseId: ex.id, loggedOn: dateIn.value, sets, clearSets: true });
+        save.disabled = false;
+        if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
+        onSaved();
+      };
+      fill();
+      const det = el('details', { class: 'reg-edit' }, el('summary', {}, '✏️ Registrar / corregir pesos'),
+        el('div', { class: 'row', style: 'align-items:center;gap:8px;margin:8px 0' }, el('span', { class: 'muted', style: 'font-size:13px' }, 'Fecha'), dateIn),
+        grid, el('div', { class: 'row', style: 'margin-top:8px' }, save), msg);
+      det.open = !!openNow;
+      return det;
+    }
     function dayGroups(exs) {
       const g = [];
       for (const ex of exs) {
@@ -459,9 +503,8 @@
             detR.append(routineView(rd.data.exercises));
           });
           const detLog = el('details', {}, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex;font-size:13px' }, '📊 Ver registro de la alumna'));
-          detLog.addEventListener('toggle', async () => {
-            if (!detLog.open) return;
-            detLog.dataset.loaded = '';
+          const loadLog = async (keep) => {
+            keep = keep || {};
             const [rd, lg] = await Promise.all([api('/api/admin/routine?id=' + rt.id), api('/api/admin/training-logs?userId=' + st.id + '&weekOf=' + rt.week_of)]);
             const body = el('div', { style: 'margin-top:8px' });
             if (!rd.ok || !lg.ok) body.append(el('p', { class: 'err' }, 'No pude cargar el registro.'));
@@ -489,12 +532,16 @@
                     if (sets.length) item.append(el('div', { class: 'reg-sets' }, sets.map(fmtSet).join('  ·  ')));
                     for (const n of exNotes.filter((x) => x.logged_on === d)) item.append(el('p', { class: 'reg-note' }, '📝 ', n.note));
                   }
+                  item.append(regEditor(ex, exLogs, rt, st.id, keep.ex === ex.id, () => {
+                    const days = [...detLog.querySelectorAll('details.rv-day')].map((x) => [x, x.querySelector('.rv-day-name').textContent]).filter(([x]) => x.open).map(([, n]) => n);
+                    loadLog({ days: days.map((n) => (n === 'Otros ejercicios' ? '' : n)), ex: ex.id });
+                  }));
                   holder.append(item);
                 }
                 if (multi) {
                   const det = el('details', { class: 'rv-day' },
                     el('summary', {}, el('span', { class: 'rv-day-name' }, g.day || 'Otros ejercicios'), el('span', { class: 'rv-day-count' }, withData + '/' + g.items.length + ' con registro')), holder);
-                  det.open = withData > 0;
+                  det.open = keep.days ? keep.days.includes(g.day || '') : withData > 0;
                   body.append(det);
                 }
               }
@@ -502,7 +549,8 @@
             }
             const old = detLog.querySelector('.reg-wrap'); if (old) old.remove();
             body.classList.add('reg-wrap'); detLog.append(body);
-          });
+          };
+          detLog.addEventListener('toggle', () => { if (detLog.open) loadLog(); });
           const delBtn = el('button', { class: 'btn ghost small', style: 'font-size:12px', type: 'button', onclick: async () => {
             if (!confirm('¿Borrar rutina de ' + d + '/' + m + '?')) return;
             await api('/api/admin/routine/delete', { id: rt.id }); loadRoutines();

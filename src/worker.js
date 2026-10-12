@@ -897,10 +897,8 @@ async function myRoutineWeeks(req, env) {
 
 // Alumna: registrar un set (o varios sets de un ejercicio a la vez)
 // Body: { exerciseId, loggedOn, sets: [{ setType, setNum, kg, reps, rir }] }
-async function logSet(req, env) {
-  const user = await currentUser(req, env);
-  if (!user) return fail(401, 'No has iniciado sesión.');
-  const b = await readBody(req);
+// Guarda series/observación de un ejercicio para una alumna (la usan la alumna y Yohi).
+async function saveLog(env, userId, b) {
   if (!b) return fail(400, 'Solicitud inválida.');
   const exerciseId = Number(b.exerciseId);
   if (!Number.isInteger(exerciseId)) return fail(400, 'Ejercicio inválido.');
@@ -910,23 +908,23 @@ async function logSet(req, env) {
   const ex = await env.DB.prepare(
     `SELECT re.id FROM routine_exercises re JOIN routines r ON r.id = re.routine_id
       WHERE re.id = ? AND r.user_id = ?`,
-  ).bind(exerciseId, user.id).first();
-  if (!ex) return fail(404, 'Ejercicio no encontrado en tu rutina.');
+  ).bind(exerciseId, userId).first();
+  if (!ex) return fail(404, 'Ejercicio no encontrado en la rutina.');
   const sets = b.sets == null ? [] : b.sets;
   const note = String(b.note || '').trim().slice(0, 500);
   if (!Array.isArray(sets) || sets.length > 25) return fail(400, 'Envía hasta 25 series.');
-  if (sets.length === 0 && b.note === undefined) return fail(400, 'Llena al menos una serie o escribe una observación.');
+  if (sets.length === 0 && b.note === undefined && !b.clearSets) return fail(400, 'Llena al menos una serie o escribe una observación.');
   const stmts = [];
   // Observación de la alumna: una por ejercicio y fecha; vacía la borra.
   if (b.note !== undefined) {
     stmts.push(note
       ? env.DB.prepare(`INSERT INTO training_notes (user_id, exercise_id, logged_on, note) VALUES (?, ?, ?, ?)
-          ON CONFLICT(user_id, exercise_id, logged_on) DO UPDATE SET note = excluded.note, updated_at = datetime('now')`).bind(user.id, exerciseId, loggedOn, note)
-      : env.DB.prepare('DELETE FROM training_notes WHERE user_id = ? AND exercise_id = ? AND logged_on = ?').bind(user.id, exerciseId, loggedOn));
+          ON CONFLICT(user_id, exercise_id, logged_on) DO UPDATE SET note = excluded.note, updated_at = datetime('now')`).bind(userId, exerciseId, loggedOn, note)
+      : env.DB.prepare('DELETE FROM training_notes WHERE user_id = ? AND exercise_id = ? AND logged_on = ?').bind(userId, exerciseId, loggedOn));
   }
-  // Si vienen series: borrar logs anteriores de este ejercicio en esta fecha y recrear (upsert por fecha)
-  if (sets.length) stmts.push(
-    env.DB.prepare('DELETE FROM training_logs WHERE user_id = ? AND exercise_id = ? AND logged_on = ?').bind(user.id, exerciseId, loggedOn));
+  // Si vienen series (o se pide limpiar): borrar logs anteriores de este ejercicio en esta fecha y recrear.
+  if (sets.length || b.clearSets) stmts.push(
+    env.DB.prepare('DELETE FROM training_logs WHERE user_id = ? AND exercise_id = ? AND logged_on = ?').bind(userId, exerciseId, loggedOn));
   for (const s of sets) {
     const setType = s.setType === 'warmup' ? 'warmup' : 'work';
     const setNum = Math.max(1, Math.min(25, Number(s.setNum) || 1));
@@ -935,10 +933,27 @@ async function logSet(req, env) {
     const rir = s.rir != null && s.rir !== '' ? Math.max(0, Math.min(10, Number(s.rir) || 0)) : null;
     stmts.push(env.DB.prepare(
       'INSERT INTO training_logs (user_id, exercise_id, logged_on, set_type, set_num, kg, reps, rir) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    ).bind(user.id, exerciseId, loggedOn, setType, setNum, kg, reps, rir));
+    ).bind(userId, exerciseId, loggedOn, setType, setNum, kg, reps, rir));
   }
   await env.DB.batch(stmts);
   return json({ ok: true });
+}
+
+async function logSet(req, env) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  const b = await readBody(req);
+  if (b) delete b.clearSets; // solo Yohi puede vaciar series
+  return saveLog(env, user.id, b);
+}
+
+// Yohi registra o corrige pesos en la ficha de una alumna.
+async function adminLogSet(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  const userId = Number(b && b.userId);
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  return saveLog(env, userId, b);
 }
 
 // Alumna: ver progreso de un ejercicio a lo largo de las semanas
@@ -1061,6 +1076,7 @@ export default {
         case 'POST /api/admin/routine/delete': return await adminDeleteRoutine(req, env);
         case 'GET /api/admin/routines': return await adminRoutines(req, env, url);
         case 'GET /api/admin/routine': return await adminRoutineDetail(req, env, url);
+        case 'POST /api/admin/training/log': return await adminLogSet(req, env);
         case 'GET /api/admin/training-logs': return await adminTrainingLogs(req, env, url);
         case 'GET /api/routine': return await myRoutine(req, env, url);
         case 'GET /api/routine/weeks': return await myRoutineWeeks(req, env);

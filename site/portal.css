@@ -395,3 +395,9 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
   .timer-wrap.running .timer-mascot{ animation:none }
   .timer-wrap.done-ring .timer-card{ animation:none }
 }
+
+/* Yohi registra pesos en la ficha */
+.reg-edit{ margin-top:8px; border-radius:12px; background:rgba(255,255,255,.03); border:1px solid rgba(255,214,232,.12); padding:8px 12px }
+.reg-edit > summary{ cursor:pointer; font:700 13px/1.2 var(--f-text); color:var(--accent-soft); padding:4px 0 }
+.reg-edit .set-row,.reg-edit .set-row.set-header{ grid-template-columns:42px 1fr 1fr 1fr }
+.reg-edit .set-header .set-col{ justify-content:center }
