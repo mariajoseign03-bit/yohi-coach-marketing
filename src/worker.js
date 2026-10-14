@@ -545,10 +545,31 @@ async function adminOpenDay(req, env) {
   return json({ ok: true });
 }
 
+// Yohi mueve una reserva (pedida o confirmada) a otra hora libre. No gasta sesiones: sigue siendo la misma reserva.
+async function adminMoveBooking(env, id, day, time) {
+  if (!Number.isInteger(id) || !validDate(day) || !/^\d\d:\d\d$/.test(time)) return fail(400, 'Elige el día y la hora nuevos.');
+  const bk = await env.DB.prepare("SELECT id, day, time, sede, status FROM bookings WHERE id = ? AND status IN ('requested','confirmed')").bind(id).first();
+  if (!bk) return fail(404, 'La reserva ya no está activa.');
+  if (bk.day === day && bk.time === time) return fail(400, 'Esa ya es la hora de la reserva.');
+  const open = await env.DB.prepare('SELECT mode, sede, slots FROM open_days WHERE day = ?').bind(day).first();
+  if (!open || open.mode === 'closed' || !slotsOf(open).includes(time)) return fail(400, 'Ese día u hora no está abierto. Ábrelo primero en el calendario.');
+  if (slotMs(day, time) <= nowMs(env)) return fail(400, 'Esa hora ya pasó.');
+  const taken = await env.DB.prepare("SELECT id FROM bookings WHERE day = ? AND time = ? AND status IN ('requested','confirmed') AND id != ?").bind(day, time, id).first();
+  if (taken) return fail(409, 'Esa hora ya está tomada.');
+  try {
+    await env.DB.prepare("UPDATE bookings SET day = ?, time = ?, sede = ? WHERE id = ? AND status IN ('requested','confirmed')").bind(day, time, open.sede, id).run();
+  } catch { return fail(409, 'Esa hora acaba de ser tomada. Elige otra.'); }
+  // Google Calendar: el evento viejo se borra y se crea uno nuevo en la hora nueva.
+  let gcal = 'off';
+  if (bk.status === 'confirmed') { gcal = await gcalRemove(env, id); if (gcal !== 'error') gcal = await gcalAdd(env, id); }
+  return json({ ok: true, gcal });
+}
+
 async function adminBooking(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const b = await readBody(req);
   const id = Number(b && b.id);
+  if (b && b.action === 'move') return adminMoveBooking(env, id, String(b.day || ''), String(b.time || ''));
   const next = { confirm: 'confirmed', reject: 'rejected', cancel: 'cancelled' }[b && b.action];
   if (!Number.isInteger(id) || !next) return fail(400, 'Solicitud inválida.');
   const from = next === 'confirmed' ? "status = 'requested'" : "status IN ('requested','confirmed')";

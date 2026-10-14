@@ -411,3 +411,9 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .rng-btns{ display:flex; gap:6px }
 .rng-body > .muted{ flex-basis:100% }
 .rng-week{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px 10px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,214,232,.1); flex-basis:100% }
+
+/* Mover una reserva */
+.mv{ margin-top:6px }
+.mv > summary{ cursor:pointer; font:700 12.5px/1.2 var(--f-text); color:var(--accent-soft); padding:4px 0 }
+.mv-body{ display:flex; flex-wrap:wrap; gap:6px; padding:6px 0 2px }
+.mv-body select{ min-height:38px; border-radius:10px; border:1.5px solid rgba(255,214,232,.15); background:rgba(255,255,255,.04); color:var(--fg); font:600 13px/1 var(--f-text); padding:0 8px; max-width:100% }

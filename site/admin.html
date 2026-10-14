@@ -144,7 +144,34 @@
       return el('div', { class: 'slot-row ' + (ok ? 'ok' : 'req') },
         el('div', { class: 'slot-top' }, el('span', { class: 'slot-t' }, b.time), el('span', { class: 'badge ' + (ok ? 'okb' : 'wait') }, ok ? 'Confirmada' : 'Por confirmar')),
         el('div', { class: 'slot-name' }, b.name),
-        el('div', { class: 'slot-btns' }, ...(ok ? [bkBtn(b, 'cancel', 'Cancelar', true)] : [bkBtn(b, 'confirm', 'Confirmar'), bkBtn(b, 'reject', 'Rechazar', true)])));
+        el('div', { class: 'slot-btns' }, ...(ok ? [bkBtn(b, 'cancel', 'Cancelar', true)] : [bkBtn(b, 'confirm', 'Confirmar'), bkBtn(b, 'reject', 'Rechazar', true)])),
+        moveBox(b));
+    }
+
+    // Mover una reserva a otra hora libre (de cualquier día abierto).
+    function moveBox(b) {
+      const taken = new Set(ag.bookings.filter((x) => x.id !== b.id).map((x) => x.day + ' ' + x.time));
+      const opts = ag.days.filter((d) => d.day >= ag.today && d.mode !== 'closed')
+        .map((d) => ({ day: d.day, times: (d.slots || []).filter((t) => !taken.has(d.day + ' ' + t) && !(d.day === b.day && t === b.time)) }))
+        .filter((d) => d.times.length);
+      const det = el('details', { class: 'mv' }, el('summary', {}, '↔ Mover'));
+      if (!opts.length) { det.append(el('p', { class: 'muted', style: 'font-size:12.5px;margin:6px 0' }, 'No hay otras horas libres. Abre más horarios en el calendario.')); return det; }
+      const daySel = el('select', { 'aria-label': 'Día nuevo' }, opts.map((o) => el('option', { value: o.day }, dayLabel(o.day))));
+      const timeSel = el('select', { 'aria-label': 'Hora nueva' });
+      const fillTimes = () => timeSel.replaceChildren(...opts.find((o) => o.day === daySel.value).times.map((t) => el('option', { value: t }, t)));
+      daySel.addEventListener('change', fillTimes); fillTimes();
+      const go = el('button', { class: 'btn small', type: 'button' }, 'Mover');
+      go.onclick = async () => {
+        go.disabled = true; msg.textContent = '';
+        const r = await api('/api/admin/booking', { id: b.id, action: 'move', day: daySel.value, time: timeSel.value });
+        go.disabled = false;
+        if (!r.ok) { msg.textContent = r.data.error || 'No se pudo mover.'; return; }
+        msg.textContent = r.data.gcal === 'error' ? 'Movida, pero no se pudo actualizar Google Calendar. Usa «Sincronizar».' : '';
+        agState.week = mondayOf(daySel.value); agState.month = daySel.value.slice(0, 7);
+        refresh();
+      };
+      det.append(el('div', { class: 'mv-body' }, daySel, timeSel, go));
+      return det;
     }
 
     function dayCard(iso, i, o, bs) {
