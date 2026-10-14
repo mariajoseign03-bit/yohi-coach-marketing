@@ -357,6 +357,11 @@ const SLOTS = {
   pm: ['16:00', '17:00', '18:00', '19:00'], // 16:00 a 20:00
   wk: ['09:00', '10:00', '11:00', '12:00'], // fines de semana 9:00 a 13:00
 };
+// Horas de un día abierto: las personalizadas por Yohi (JSON) o las de la plantilla de su modo.
+function slotsOf(row) {
+  if (row && row.slots) { try { const a = JSON.parse(row.slots); if (Array.isArray(a)) return a; } catch {} }
+  return (row && SLOTS[row.mode]) || [];
+}
 const nowMs = (env) => (env.NOW_MS ? Number(env.NOW_MS) : Date.now());
 
 function tzParts(ms) {
@@ -402,7 +407,7 @@ async function agenda(req, env) {
   const used = await usedSessions(env, plan.id);
   const to = plan.end_date;
   const { results: days } = await env.DB.prepare(
-    "SELECT day, mode, sede FROM open_days WHERE day >= ? AND day <= ? AND mode != 'closed' AND sede = ? ORDER BY day",
+    "SELECT day, mode, sede, slots FROM open_days WHERE day >= ? AND day <= ? AND mode != 'closed' AND sede = ? ORDER BY day",
   ).bind(today, to, plan.sede).all();
   const { results: taken } = await env.DB.prepare(
     "SELECT day, time FROM bookings WHERE day >= ? AND day <= ? AND status IN ('requested','confirmed')",
@@ -411,7 +416,7 @@ async function agenda(req, env) {
   const now = nowMs(env);
   const out = days.map((d) => ({
     day: d.day, mode: d.mode,
-    slots: (SLOTS[d.mode] || []).map((time) => ({ time, free: !takenSet.has(`${d.day} ${time}`) && slotMs(d.day, time) > now })),
+    slots: slotsOf(d).map((time) => ({ time, free: !takenSet.has(`${d.day} ${time}`) && slotMs(d.day, time) > now })),
   }));
   const { results: mine } = await env.DB.prepare(
     "SELECT id, day, time, status FROM bookings WHERE user_id = ? AND plan_id = ? AND status IN ('requested','confirmed') AND day >= ? ORDER BY day, time",
@@ -430,8 +435,8 @@ async function createBooking(req, env) {
   const plan = await activePlan(env, user.id, today);
   if (!plan || plan.modality !== 'presencial') return fail(400, 'Tu plan no tiene agenda de sesiones.');
   if (day < plan.start_date || day > plan.end_date) return fail(400, 'Ese día está fuera de tu plan.');
-  const open = await env.DB.prepare('SELECT mode, sede FROM open_days WHERE day = ?').bind(day).first();
-  if (!open || open.mode === 'closed' || open.sede !== plan.sede || !(SLOTS[open.mode] || []).includes(time)) return fail(400, 'Ese horario no está disponible.');
+  const open = await env.DB.prepare('SELECT mode, sede, slots FROM open_days WHERE day = ?').bind(day).first();
+  if (!open || open.mode === 'closed' || open.sede !== plan.sede || !slotsOf(open).includes(time)) return fail(400, 'Ese horario no está disponible.');
   if (slotMs(day, time) <= nowMs(env)) return fail(400, 'Esa hora ya pasó.');
   if ((await usedSessions(env, plan.id)) >= plan.sessions_total) return fail(400, 'Ya usaste todas las sesiones de tu plan.');
   try {
@@ -500,12 +505,12 @@ async function cancelBooking(req, env) {
 async function adminAgenda(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const today = todayCL(env);
-  const { results: days } = await env.DB.prepare('SELECT day, mode, sede FROM open_days WHERE day >= ? ORDER BY day').bind(today).all();
+  const { results: days } = await env.DB.prepare('SELECT day, mode, sede, slots FROM open_days WHERE day >= ? ORDER BY day').bind(today).all();
   const { results: bookings } = await env.DB.prepare(
     `SELECT b.id, b.day, b.time, b.status, b.sede, u.name FROM bookings b JOIN users u ON u.id = b.user_id
       WHERE b.status IN ('requested','confirmed') AND b.day >= ? ORDER BY b.day, b.time`,
   ).bind(today).all();
-  return json({ ok: true, today, days, bookings, gcal: gcalConfigured(env) });
+  return json({ ok: true, today, days: days.map((d) => ({ day: d.day, mode: d.mode, sede: d.sede, custom: !!d.slots, slots: d.mode === 'closed' ? [] : slotsOf(d) })), bookings, gcal: gcalConfigured(env) });
 }
 
 async function adminOpenDay(req, env) {
@@ -522,7 +527,21 @@ async function adminOpenDay(req, env) {
     const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM bookings WHERE day = ? AND status IN ('requested','confirmed')").bind(b.day).first();
     if (n.n > 0) return fail(409, 'Ese día ya tiene horas pedidas. Respóndelas o cancélalas primero.');
   }
-  await env.DB.prepare('INSERT INTO open_days (day, mode, sede) VALUES (?, ?, ?) ON CONFLICT(day) DO UPDATE SET mode = excluded.mode, sede = excluded.sede').bind(b.day, mode, sede).run();
+  // Horas personalizadas (opcional). Sin `slots`, el día usa las horas de la plantilla.
+  let slotsJson = null;
+  if (b.slots !== undefined && b.slots !== null) {
+    if (mode === 'closed') return fail(400, 'Un día cerrado no tiene horas.');
+    if (!Array.isArray(b.slots) || b.slots.length < 1 || b.slots.length > 16) return fail(400, 'Deja entre 1 y 16 horas.');
+    const list = [...new Set(b.slots.map(String))].sort();
+    for (const t of list) {
+      if (!/^\d\d:\d\d$/.test(t) || t < '06:00' || t > '22:00' || Number(t.slice(3)) > 59) return fail(400, 'Hora inválida: ' + t + '. Usa entre 06:00 y 22:00.');
+    }
+    const { results: act } = await env.DB.prepare("SELECT time FROM bookings WHERE day = ? AND status IN ('requested','confirmed')").bind(b.day).all();
+    const lost = act.filter((x) => !list.includes(x.time));
+    if (lost.length) return fail(409, 'La hora ' + lost[0].time + ' ya está pedida. Respóndela o cancélala antes de quitarla.');
+    slotsJson = JSON.stringify(list);
+  }
+  await env.DB.prepare('INSERT INTO open_days (day, mode, sede, slots) VALUES (?, ?, ?, ?) ON CONFLICT(day) DO UPDATE SET mode = excluded.mode, sede = excluded.sede, slots = excluded.slots').bind(b.day, mode, sede, slotsJson).run();
   return json({ ok: true });
 }
 

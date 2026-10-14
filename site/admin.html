@@ -70,6 +70,12 @@
   const DIA_LARGO = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
   const MODE_TAG = { am: 'Mañana', pm: 'Tarde', wk: '9–13' };
   const SLOT_TIMES = { am: ['08:30', '09:30'], pm: ['16:00', '17:00', '18:00', '19:00'], wk: ['09:00', '10:00', '11:00', '12:00'] };
+  // Rango horario -> horas de 1 h (cada hora debe terminar antes o justo a la hora "hasta").
+  const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+  const fromMin = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  const rangeSlots = (from, to) => { const out = []; for (let m = toMin(from); m + 60 <= toMin(to); m += 60) out.push(fromMin(m)); return out; };
+  const rangeOf = (slots) => (slots && slots.length ? [slots[0], fromMin(toMin(slots[slots.length - 1]) + 60)] : ['', '']);
+  const rangeTag = (o) => { const [a, b] = rangeOf(o.slots); return a ? a.replace(/^0/, '') + '–' + b.replace(/^0/, '') : MODE_TAG[o.mode]; };
   const mondayOf = (iso) => addIso(iso, -((dayDate(iso).getUTCDay() + 6) % 7));
   let agState = null; // { month: 'AAAA-MM', week: lunes 'AAAA-MM-DD' | null } — se conserva al refrescar
 
@@ -108,6 +114,31 @@
       return true;
     }
 
+    // Cambia el rango horario de un día ya abierto (mantiene su modo y sede).
+    async function applyRange(iso, o, from, to) {
+      const slots = rangeSlots(from, to);
+      if (!from || !to || !slots.length) { msg.textContent = 'Elige «Desde» y «Hasta» con al menos 1 hora de diferencia.'; return false; }
+      const r = await api('/api/admin/open-day', { day: iso, mode: o.mode, sede: o.sede, slots });
+      if (!r.ok) { msg.textContent = (SEDE_NOMBRE ? dayLabel(iso) + ': ' : '') + (r.data.error || 'No se pudo.'); return false; }
+      return true;
+    }
+    function rangeEditor(iso, o) {
+      const [a, b] = rangeOf(o.slots);
+      const fromIn = el('input', { type: 'time', step: '1800', value: a, 'aria-label': 'Desde' });
+      const toIn = el('input', { type: 'time', step: '1800', value: b, 'aria-label': 'Hasta' });
+      const prev = el('span', { class: 'muted', style: 'font-size:12.5px' });
+      const upd = () => { const sl = rangeSlots(fromIn.value, toIn.value); prev.textContent = sl.length ? 'Horas de 1 h: ' + sl.join(', ') : 'Rango muy corto'; };
+      fromIn.addEventListener('input', upd); toIn.addEventListener('input', upd); upd();
+      const go = el('button', { class: 'btn small', type: 'button' }, 'Aplicar');
+      go.onclick = async () => { go.disabled = true; msg.textContent = ''; if (await applyRange(iso, o, fromIn.value, toIn.value)) refresh(); go.disabled = false; };
+      const reset = el('button', { class: 'btn ghost small', type: 'button' }, 'Restablecer');
+      reset.onclick = async () => { const r = await api('/api/admin/open-day', { day: iso, mode: o.mode, sede: o.sede }); if (r.ok) refresh(); else msg.textContent = r.data.error || 'No se pudo.'; };
+      return el('details', { class: 'rng' }, el('summary', {}, '🕐 Cambiar horario'),
+        el('div', { class: 'rng-body' },
+          el('label', {}, 'Desde', fromIn), el('label', {}, 'Hasta', toIn),
+          el('div', { class: 'rng-btns' }, go, o.custom ? reset : ''), prev));
+    }
+
     function bookedRow(b) {
       const ok = b.status === 'confirmed';
       return el('div', { class: 'slot-row ' + (ok ? 'ok' : 'req') },
@@ -125,14 +156,15 @@
         if (past) b.disabled = true;
         return b;
       }));
-      const times = [...new Set([...(SLOT_TIMES[cur] || []), ...bs.map((b) => b.time)])].sort();
+      const times = [...new Set([...((o && o.slots && o.slots.length) ? o.slots : (SLOT_TIMES[cur] || [])), ...bs.map((b) => b.time)])].sort();
       const slots = times.map((t) => { const b = bs.find((x) => x.time === t); return b ? bookedRow(b) : el('div', { class: 'slot-row free' }, el('span', { class: 'slot-t' }, t), el('span', { class: 'muted' }, 'libre')); });
       const dd = dayDate(iso);
       return el('div', { class: 'wk-day' + (past ? ' past' : '') + (iso === ag.today ? ' today' : '') },
         el('div', { class: 'wk-day-main' },
           el('div', { class: 'wk-day-head' }, el('strong', {}, DIA_LARGO[i]), el('span', { class: 'wk-date' }, dd.getUTCDate() + ' ' + MESES[dd.getUTCMonth()])),
           seg,
-          cur !== 'closed' && o ? el('div', { class: 'wk-sede-tag' }, SEDE_NOMBRE[o.sede] || '') : ''),
+          cur !== 'closed' && o ? el('div', { class: 'wk-sede-tag' }, SEDE_NOMBRE[o.sede] || '') : '',
+          (cur !== 'closed' && o && !past) ? rangeEditor(iso, o) : ''),
         slots.length ? el('div', { class: 'slot-list' }, ...slots) : el('p', { class: 'muted wk-closed' }, past ? 'Ya pasó' : 'Sin atención'));
     }
 
@@ -152,6 +184,17 @@
         await refresh();
         if (bad) msg.textContent = bad + (bad === 1 ? ' día no se pudo cambiar' : ' días no se pudieron cambiar') + ' (tienen horas pedidas: respóndelas primero).';
       };
+      const openDays = days.filter((iso) => iso >= ag.today && openMap[iso] && openMap[iso].mode !== 'closed');
+      const wFrom = el('input', { type: 'time', step: '1800', value: '16:00', 'aria-label': 'Desde' });
+      const wTo = el('input', { type: 'time', step: '1800', value: '20:00', 'aria-label': 'Hasta' });
+      const wGo = el('button', { class: 'btn ghost small', type: 'button', onclick: async () => {
+        if (!openDays.length) { msg.textContent = 'Abre primero algún día de esta semana.'; return; }
+        wGo.disabled = true; msg.textContent = '';
+        let bad = 0;
+        for (const iso of openDays) { if (!(await applyRange(iso, openMap[iso], wFrom.value, wTo.value))) bad++; }
+        wGo.disabled = false; await refresh();
+        if (bad) msg.textContent = bad + (bad === 1 ? ' día no se pudo cambiar. ' : ' días no se pudieron cambiar. ') + msg.textContent;
+      } }, 'Aplicar a días abiertos');
       const head = el('div', { class: 'wk-head' },
         el('div', {}, el('strong', { class: 'wk-title' }, title),
           el('div', { class: 'muted', style: 'font-size:12.5px;margin-top:2px' }, nReq + (nReq === 1 ? ' por confirmar' : ' por confirmar') + ' · ' + (all.length - nReq) + (all.length - nReq === 1 ? ' confirmada' : ' confirmadas'))),
@@ -159,7 +202,8 @@
           el('label', { class: 'wk-sede' }, 'Sede al abrir', sedeSelect),
           el('button', { class: 'btn ghost small', type: 'button', onclick: () => bulk('am') }, 'Lun–Vie mañana'),
           el('button', { class: 'btn ghost small', type: 'button', onclick: () => bulk('pm') }, 'Lun–Vie tarde'),
-          el('button', { class: 'btn ghost small', type: 'button', onclick: () => bulk('closed') }, 'Cerrar semana')));
+          el('button', { class: 'btn ghost small', type: 'button', onclick: () => bulk('closed') }, 'Cerrar semana')),
+        el('div', { class: 'rng-week' }, el('span', { class: 'muted', style: 'font-size:12.5px' }, 'Horario de toda la semana:'), el('label', {}, 'Desde', wFrom), el('label', {}, 'Hasta', wTo), wGo));
       return el('div', { class: 'wk-detail' }, head, el('div', { class: 'wk-days' }, ...days.map((iso, i) => dayCard(iso, i, openMap[iso], byDay[iso] || []))));
     }
 
@@ -178,7 +222,7 @@
         const isOpen = o && o.mode !== 'closed';
         return el('div', { class: 'cal-day' + (iso.slice(0, 7) === agState.month ? '' : ' off') + (iso === ag.today ? ' today' : '') + (iso < ag.today ? ' past' : '') + (isOpen ? ' open' : '') },
           el('span', { class: 'cal-n' }, String(dayDate(iso).getUTCDate())),
-          el('span', { class: 'cal-tag' }, isOpen ? MODE_TAG[o.mode] : ''),
+          el('span', { class: 'cal-tag' }, isOpen ? rangeTag(o) : ''),
           el('span', { class: 'cal-dots' }, ...dots));
       };
       const grid = el('div', { class: 'cal' }, el('div', { class: 'cal-dow' }, ...DIA_CORTO.map((l) => el('span', {}, l))));
