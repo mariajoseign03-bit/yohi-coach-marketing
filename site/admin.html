@@ -368,7 +368,20 @@
         for (let i = 1; i <= (ex.warmup_sets || 0); i++) mk('warmup', i, day.find((l) => l.set_type === 'warmup' && l.set_num === i));
         for (let i = 1; i <= ex.sets; i++) mk('work', i, day.find((l) => l.set_type === 'work' && l.set_num === i));
       };
-      dateIn.addEventListener('change', fill);
+      // Autoguardado: ~1,2 s después de dejar de escribir se guarda solo (sin recargar el panel, para no quitarte el cursor).
+      let timer = null;
+      const auto = el('span', { class: 'muted', style: 'font-size:13px', role: 'status' });
+      const snapshot = () => ({ date: dateIn.value, sets: rows.filter((r) => r.kg.value !== '' || r.reps.value !== '' || r.rir.value !== '')
+        .map((r) => ({ setType: r.type, setNum: r.n, kg: r.kg.value, reps: r.reps.value, rir: r.rir.value })) });
+      async function autoSave(snap) {
+        if (!snap.date || !snap.sets.length) return;
+        auto.textContent = 'Guardando…';
+        const r = await api('/api/admin/training/log', { userId, exerciseId: ex.id, loggedOn: snap.date, sets: snap.sets, clearSets: true });
+        auto.textContent = r.ok ? '✓ Guardado solo' : 'No se pudo guardar solo: toca «Guardar pesos».';
+        if (r.ok) setTimeout(() => { if (auto.textContent.startsWith('✓')) auto.textContent = ''; }, 2000);
+      }
+      grid.addEventListener('input', () => { const snap = snapshot(); clearTimeout(timer); timer = setTimeout(() => autoSave(snap), 1200); });
+      dateIn.addEventListener('change', fill); // un autoguardado pendiente conserva la fecha con la que se escribió
       const save = el('button', { class: 'btn small', type: 'button' }, 'Guardar pesos');
       save.onclick = async () => {
         msg.textContent = '';
@@ -384,7 +397,7 @@
       fill();
       const det = el('details', { class: 'reg-edit' }, el('summary', {}, '✏️ Registrar / corregir pesos'),
         el('div', { class: 'row', style: 'align-items:center;gap:8px;margin:8px 0' }, el('span', { class: 'muted', style: 'font-size:13px' }, 'Fecha'), dateIn),
-        grid, el('div', { class: 'row', style: 'margin-top:8px' }, save), msg);
+        grid, el('div', { class: 'row', style: 'margin-top:8px;align-items:center' }, save, auto), msg);
       det.open = !!openNow;
       return det;
     }
@@ -455,7 +468,31 @@
       const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar rutina');
       const addBtn = el('button', { type: 'button', class: 'btn ghost small', style: 'margin-top:8px', onclick: () => { exercises.push({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: (exercises[exercises.length - 1] || {}).day || '', notes: '' }); renderForm(); } }, '+ Ejercicio');
 
-      function renderForm() { exList.replaceChildren(...exercises.map(exRow)); }
+      let draftReady = false;
+      function renderForm() { exList.replaceChildren(...exercises.map(exRow)); if (draftReady) setTimeout(saveDraft, 0); }
+
+      // Borrador automático del formulario de rutina (series, reps, descanso…): sobrevive a cambiar de página o tocar otra cosa.
+      const rtDraftKey = 'yc-rt-draft:' + st.id;
+      const draftNote = el('p', { class: 'muted', role: 'status', style: 'font-size:13px;margin:6px 0' });
+      const saveDraft = () => {
+        try {
+          const has = exercises.some((x) => (x.name || '').trim()) || nameIn.value.trim();
+          if (!has) { localStorage.removeItem(rtDraftKey); return; }
+          localStorage.setItem(rtDraftKey, JSON.stringify({ kind: kindSel.value, week: weekIn.value, name: nameIn.value, exercises }));
+          draftNote.textContent = '💾 Borrador guardado automáticamente';
+        } catch {}
+      };
+      const clearDraft = () => { try { localStorage.removeItem(rtDraftKey); } catch {} draftNote.textContent = ''; };
+      const restoreDraft = () => {
+        try {
+          const d = JSON.parse(localStorage.getItem(rtDraftKey) || 'null');
+          if (!d || !Array.isArray(d.exercises) || !d.exercises.length) return false;
+          exercises = d.exercises; kindSel.value = d.kind === 'day' ? 'day' : 'week'; weekIn.value = d.week || weekIn.value; nameIn.value = d.name || '';
+          syncKind(true); renderForm();
+          draftNote.textContent = '💾 Recuperamos tu borrador sin guardar. Revisa y toca «Guardar rutina».';
+          return true;
+        } catch { return false; }
+      };
 
       const upMsg = el('p', { class: 'muted', role: 'status', style: 'font-size:13px;margin:6px 0 0' });
       const fileIn = el('input', { type: 'file', accept: '.pdf,.xlsx,.csv,.txt,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', style: 'display:none' });
@@ -481,7 +518,9 @@
         dateLbl,
         el('label', {}, 'Nombre', nameIn),
         el('h3', { style: 'margin:14px 0 6px;font-size:15px' }, 'Ejercicios'),
-        exList, addBtn, msg, go);
+        exList, addBtn, draftNote, msg, go);
+      form.addEventListener('input', () => setTimeout(saveDraft, 0));
+      form.addEventListener('change', () => setTimeout(saveDraft, 0));
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault(); msg.textContent = ''; go.disabled = true;
@@ -493,7 +532,7 @@
         });
         go.disabled = false;
         if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
-        msg.className = 'ok'; msg.textContent = '✓ Rutina guardada';
+        msg.className = 'ok'; msg.textContent = '✓ Rutina guardada'; clearDraft();
         loadRoutines();
       });
 
@@ -582,7 +621,8 @@
       }
 
       async function load() {
-        renderForm();
+        if (!restoreDraft()) renderForm();
+        draftReady = true;
         await loadRoutines();
         box.replaceChildren(form, routinesList);
       }

@@ -320,37 +320,67 @@ function trainingSection(container) {
     obsIn.rows = 2; obsIn.value = initialNote;
     body.append(el('label', { class: 'ex-obs-wrap' }, el('span', { class: 'ex-obs-label' }, '📝 Observaciones para Yohi'), obsIn));
 
-    // Botón guardar
+    // Guardar (manual con el botón, o solo mientras escribes: autoguardado)
     const msg = el('p', { class: 'set-msg', role: 'status' });
-    const saveBtn = el('button', { class: 'btn small', type: 'button', style: 'margin-top:10px',
-      onclick: async () => {
-        const setsData = setRows.map(s => ({
-          setType: s.setType,
-          setNum: s.setNum,
-          kg: s.kgIn.value !== '' ? Number(s.kgIn.value) : null,
-          reps: s.repsIn.value !== '' ? Number(s.repsIn.value) : null,
-          rir: s.rirIn && s.rirIn.value !== '' ? Number(s.rirIn.value) : null,
-        })).filter(s => s.kg !== null || s.reps !== null);
-        const noteVal = obsIn.value.trim();
-        const noteChanged = noteVal !== initialNote.trim();
-        if (!setsData.length && !noteChanged) { msg.className = 'set-msg err'; msg.textContent = 'Llena al menos una serie o escribe una observación.'; return; }
-        const payload = { exerciseId: ex.id, loggedOn: todayLocal(), sets: setsData };
-        if (noteChanged) payload.note = noteVal;
-        saveBtn.disabled = true;
-        const r = await api('/api/training/log', payload);
-        saveBtn.disabled = false;
-        if (r.ok) {
-          msg.className = 'set-msg ok'; msg.textContent = '✓ Guardado';
-          const worked = setsData.filter(s => s.setType === 'work').length;
-          if (worked >= ex.sets) { badge.textContent = '✓'; badge.className = 'ex-badge done'; }
-          else if (worked > 0) { badge.textContent = worked + '/' + ex.sets; badge.className = 'ex-badge partial'; }
-          exDiv.dispatchEvent(new CustomEvent('saved', { bubbles: true }));
-          setTimeout(() => { msg.textContent = ''; }, 2000);
-        } else {
-          msg.className = 'set-msg err'; msg.textContent = r.data.error || 'Error al guardar.';
-        }
+    const draftKey = 'yc-draft:' + ex.id + ':' + todayLocal();
+    const readDraft = () => { try { return JSON.parse(localStorage.getItem(draftKey) || 'null'); } catch { return null; } };
+    const writeDraft = (v) => { try { v ? localStorage.setItem(draftKey, JSON.stringify(v)) : localStorage.removeItem(draftKey); } catch {} };
+    let lastSaved = '';
+    const collect = () => {
+      const sets = setRows.map(s => ({
+        setType: s.setType, setNum: s.setNum,
+        kg: s.kgIn.value !== '' ? Number(s.kgIn.value) : null,
+        reps: s.repsIn.value !== '' ? Number(s.repsIn.value) : null,
+        rir: s.rirIn && s.rirIn.value !== '' ? Number(s.rirIn.value) : null,
+      })).filter(s => s.kg !== null || s.reps !== null);
+      return { sets, note: obsIn.value.trim() };
+    };
+    async function doSave(auto) {
+      const { sets: setsData, note: noteVal } = collect();
+      const noteChanged = noteVal !== initialNote.trim();
+      if (!setsData.length && !noteChanged) {
+        if (!auto) { msg.className = 'set-msg err'; msg.textContent = 'Llena al menos una serie o escribe una observación.'; }
+        return;
       }
-    }, 'Guardar');
+      const sig = JSON.stringify([setsData, noteVal]);
+      if (auto && sig === lastSaved) return;
+      const payload = { exerciseId: ex.id, loggedOn: todayLocal(), sets: setsData };
+      if (noteChanged) payload.note = noteVal;
+      if (!auto) saveBtn.disabled = true;
+      msg.className = 'set-msg'; msg.textContent = auto ? 'Guardando…' : '';
+      const r = await api('/api/training/log', payload);
+      saveBtn.disabled = false;
+      if (r.ok) {
+        lastSaved = sig; writeDraft(null);
+        msg.className = 'set-msg ok'; msg.textContent = auto ? '✓ Guardado solo' : '✓ Guardado';
+        const worked = setsData.filter(s => s.setType === 'work').length;
+        if (worked >= ex.sets) { badge.textContent = '✓'; badge.className = 'ex-badge done'; }
+        else if (worked > 0) { badge.textContent = worked + '/' + ex.sets; badge.className = 'ex-badge partial'; }
+        exDiv.dispatchEvent(new CustomEvent('saved', { bubbles: true }));
+        setTimeout(() => { if (msg.textContent.startsWith('✓')) msg.textContent = ''; }, 2000);
+      } else {
+        msg.className = 'set-msg err';
+        msg.textContent = auto ? 'Sin conexión: tu borrador queda en este dispositivo. Toca Guardar cuando puedas.' : (r.data.error || 'Error al guardar.');
+      }
+    }
+    const saveBtn = el('button', { class: 'btn small', type: 'button', style: 'margin-top:10px', onclick: () => { clearTimeout(timer); doSave(false); } }, 'Guardar');
+    // Autoguardado: borrador local al instante y guardado en el servidor ~1,2 s después de dejar de escribir.
+    let timer = null;
+    body.addEventListener('input', () => {
+      writeDraft({ sets: setRows.map(s => [s.setType, s.setNum, s.kgIn.value, s.repsIn.value, s.rirIn ? s.rirIn.value : '']), note: obsIn.value });
+      clearTimeout(timer); timer = setTimeout(() => doSave(true), 1200);
+    });
+    // Si quedó un borrador sin guardar (cerró la pestaña, se fue de la página), se recupera y se guarda.
+    const draft = readDraft();
+    if (draft && Array.isArray(draft.sets)) {
+      let restored = false;
+      for (const [type, num, kg, reps, rir] of draft.sets) {
+        const row = setRows.find(r => r.setType === type && r.setNum === num);
+        if (row && (kg !== '' || reps !== '')) { row.kgIn.value = kg; row.repsIn.value = reps; if (row.rirIn) row.rirIn.value = rir; restored = true; }
+      }
+      if (typeof draft.note === 'string' && draft.note !== obsIn.value) { obsIn.value = draft.note; restored = true; }
+      if (restored) { msg.className = 'set-msg'; msg.textContent = 'Recuperamos lo que estabas anotando…'; timer = setTimeout(() => doSave(true), 800); }
+    }
     body.append(el('div', { class: 'set-actions' }, saveBtn, msg));
 
     // Volumen total
