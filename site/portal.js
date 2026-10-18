@@ -213,4 +213,32 @@ function coachNotesCard(notes) {
   return wrap;
 }
 
+// ---- Anamnesis (ficha de salud): la completan la alumna y Yohi ----
+// data: {goal, experience, injuries, health_history, updated_by, updated_at} | null.  save(values) -> Promise<{ok,data}>
+function anamnesisForm(data, save, viewer) {
+  const FIELDS = [['goal', 'Objetivo', 'Ej: ganar fuerza en tren inferior'], ['experience', 'Experiencia entrenando', 'Ej: 1 año, sin técnica de barra'],
+    ['injuries', 'Lesiones o molestias', 'Ej: rodilla derecha, molestia al bajar escaleras'], ['health_history', 'Antecedentes de salud', 'Condiciones, cirugías, medicamentos, alergias…']];
+  const inputs = {};
+  const status = el('span', { class: 'muted', style: 'font-size:13px', role: 'status' });
+  const who = (by) => (by === 'coach' ? 'Yohi' : viewer === 'student' ? 'ti' : 'la alumna');
+  const info = el('p', { class: 'muted', style: 'margin:0;font-size:12.5px' },
+    data ? 'Última actualización de ' + who(data.updated_by) + ' · ' + fmtDate((data.updated_at || '').slice(0, 10)) : 'Aún sin completar.');
+  const collect = () => Object.fromEntries(FIELDS.map(([k]) => [k, inputs[k].value]));
+  let timer = null;
+  async function doSave() {
+    status.textContent = 'Guardando…';
+    const r = await save(collect());
+    status.textContent = r.ok ? '✓ Guardado' : (r.data.error || 'No se pudo guardar. Toca «Guardar».');
+    if (r.ok) { info.textContent = 'Última actualización de ' + (viewer === 'student' ? 'ti' : 'Yohi') + ' · ahora'; setTimeout(() => { if (status.textContent.startsWith('✓')) status.textContent = ''; }, 2000); }
+  }
+  const fields = FIELDS.map(([k, label, ph]) => {
+    inputs[k] = el('textarea', { rows: '3', maxlength: '800', placeholder: ph, 'aria-label': label });
+    inputs[k].value = (data && data[k]) || '';
+    inputs[k].addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(doSave, 1500); });
+    return el('label', {}, label, inputs[k]);
+  });
+  const btn = el('button', { class: 'btn small', type: 'button', onclick: () => { clearTimeout(timer); doSave(); } }, 'Guardar');
+  return el('div', { style: 'display:grid;gap:12px' }, ...fields, el('div', { class: 'row' }, btn, status), info);
+}
+
 sparkles();

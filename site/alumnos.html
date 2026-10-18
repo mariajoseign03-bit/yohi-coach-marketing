@@ -139,8 +139,8 @@
     el('p', { class: 'muted' }, plan ? 'Tu plan es de asesoría online, así que no tiene sesiones presenciales para agendar.' : 'Cuando Yohi cargue tu plan, aquí podrás pedir tus horas.'));
 
   // ---- Progreso: evolución, PRs, notas de Yohi y mediciones ----
-  const evoHolder = el('div'), prHolder = el('div'), notesHolder = el('div');
-  const progBox = el('div', { class: 'panel' }, evoHolder, prHolder, notesHolder, medBox);
+  const evoHolder = el('div'), prHolder = el('div'), notesHolder = el('div'), anamBox = el('section', { class: 'card', id: 'anamnesis', style: 'display:grid;gap:12px' });
+  const progBox = el('div', { class: 'panel' }, evoHolder, prHolder, notesHolder, anamBox, medBox);
   async function renderProgress() {
     const [pg, nt] = await Promise.all([api('/api/progress'), api('/api/notes')]);
     const data = pg.ok ? pg.data.exercises : [];
@@ -149,6 +149,28 @@
     notesHolder.replaceChildren(coachNotesCard(nt.ok ? nt.data.notes : []));
   }
   renderProgress();
+
+  // Ficha de salud (anamnesis): solo con autorización aparte; la completan la alumna y Yohi.
+  async function renderAnam() {
+    const head = el('h2', { style: 'margin:0' }, 'Mi ficha de salud');
+    const r = await api('/api/anamnesis');
+    if (!r.ok) { anamBox.replaceChildren(head, el('p', { class: 'err' }, 'No pudimos cargar tu ficha.')); return; }
+    if (!r.data.enabled) {
+      anamBox.replaceChildren(head,
+        el('p', { class: 'muted', style: 'margin:0' }, 'Es tu anamnesis: tu objetivo, tu experiencia entrenando, lesiones o molestias y antecedentes de salud. Tú y Yohi pueden completarla para que tu entrenamiento se ajuste a ti.'),
+        el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, 'Son datos de salud: solo se guardan si lo autorizas, solo los ven Yohi y tú, y puedes retirar la autorización cuando quieras (se borra toda la ficha). Más detalle en la ', el('a', { href: '/privacidad' }, 'política de privacidad'), '.'),
+        el('button', { class: 'btn small', type: 'button', onclick: async () => { await api('/api/anamnesis/consent', { enabled: true }); renderAnam(); } }, 'Autorizo mi ficha de salud'));
+      return;
+    }
+    anamBox.replaceChildren(head,
+      el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, 'La ven solo Yohi y tú. Se guarda sola mientras escribes. Si tienes un dolor o una lesión nueva, avísale directo a Yohi: ', el('a', { href: 'https://wa.me/' + WA_NUM, target: '_blank', rel: 'noopener' }, 'escríbele por WhatsApp'), '.'),
+      anamnesisForm(r.data.data, (v) => api('/api/anamnesis', v), 'student'),
+      el('button', { class: 'btn ghost small', type: 'button', onclick: async () => {
+        if (!confirm('Si retiras tu autorización se borra toda tu ficha de salud y Yohi dejará de verla. ¿Continuar?')) return;
+        await api('/api/anamnesis/consent', { enabled: false }); renderAnam();
+      } }, 'Retirar mi autorización y borrar mi ficha'));
+  }
+  renderAnam();
 
   // ---- Inicio ----
   const plain = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

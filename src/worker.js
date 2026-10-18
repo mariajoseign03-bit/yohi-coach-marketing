@@ -1061,6 +1061,69 @@ async function exerciseProgress(req, env, url) {
   return json({ ok: true, exercise: exName, progress });
 }
 
+/* ---------- anamnesis (ficha de salud): la completan la alumna y Yohi ---------- */
+const ANAM_FIELDS = ['goal', 'experience', 'injuries', 'health_history'];
+async function anamState(env, userId) {
+  const u = await env.DB.prepare("SELECT anamnesis_consent_at FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
+  if (!u) return null;
+  if (!u.anamnesis_consent_at) return { ok: true, enabled: false, data: null };
+  const row = await env.DB.prepare('SELECT goal, experience, injuries, health_history, updated_by, updated_at FROM anamnesis WHERE user_id = ?').bind(userId).first();
+  return { ok: true, enabled: true, data: row || null };
+}
+async function anamSave(env, userId, b, by) {
+  const u = await env.DB.prepare("SELECT anamnesis_consent_at FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
+  if (!u) return fail(404, 'No se encontró a la alumna.');
+  if (!u.anamnesis_consent_at) return fail(403, 'La alumna no ha autorizado su ficha de salud.');
+  const v = {};
+  for (const k of ANAM_FIELDS) v[k] = String((b && b[k]) || '').trim().slice(0, 800);
+  await env.DB.prepare(
+    `INSERT INTO anamnesis (user_id, goal, experience, injuries, health_history, updated_by, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET goal = excluded.goal, experience = excluded.experience, injuries = excluded.injuries,
+       health_history = excluded.health_history, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+  ).bind(userId, v.goal, v.experience, v.injuries, v.health_history, by).run();
+  return json({ ok: true });
+}
+async function myAnamnesis(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  return json(await anamState(env, user.id));
+}
+async function saveMyAnamnesis(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  return anamSave(env, user.id, await readBody(req), 'student');
+}
+async function setAnamnesisConsent(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  const b = await readBody(req);
+  if (!b || typeof b.enabled !== 'boolean') return fail(400, 'Solicitud inválida.');
+  if (b.enabled) {
+    await env.DB.prepare('UPDATE users SET anamnesis_consent_at = ? WHERE id = ? AND anamnesis_consent_at IS NULL').bind(isoNow(), user.id).run();
+  } else {
+    await env.DB.batch([
+      env.DB.prepare('UPDATE users SET anamnesis_consent_at = NULL WHERE id = ?').bind(user.id),
+      env.DB.prepare('DELETE FROM anamnesis WHERE user_id = ?').bind(user.id),
+    ]);
+  }
+  return json({ ok: true });
+}
+async function adminAnamnesis(req, env, url) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const userId = Number(url.searchParams.get('userId'));
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  const st = await anamState(env, userId);
+  return st ? json(st) : fail(404, 'No se encontró a la alumna.');
+}
+async function adminSaveAnamnesis(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  const userId = Number(b && b.userId);
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  return anamSave(env, userId, b, 'coach');
+}
+
 /* ---------- notas e hitos de Yohi + progreso de kilos ---------- */
 const NOTE_KINDS = ['note', 'milestone'];
 
@@ -1217,6 +1280,11 @@ export default {
         case 'POST /api/admin/reject': return await adminReject(req, env);
         case 'POST /api/admin/student/delete': return await adminDeleteStudent(req, env);
         case 'GET /api/notes': return await myNotes(req, env);
+        case 'GET /api/anamnesis': return await myAnamnesis(req, env);
+        case 'POST /api/anamnesis': return await saveMyAnamnesis(req, env);
+        case 'POST /api/anamnesis/consent': return await setAnamnesisConsent(req, env);
+        case 'GET /api/admin/anamnesis': return await adminAnamnesis(req, env, url);
+        case 'POST /api/admin/anamnesis': return await adminSaveAnamnesis(req, env);
         case 'GET /api/progress': return await myProgress(req, env);
         case 'GET /api/admin/notes': return await adminNotes(req, env, url);
         case 'POST /api/admin/notes': return await adminAddNote(req, env);

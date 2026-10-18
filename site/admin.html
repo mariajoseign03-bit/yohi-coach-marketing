@@ -787,6 +787,21 @@
       ];
     }
 
+    // Anamnesis: Yohi y la alumna la completan; solo si la alumna lo autorizó.
+    function anamnesisPanel(st) {
+      const box = el('section', { class: 'card', style: 'display:grid;gap:12px' });
+      const head = el('div', { class: 'row', style: 'justify-content:space-between' }, el('h2', { style: 'margin:0' }, 'Anamnesis'), el('span', { class: 'chip mute' }, 'Yohi y ' + st.name.split(' ')[0]));
+      box.append(head, el('p', { class: 'muted', style: 'margin:0' }, 'Cargando…'));
+      api('/api/admin/anamnesis?userId=' + st.id).then((r) => {
+        if (!r.ok) { box.replaceChildren(head, el('p', { class: 'err' }, r.data.error || 'No se pudo cargar.')); return; }
+        if (!r.data.enabled) { box.replaceChildren(head, el('p', { class: 'muted', style: 'margin:0' }, 'Esta alumna no ha autorizado su ficha de salud (datos de salud). Puede hacerlo desde su portal, en Progreso.')); return; }
+        box.replaceChildren(head,
+          el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, 'Es información de salud: la ven solo tú y la alumna, y ella también puede completarla. Se guarda sola mientras escribes.'),
+          anamnesisForm(r.data.data, (v) => api('/api/admin/anamnesis', { userId: st.id, ...v }), 'coach'));
+      });
+      return box;
+    }
+
     // Notas e hitos: Yohi escribe; elige si la alumna los ve o quedan privados.
     function notesPanel(st) {
       const first = st.name.split(' ')[0];
@@ -860,7 +875,7 @@
         mp.load();
         const evoHolder = el('div'), prHolder = el('div');
         api('/api/admin/progress?userId=' + st.id).then((r) => { const d = r.ok ? r.data.exercises : []; evoHolder.replaceChildren(evolutionCard(d)); prHolder.replaceChildren(prCard(d)); });
-        body = el('div', { class: 'admview' }, notesPanel(st), evoHolder, prHolder, medCard);
+        body = el('div', { class: 'admview' }, anamnesisPanel(st), notesPanel(st), evoHolder, prHolder, medCard);
       } else {
         const rp = routinePanel(st);
         body = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Rutina de ' + st.name.split(' ')[0]), rp.box);
