@@ -171,4 +171,46 @@ function disclaimerBox() {
   return el('p', { class: 'disc', role: 'note' }, el('strong', {}, 'Importante: '), window.METRICAS ? window.METRICAS.DISCLAIMER : 'Yohi es preparadora física. Este análisis es una ayuda y no reemplaza una consulta nutricional ni médica.');
 }
 
+// ---- Progreso de kilos: gráfico por ejercicio y mejores marcas (PR) ----
+// data: [{name, pr:{kg,reps,date}, last, weeks:[{week, kg}]}]  (viene de /api/progress o /api/admin/progress)
+function evolutionCard(data) {
+  const wrap = el('section', { class: 'card', style: 'display:grid;gap:12px' });
+  wrap.append(el('h2', { style: 'margin:0' }, 'Evolución'));
+  if (!data.length) { wrap.append(el('p', { class: 'muted', style: 'margin:0' }, 'Cuando se registren kilos en la rutina, aquí aparecerá cómo van subiendo semana a semana.')); return wrap; }
+  const sel = el('select', { 'aria-label': 'Ejercicio' }, data.map((e, i) => el('option', { value: String(i) }, e.name)));
+  const chartBox = el('div', { style: 'max-width:560px;width:100%;margin:0 auto' });
+  const note = el('p', { class: 'muted', style: 'margin:0;font-size:12.5px' }, 'Mejor serie de cada semana, en kilos. Cuánto subes depende de tu RIR y de tu técnica, no solo del peso.');
+  const paint = () => {
+    const e = data[Number(sel.value)];
+    const ch = lineChart(e.weeks.map((w) => ({ measured_on: w.week, kg: w.kg })), 'kg', 'kg');
+    chartBox.replaceChildren(ch || '', e.weeks.length < 2 ? el('p', { class: 'muted', style: 'margin:6px 0 0;font-size:13px' }, 'Con una semana más de registro se dibuja la línea.') : '');
+  };
+  sel.addEventListener('change', paint); paint();
+  wrap.append(sel, chartBox, note);
+  return wrap;
+}
+function prCard(data) {
+  const wrap = el('section', { class: 'card', style: 'display:grid;gap:10px' }, el('h2', { style: 'margin:0' }, 'Mis PRs'));
+  if (!data.length) { wrap.append(el('p', { class: 'muted', style: 'margin:0' }, 'Tus mejores marcas aparecerán aquí cuando registres tus pesos.')); return wrap; }
+  for (const e of data.slice(0, 10)) {
+    wrap.append(el('div', { class: 'pr-row' }, el('span', { class: 'chip gold' }, 'PR'),
+      el('div', { style: 'flex:1;min-width:0' }, el('strong', {}, e.name), el('div', { class: 'muted', style: 'font-size:12.5px' }, fmtDate(e.pr.date))),
+      el('strong', {}, fmtN(e.pr.kg) + ' kg' + (e.pr.reps ? ' × ' + e.pr.reps : ''))));
+  }
+  wrap.append(el('p', { class: 'muted', style: 'margin:0;font-size:12.5px' }, 'PR = el mayor peso que has registrado en ese ejercicio.'));
+  return wrap;
+}
+const NOTE_LABEL = { note: 'Nota', milestone: 'Hito' };
+// Notas e hitos de Yohi que ve la alumna.
+function coachNotesCard(notes) {
+  const wrap = el('section', { class: 'card', style: 'display:grid;gap:12px' }, el('h2', { style: 'margin:0' }, 'Notas e hitos de Yohi'));
+  if (!notes.length) { wrap.append(el('p', { class: 'muted', style: 'margin:0' }, 'Yohi todavía no te ha dejado notas. Cuando lo haga, las verás aquí.')); return wrap; }
+  for (const n of notes) {
+    wrap.append(el('div', { class: 'note-row' }, el('span', { class: 'chip' + (n.kind === 'milestone' ? ' gold' : '') }, NOTE_LABEL[n.kind] || 'Nota'),
+      el('div', { style: 'flex:1;min-width:0' }, el('strong', {}, n.title), n.body ? el('p', { style: 'margin:2px 0 0;font-size:14px;color:var(--accent-soft)' }, n.body) : '',
+        el('div', { class: 'muted', style: 'font-size:12px' }, fmtDate((n.created_at || '').slice(0, 10))))));
+  }
+  return wrap;
+}
+
 sparkles();

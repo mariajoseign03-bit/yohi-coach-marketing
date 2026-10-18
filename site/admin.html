@@ -787,6 +787,46 @@
       ];
     }
 
+    // Notas e hitos: Yohi escribe; elige si la alumna los ve o quedan privados.
+    function notesPanel(st) {
+      const first = st.name.split(' ')[0];
+      const box = el('section', { class: 'card', style: 'display:grid;gap:12px' }, el('h2', { style: 'margin:0' }, 'Notas e hitos'));
+      let kind = 'note';
+      const kindBox = el('div', { class: 'seg', role: 'group', 'aria-label': 'Tipo' });
+      const paintKind = () => kindBox.replaceChildren(...[['note', 'Nota'], ['milestone', 'Hito']].map(([k, t]) => el('button', { type: 'button', 'aria-pressed': String(kind === k), onclick: () => { kind = k; paintKind(); } }, t)));
+      paintKind();
+      const title = el('input', { type: 'text', maxlength: '120', placeholder: 'Título (ej: Primeras 8 sesiones)', 'aria-label': 'Título' });
+      const text = el('textarea', { rows: '3', maxlength: '1500', placeholder: 'Detalle (opcional)', 'aria-label': 'Detalle' });
+      const vis = el('input', { type: 'checkbox', checked: '', style: 'width:auto;min-height:0' });
+      const msg = el('p', { class: 'err', role: 'alert' });
+      const list = el('div');
+      const add = el('button', { class: 'btn small', type: 'button' }, 'Agregar');
+      add.onclick = async () => {
+        msg.textContent = '';
+        if (!title.value.trim()) { msg.textContent = 'Escribe un título.'; return; }
+        add.disabled = true;
+        const r = await api('/api/admin/notes', { userId: st.id, kind, title: title.value, body: text.value, visible: vis.checked });
+        add.disabled = false;
+        if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
+        title.value = ''; text.value = ''; load();
+      };
+      async function load() {
+        const r = await api('/api/admin/notes?userId=' + st.id);
+        if (!r.ok) { list.replaceChildren(el('p', { class: 'err' }, 'No se pudieron cargar las notas.')); return; }
+        list.replaceChildren(...(r.data.notes.length ? r.data.notes.map((n) => el('div', { class: 'note-row' },
+          el('span', { class: 'chip' + (n.kind === 'milestone' ? ' gold' : '') }, NOTE_LABEL[n.kind]),
+          el('div', { style: 'flex:1;min-width:0' }, el('strong', {}, n.title), n.body ? el('p', { style: 'margin:2px 0 0;font-size:14px;color:var(--accent-soft)' }, n.body) : '',
+            el('div', { class: 'muted', style: 'font-size:12px' }, fmtDate((n.created_at || '').slice(0, 10)) + ' · ' + (n.visible ? 'visible para ' + first : 'privada, solo Yohi'))),
+          el('button', { class: 'btn ghost small', type: 'button', onclick: async () => { if (!confirm('¿Borrar esta nota?')) return; await api('/api/admin/notes/delete', { id: n.id }); load(); } }, 'Borrar')))
+          : [el('p', { class: 'muted', style: 'margin:0' }, 'Aún no hay notas.')]));
+      }
+      box.append(kindBox, title, text,
+        el('label', { style: 'display:flex;gap:10px;align-items:center;font-weight:600' }, vis, 'Visible para ' + first + ' en su portal'),
+        msg, add, el('hr', { style: 'border:0;border-top:1px solid rgba(255,214,232,.12);width:100%;margin:4px 0' }), list);
+      load();
+      return box;
+    }
+
     // --- Ficha de una alumna: Rutina / Progreso ---
     function fichaView(st, sub) {
       const delBox = el('div', { class: 'card', hidden: '', style: 'border-color:rgba(255,107,107,.5);display:grid;gap:10px' });
@@ -816,8 +856,11 @@
       let body;
       if (sub === 'progreso') {
         const mp = medPanel(st);
-        body = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Medidas'), mp.box);
+        const medCard = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Medidas'), mp.box);
         mp.load();
+        const evoHolder = el('div'), prHolder = el('div');
+        api('/api/admin/progress?userId=' + st.id).then((r) => { const d = r.ok ? r.data.exercises : []; evoHolder.replaceChildren(evolutionCard(d)); prHolder.replaceChildren(prCard(d)); });
+        body = el('div', { class: 'admview' }, notesPanel(st), evoHolder, prHolder, medCard);
       } else {
         const rp = routinePanel(st);
         body = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Rutina de ' + st.name.split(' ')[0]), rp.box);

@@ -1061,6 +1061,89 @@ async function exerciseProgress(req, env, url) {
   return json({ ok: true, exercise: exName, progress });
 }
 
+/* ---------- notas e hitos de Yohi + progreso de kilos ---------- */
+const NOTE_KINDS = ['note', 'milestone'];
+
+// La alumna ve solo lo que Yohi marcó como visible.
+async function myNotes(req, env) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  const { results } = await env.DB.prepare(
+    'SELECT id, kind, title, body, created_at FROM coach_notes WHERE user_id = ? AND visible = 1 ORDER BY id DESC LIMIT 50',
+  ).bind(user.id).all();
+  return json({ ok: true, notes: results });
+}
+async function adminNotes(req, env, url) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const userId = Number(url.searchParams.get('userId'));
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  const { results } = await env.DB.prepare(
+    'SELECT id, kind, title, body, visible, created_at FROM coach_notes WHERE user_id = ? ORDER BY id DESC LIMIT 200',
+  ).bind(userId).all();
+  return json({ ok: true, notes: results });
+}
+async function adminAddNote(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const userId = Number(b.userId);
+  const kind = NOTE_KINDS.includes(b.kind) ? b.kind : 'note';
+  const title = String(b.title || '').trim().slice(0, 120);
+  const body = String(b.body || '').trim().slice(0, 1500);
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!title) return fail(400, 'Escribe un título.');
+  const u = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
+  if (!u) return fail(404, 'No se encontró a la alumna.');
+  await env.DB.prepare('INSERT INTO coach_notes (user_id, kind, title, body, visible) VALUES (?, ?, ?, ?, ?)')
+    .bind(userId, kind, title, body, b.visible === false ? 0 : 1).run();
+  return json({ ok: true });
+}
+async function adminDeleteNote(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  const id = Number(b && b.id);
+  if (!Number.isInteger(id)) return fail(400, 'Nota inválida.');
+  await env.DB.prepare('DELETE FROM coach_notes WHERE id = ?').bind(id).run();
+  return json({ ok: true });
+}
+
+// Kilos de trabajo por ejercicio: mejor peso de cada semana (para el gráfico) y mejor marca (PR).
+async function progressFor(env, userId) {
+  const { results } = await env.DB.prepare(
+    `SELECT re.name, tl.logged_on, tl.kg, tl.reps
+       FROM training_logs tl
+       JOIN routine_exercises re ON re.id = tl.exercise_id
+      WHERE tl.user_id = ? AND tl.set_type = 'work' AND tl.kg IS NOT NULL AND tl.kg > 0
+      ORDER BY tl.logged_on LIMIT 3000`,
+  ).bind(userId).all();
+  const mondayOf = (iso) => { const [y, m, d] = iso.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d, 12)); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); };
+  const by = new Map();
+  for (const r of results) {
+    const key = r.name.trim().toLowerCase();
+    let e = by.get(key);
+    if (!e) { e = { name: r.name.trim(), weeks: new Map(), pr: null, last: '' }; by.set(key, e); }
+    const wk = mondayOf(r.logged_on);
+    e.weeks.set(wk, Math.max(e.weeks.get(wk) || 0, r.kg));
+    if (!e.pr || r.kg > e.pr.kg || (r.kg === e.pr.kg && (r.reps || 0) > (e.pr.reps || 0))) e.pr = { kg: r.kg, reps: r.reps, date: r.logged_on };
+    e.last = r.logged_on;
+  }
+  const exercises = [...by.values()].sort((a, b) => (a.last < b.last ? 1 : -1)).map((e) => ({
+    name: e.name, pr: e.pr, last: e.last, weeks: [...e.weeks.entries()].sort().map(([week, kg]) => ({ week, kg })),
+  }));
+  return { ok: true, exercises };
+}
+async function myProgress(req, env) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  return json(await progressFor(env, user.id));
+}
+async function adminProgress(req, env, url) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const userId = Number(url.searchParams.get('userId'));
+  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  return json(await progressFor(env, userId));
+}
+
 // Yohi corrige el plan de una alumna (cambiar modalidad, sede, sesiones o fechas) o lo renueva con uno nuevo.
 async function adminPlan(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
@@ -1133,6 +1216,12 @@ export default {
         case 'POST /api/admin/approve': return await adminApprove(req, env);
         case 'POST /api/admin/reject': return await adminReject(req, env);
         case 'POST /api/admin/student/delete': return await adminDeleteStudent(req, env);
+        case 'GET /api/notes': return await myNotes(req, env);
+        case 'GET /api/progress': return await myProgress(req, env);
+        case 'GET /api/admin/notes': return await adminNotes(req, env, url);
+        case 'POST /api/admin/notes': return await adminAddNote(req, env);
+        case 'POST /api/admin/notes/delete': return await adminDeleteNote(req, env);
+        case 'GET /api/admin/progress': return await adminProgress(req, env, url);
         case 'GET /api/agenda': return await agenda(req, env);
         case 'POST /api/bookings': return await createBooking(req, env);
         case 'POST /api/bookings/cancel': return await cancelBooking(req, env);

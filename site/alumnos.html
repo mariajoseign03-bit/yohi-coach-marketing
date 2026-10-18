@@ -138,6 +138,18 @@
   if (!presencial) agendaBox.replaceChildren(el('h2', { style: 'margin-top:0' }, 'Agenda'),
     el('p', { class: 'muted' }, plan ? 'Tu plan es de asesoría online, así que no tiene sesiones presenciales para agendar.' : 'Cuando Yohi cargue tu plan, aquí podrás pedir tus horas.'));
 
+  // ---- Progreso: evolución, PRs, notas de Yohi y mediciones ----
+  const evoHolder = el('div'), prHolder = el('div'), notesHolder = el('div');
+  const progBox = el('div', { class: 'panel' }, evoHolder, prHolder, notesHolder, medBox);
+  async function renderProgress() {
+    const [pg, nt] = await Promise.all([api('/api/progress'), api('/api/notes')]);
+    const data = pg.ok ? pg.data.exercises : [];
+    evoHolder.replaceChildren(evolutionCard(data));
+    prHolder.replaceChildren(prCard(data));
+    notesHolder.replaceChildren(coachNotesCard(nt.ok ? nt.data.notes : []));
+  }
+  renderProgress();
+
   // ---- Inicio ----
   const plain = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -166,7 +178,7 @@
     return pick;
   }
   async function renderHome() {
-    const [rt, ag] = await Promise.all([api('/api/routine'), presencial ? api('/api/agenda') : Promise.resolve(null)]);
+    const [rt, ag, nt] = await Promise.all([api('/api/routine'), presencial ? api('/api/agenda') : Promise.resolve(null), api('/api/notes')]);
     const kids = [];
     // Plan
     const left = plan ? daysLeft(plan.end_date) : 0;
@@ -205,6 +217,12 @@
           : el('p', { class: 'muted', style: 'margin:0' }, ag.data.plan.left > 0 ? 'Aún no tienes una hora pedida. Te quedan ' + ag.data.plan.left + (ag.data.plan.left === 1 ? ' sesión.' : ' sesiones.') : 'Ya usaste todas las sesiones de tu plan.'),
         goTo('#agenda', next ? 'Ver mi agenda' : 'Pedir una hora', true)));
     }
+    // Última nota o hito visible de Yohi
+    const lastNote = nt.ok && nt.data.notes[0];
+    if (lastNote) kids.push(el('section', { class: 'card', style: 'display:grid;gap:6px' },
+      el('span', { class: 'kick' }, lastNote.kind === 'milestone' ? 'Hito' : 'Nota de Yohi'),
+      el('strong', {}, lastNote.title), lastNote.body ? el('p', { style: 'margin:0;color:var(--accent-soft)' }, lastNote.body) : '',
+      el('a', { href: '#progreso', style: 'font-size:13px;font-weight:700' }, 'Ver todas mis notas')));
     homeBox.replaceChildren(...kids);
   }
 
@@ -225,7 +243,7 @@
     chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
     agenda: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   };
-  const TABS = [['inicio', 'Inicio', homeBox], ['rutina', 'Rutina', trainingBox], ['progreso', 'Progreso', medBox], ['chat', 'Chat', chatBox], ['agenda', 'Agenda', agendaBox]];
+  const TABS = [['inicio', 'Inicio', homeBox], ['rutina', 'Rutina', trainingBox], ['progreso', 'Progreso', progBox], ['chat', 'Chat', chatBox], ['agenda', 'Agenda', agendaBox]];
   const panels = {};
   const main = el('div', {});
   for (const [id, , node] of TABS) { const w = el('div', { class: 'tabpanel', id: 'tab-' + id, hidden: '' }, node); panels[id] = w; main.append(w); }
@@ -240,6 +258,7 @@
     const id = panels[location.hash.slice(1)] ? location.hash.slice(1) : 'inicio';
     for (const k of Object.keys(panels)) { panels[k].hidden = k !== id; links[k].classList.toggle('on', k === id); if (k === id) links[k].setAttribute('aria-current', 'page'); else links[k].removeAttribute('aria-current'); }
     if (id === 'inicio' && started) renderHome();
+    if (id === 'progreso' && started) renderProgress();
     started = true;
     window.scrollTo(0, 0);
   }
