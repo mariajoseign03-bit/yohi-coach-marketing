@@ -411,7 +411,7 @@
         if (r.status === 409 && confirm(r.data.error + ' ¿Continuar?')) r = await api('/api/admin/plan', { ...body, cancelBookings: true });
         go.disabled = false;
         if (!r.ok) { if (r.status !== 409) msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
-        render();
+        if (location.hash.startsWith('#planes/')) location.hash = '#planes'; else render();
       });
       return form;
     }
@@ -700,30 +700,154 @@
       return { box, load };
     }
 
-    const rows = (stu.data.students || []).map((s) => {
-      const mp = medPanel(s);
-      const det = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, 'Mediciones'), mp.box);
-      det.addEventListener('toggle', () => { if (det.open) mp.load(); });
-      const planDet = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, 'Editar plan'), planPanel(s));
-      const rp = routinePanel(s);
-      const routineDet = el('details', { style: 'width:100%' }, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, '🏋️ Rutinas'), rp.box);
-      routineDet.addEventListener('toggle', () => { if (routineDet.open) rp.load(); });
-      return el('div', { class: 'card' },
-        el('div', { class: 'item' },
-          el('div', {}, el('strong', {}, s.name), el('br'), el('span', { class: 'muted' }, s.email)),
-          el('div', { class: 'muted', style: 'font-size:13px' }, s.modality
-            ? [s.modality === 'presencial' ? `1:1 · ${SEDE_NOMBRE[s.sede] || ''} · ${s.sessions_total} sesiones` : 'Online', ' · vence ', fmtDate(s.end_date)]
-            : 'Sin plan')),
-        el('div', { class: 'row', style: 'margin-top:12px;align-items:flex-start;flex-wrap:wrap' }, planDet, routineDet, det));
-    });
+    // ---------- navegación por pestañas ----------
+    const students = stu.data.students || [];
+    const pendingList = pend.data.pending || [];
+    const asked = ag.ok ? ag.data.bookings.filter((b) => b.status === 'requested').length : 0;
+    const parts = location.hash.slice(1).split('/');
+    const tab = ['alumnos', 'mensajes', 'planes', 'agenda'].includes(parts[0]) ? parts[0] : (parts[0] === 'alumno' ? 'alumnos' : 'alumnos');
+    const ICONS = {
+      alumnos: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 3-6 6.5-6s6.5 2.4 6.5 6M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.5c2 .7 3.5 2.6 3.5 5.5"/>',
+      mensajes: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+      planes: '<rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/>',
+      agenda: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    };
+    const tabsNav = el('nav', { class: 'tabs', 'aria-label': 'Secciones del panel' }, ...[['alumnos', 'Alumnos', pendingList.length], ['mensajes', 'Mensajes', 0], ['planes', 'Planes', 0], ['agenda', 'Agenda', asked]].map(([id, label, n]) => {
+      const a = el('a', { href: '#' + id, class: id === tab ? 'on' : '' });
+      a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[id] + '</svg>';
+      a.append(label);
+      if (n) a.append(' ', el('span', { class: 'nbadge' }, String(n)));
+      if (id === tab) a.setAttribute('aria-current', 'page');
+      return a;
+    }));
+    const initials = (n) => n.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+    const rel = (iso) => { if (!iso) return 'Sin registros todavía'; const d = Math.round((dayDate(today) - dayDate(iso)) / 86400000); return 'Registró ' + (d <= 0 ? 'hoy' : d === 1 ? 'ayer' : 'hace ' + d + ' días'); };
+    const planChip = (s) => !s.modality ? el('span', { class: 'chip mute' }, 'Sin plan')
+      : s.modality === 'presencial' ? el('span', { class: 'chip' }, 'Presencial 1:1 · ' + (s.used ?? 0) + '/' + s.sessions_total)
+      : el('span', { class: 'chip mute' }, 'Online' + (daysLeft(s.end_date) <= 7 ? ' · vence en ' + daysLeft(s.end_date) + (daysLeft(s.end_date) === 1 ? ' día' : ' días') : ''));
 
-    app.replaceChildren(top,
-      ...(ag.ok ? agendaSection(ag.data) : []),
-      el('h2', {}, 'Cuentas por aprobar'),
-      pendingCards.length ? el('div', { class: 'list' }, ...pendingCards) : el('p', { class: 'muted' }, 'No hay cuentas pendientes.'),
-      el('h2', {}, 'Alumnos activos'),
-      rows.length ? el('div', { class: 'list' }, ...rows) : el('p', { class: 'muted' }, 'Aún no hay alumnos activos.'));
+    // --- Alumnos: cuentas por aprobar + lista ---
+    function alumnosView() {
+      let q = '', filt = 'todas';
+      const listBox = el('div', { class: 'card', style: 'padding:6px 18px' });
+      const FILTERS = [['todas', 'Todas'], ['presencial', 'Presencial'], ['online', 'Online'], ['vence', 'Por vencer']];
+      const segBox = el('div', { class: 'seg', role: 'group', 'aria-label': 'Filtrar alumnas' });
+      const match = (s) => {
+        if (q && !(plain(s.name) + ' ' + plain(s.email)).includes(plain(q))) return false;
+        if (filt === 'presencial') return s.modality === 'presencial';
+        if (filt === 'online') return s.modality === 'online';
+        if (filt === 'vence') return !!s.end_date && daysLeft(s.end_date) <= 7;
+        return true;
+      };
+      function paintList() {
+        segBox.replaceChildren(...FILTERS.map(([k, t]) => el('button', { type: 'button', 'aria-pressed': String(filt === k), onclick: () => { filt = k; paintList(); } }, t + (k === 'todas' ? ' · ' + students.length : ''))));
+        const shown = students.filter(match);
+        listBox.replaceChildren(shown.length
+          ? el('div', { class: 'list stu-list' }, ...shown.map((s) => el('a', { class: 'stu', href: '#alumno/' + s.id },
+            el('span', { class: 'avatar' }, initials(s.name)),
+            el('div', { class: 'stu-main' }, el('strong', {}, s.name), el('span', { class: 'muted' }, rel(s.last_log))),
+            planChip(s), el('span', { class: 'stu-go', 'aria-hidden': 'true' }, '›'))))
+          : el('p', { class: 'muted', style: 'margin:14px 0' }, students.length ? 'Ninguna alumna coincide con la búsqueda.' : 'Aún no hay alumnos activos.'));
+      }
+      const search = el('input', { type: 'search', placeholder: 'Buscar alumna por nombre o correo…', 'aria-label': 'Buscar alumna', oninput: (e) => { q = e.target.value; paintList(); } });
+      paintList();
+      return [
+        ...(pendingList.length ? [el('h2', { style: 'margin-top:0' }, 'Cuentas por aprobar'), el('div', { class: 'list' }, ...pendingCards)] : []),
+        el('h2', { style: pendingList.length ? '' : 'margin-top:0' }, 'Alumnas'),
+        el('div', { class: 'row', style: 'gap:10px' }, el('div', { style: 'flex:1;min-width:220px' }, search), segBox),
+        listBox,
+      ];
+    }
+
+    // --- Ficha de una alumna: Rutina / Progreso ---
+    function fichaView(st, sub) {
+      const delBox = el('div', { class: 'card', hidden: '', style: 'border-color:rgba(255,107,107,.5);display:grid;gap:10px' });
+      const confirmIn = el('input', { type: 'text', placeholder: 'ELIMINAR', 'aria-label': 'Escribe ELIMINAR para confirmar', autocomplete: 'off' });
+      const delMsg = el('p', { class: 'err', role: 'alert' });
+      const delGo = el('button', { class: 'btn small danger', type: 'button', disabled: '' }, 'Eliminar para siempre');
+      confirmIn.addEventListener('input', () => { delGo.disabled = confirmIn.value.trim().toUpperCase() !== 'ELIMINAR'; });
+      delGo.onclick = async () => {
+        delGo.disabled = true; delMsg.textContent = '';
+        const r = await api('/api/admin/student/delete', { userId: st.id });
+        if (!r.ok) { delMsg.textContent = r.data.error || 'No se pudo eliminar.'; delGo.disabled = false; return; }
+        try { localStorage.removeItem('yc-rt-draft:' + st.id); } catch {}
+        location.hash = '#alumnos';
+      };
+      delBox.append(el('strong', {}, 'Eliminar la cuenta de ' + st.name),
+        el('p', { class: 'muted', style: 'margin:0;font-size:13.5px' }, 'Se borran para siempre su plan, sus horas, sus rutinas, sus registros de entrenamiento y sus mediciones. Las horas confirmadas también salen de Google Calendar. No se puede deshacer.'),
+        el('label', {}, 'Para confirmar, escribe ELIMINAR', confirmIn), delMsg,
+        el('div', { class: 'row' }, delGo, el('button', { class: 'btn ghost small', type: 'button', onclick: () => { delBox.hidden = true; confirmIn.value = ''; delGo.disabled = true; } }, 'Cancelar')));
+      const planTxt = st.modality ? (st.modality === 'presencial' ? 'Presencial 1:1 · ' + (SEDE_NOMBRE[st.sede] || '') + ' · ' + (st.used ?? 0) + ' de ' + st.sessions_total + ' sesiones' : 'Asesoría online') + ' · vence ' + fmtDate(st.end_date) : 'Sin plan';
+      const head = el('div', { class: 'card ficha-head' },
+        el('span', { class: 'avatar big-av' }, initials(st.name)),
+        el('div', { style: 'flex:1;min-width:200px' }, el('h1', { style: 'margin:0' }, st.name), el('p', { class: 'muted', style: 'margin:4px 0 0;font-size:13.5px' }, st.email + ' · ' + planTxt)),
+        el('a', { class: 'btn ghost small', href: '#planes/' + st.id }, 'Editar plan'),
+        el('button', { class: 'btn ghost small danger', type: 'button', onclick: () => { delBox.hidden = false; confirmIn.focus(); } }, 'Eliminar cuenta'));
+      const segs = el('div', { class: 'seg', role: 'group', 'aria-label': 'Secciones de la ficha' },
+        ...[['rutina', 'Rutina'], ['progreso', 'Progreso']].map(([k, t]) => el('button', { type: 'button', 'aria-pressed': String(sub === k), onclick: () => { location.hash = '#alumno/' + st.id + (k === 'progreso' ? '/progreso' : ''); } }, t)));
+      let body;
+      if (sub === 'progreso') {
+        const mp = medPanel(st);
+        body = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Medidas'), mp.box);
+        mp.load();
+      } else {
+        const rp = routinePanel(st);
+        body = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Rutina de ' + st.name.split(' ')[0]), rp.box);
+        rp.load();
+      }
+      return [el('a', { class: 'back', href: '#alumnos' }, '‹ Alumnos'), head, delBox, segs, body];
+    }
+
+    // --- Planes ---
+    function planesView(editId) {
+      let filt = 'todos';
+      const dl = (s) => (s.end_date ? daysLeft(s.end_date) : null);
+      const expired = (s) => !!s.end_date && s.end_date < today;
+      const FILTERS = [['todos', 'Todos'], ['vigentes', 'Vigentes'], ['vence', 'Por vencer'], ['vencidos', 'Vencidos']];
+      const match = (s) => filt === 'vigentes' ? !!s.end_date && !expired(s) && dl(s) > 7 : filt === 'vence' ? !!s.end_date && !expired(s) && dl(s) <= 7 : filt === 'vencidos' ? !s.end_date || expired(s) : true;
+      const tbl = el('div', { class: 'card' });
+      const segBox = el('div', { class: 'seg', role: 'group', 'aria-label': 'Filtrar planes' });
+      function paint() {
+        segBox.replaceChildren(...FILTERS.map(([k, t]) => el('button', { type: 'button', 'aria-pressed': String(filt === k), onclick: () => { filt = k; paint(); } }, t)));
+        const shown = students.filter(match);
+        tbl.replaceChildren(shown.length ? el('div', { class: 'list' }, ...shown.map((s) => el('div', { class: 'plan-row' + (s.id === editId ? ' sel' : '') },
+          el('span', { class: 'avatar' }, initials(s.name)),
+          el('div', { class: 'stu-main' }, el('strong', {}, s.name),
+            el('span', { class: 'muted' }, s.modality ? (s.modality === 'presencial' ? 'Presencial 1:1 · ' + (SEDE_NOMBRE[s.sede] || '') : 'Online') + ' · ' + fmtDate(s.start_date) + ' al ' + fmtDate(s.end_date) : 'Sin plan')),
+          s.modality === 'presencial' ? el('span', { class: 'chip' }, (s.used ?? 0) + ' / ' + s.sessions_total) : '',
+          s.end_date && !expired(s) && dl(s) <= 7 ? el('span', { class: 'chip gold' }, 'Vence en ' + dl(s) + (dl(s) === 1 ? ' día' : ' días')) : (expired(s) ? el('span', { class: 'chip mute' }, 'Vencido') : ''),
+          el('a', { class: 'btn ghost small', href: '#planes/' + s.id }, 'Editar plan'))))
+          : el('p', { class: 'muted', style: 'margin:0' }, 'No hay planes en esta vista.'));
+      }
+      paint();
+      const st = editId ? students.find((x) => x.id === editId) : null;
+      return [
+        el('h2', { style: 'margin-top:0' }, 'Planes de las alumnas'),
+        ...(st ? [el('div', { class: 'card', style: 'border-color:rgba(255,109,180,.45)' },
+          el('div', { class: 'row', style: 'justify-content:space-between' }, el('h2', { style: 'margin:0' }, 'Editar plan · ' + st.name),
+            el('div', { class: 'row' }, el('a', { class: 'btn ghost small', href: '#alumno/' + st.id }, 'Volver a la ficha'), el('a', { class: 'btn ghost small', href: '#planes' }, 'Cerrar'))),
+          planPanel(st))] : []),
+        segBox, tbl,
+      ];
+    }
+
+    const mensajesView = () => [el('h2', { style: 'margin-top:0' }, 'Mensajes'),
+      el('section', { class: 'card', style: 'display:grid;gap:10px' },
+        el('p', { style: 'margin:0' }, 'Aquí van a llegar los mensajes de tus alumnas, con aviso cuando el asistente derive una duda de dolor, lesión o alimentación.'),
+        el('p', { class: 'muted', style: 'margin:0;font-size:13.5px' }, 'Todavía no está activo. Mientras tanto, las alumnas pueden escribirte por WhatsApp desde su portal.'))];
+
+    let content;
+    if (tab === 'agenda') content = ag.ok ? agendaSection(ag.data) : [el('p', { class: 'err' }, 'No se pudo cargar la agenda.')];
+    else if (tab === 'mensajes') content = mensajesView();
+    else if (tab === 'planes') content = planesView(parts[0] === 'planes' && parts[1] ? Number(parts[1]) : null);
+    else {
+      const st = parts[0] === 'alumno' ? students.find((x) => x.id === Number(parts[1])) : null;
+      content = st ? fichaView(st, parts[2] === 'progreso' ? 'progreso' : 'rutina') : alumnosView();
+    }
+    app.replaceChildren(top, tabsNav, el('div', { class: 'admview' }, ...content));
   }
+  const plain = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
   render();
 })();
 </script>

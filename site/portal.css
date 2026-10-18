@@ -417,3 +417,51 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .mv > summary{ cursor:pointer; font:700 12.5px/1.2 var(--f-text); color:var(--accent-soft); padding:4px 0 }
 .mv-body{ display:flex; flex-wrap:wrap; gap:6px; padding:6px 0 2px }
 .mv-body select{ min-height:38px; border-radius:10px; border:1.5px solid rgba(255,214,232,.15); background:rgba(255,255,255,.04); color:var(--fg); font:600 13px/1 var(--f-text); padding:0 8px; max-width:100% }
+
+/* ---- pestañas del portal de alumnas (barra inferior) ---- */
+.panel{ display:grid; gap:16px }
+.tabpanel{ display:grid; gap:16px }
+.kick{ font:400 15px/1 var(--f-display); letter-spacing:.14em; text-transform:uppercase; color:var(--accent-text) }
+.big{ font:400 clamp(20px,5vw,26px)/1.25 var(--f-display); letter-spacing:.02em; text-transform:uppercase }
+.bar{ height:10px; border-radius:999px; background:rgba(255,255,255,.1); overflow:hidden }
+.bar i{ display:block; height:100%; border-radius:inherit; background:var(--accent) }
+.wrap.has-tabs{ padding-bottom:120px }
+.tabbar{ position:fixed; left:0; right:0; bottom:0; z-index:15; border-top:1px solid rgba(255,214,232,.14); background:rgba(11,11,11,.94); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); padding:6px 6px calc(8px + env(safe-area-inset-bottom)) }
+.tabbar-in{ width:min(640px,100%); margin:0 auto; display:grid; grid-template-columns:repeat(5,1fr) }
+.tab{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:54px; font:700 11px/1 var(--f-text); letter-spacing:.02em; color:var(--muted); text-decoration:none; border-radius:14px }
+.tab svg{ width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round }
+.tab.on{ color:var(--accent-text) }
+.tab.on::before{ content:''; position:absolute; top:-7px; width:28px; height:3px; border-radius:3px; background:var(--accent) }
+body.tabs-on .mc-fab{ bottom:calc(84px + env(safe-area-inset-bottom)) }
+body.tabs-on .mc-panel{ bottom:calc(160px + env(safe-area-inset-bottom)); max-height:min(560px,calc(100dvh - 220px)) }
+
+/* ---- panel de Yohi: pestañas, lista de alumnas y ficha ---- */
+.tabs{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 20px }
+.tabs a{ display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 18px; border-radius:999px; border:1.5px solid rgba(255,214,232,.2); font:800 12.5px/1 var(--f-text); letter-spacing:.05em; text-transform:uppercase; color:var(--muted); text-decoration:none }
+.tabs a.on{ background:var(--accent); border-color:var(--accent); color:var(--on-accent) }
+.tabs svg{ width:17px; height:17px; stroke:currentColor; fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round }
+.nbadge{ display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:var(--accent); color:var(--on-accent); font:800 11px/1 var(--f-text) }
+.tabs a.on .nbadge{ background:var(--on-accent); color:var(--accent-soft) }
+.avatar{ display:inline-grid; place-items:center; flex:none; width:44px; height:44px; border-radius:50%; background:rgba(255,79,163,.18); border:1.5px solid rgba(255,109,180,.5); color:var(--accent-soft); font:800 14px/1 var(--f-text) }
+.avatar.big-av{ width:58px; height:58px; font-size:18px }
+.stu-list{ gap:0 }
+.stu{ display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid rgba(255,214,232,.1); color:var(--fg); text-decoration:none }
+.stu:last-child{ border-bottom:0 }
+.stu:hover .stu-go{ color:var(--accent-text) }
+.stu-main{ flex:1; min-width:0; display:grid; gap:2px }
+.stu-main span{ font-size:13px }
+.stu-go{ font-size:26px; line-height:1; color:var(--muted) }
+.plan-row{ display:flex; flex-wrap:wrap; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid rgba(255,214,232,.1) }
+.plan-row.sel{ background:rgba(255,79,163,.08); border-radius:14px; padding:12px }
+.ficha-head{ display:flex; flex-wrap:wrap; align-items:center; gap:14px }
+.back{ display:inline-block; margin-bottom:12px; font-weight:800; font-size:13px; letter-spacing:.04em; text-decoration:none; color:var(--muted) }
+.admview{ display:grid; gap:16px; align-content:start }
+.admview > h2, .admview > .seg, .admview > .row{ margin-bottom:0 }
+.btn.danger{ background:transparent; color:#FF9C9C; border:1.5px solid rgba(255,107,107,.55); box-shadow:none }
+.btn.danger:not(:disabled):hover{ background:rgba(255,107,107,.14) }
+.btn.danger:disabled{ opacity:.4; cursor:not-allowed }
+input[type=search]{ width:100%; min-height:48px; padding:0 16px; border-radius:16px; border:1.5px solid rgba(255,214,232,.18); background:rgba(255,255,255,.05); color:var(--fg); font:500 16px/1 var(--f-text) }
+.stu{ flex-wrap:wrap }
+.stu-main{ min-width:150px }
+.stu .chip{ margin-left:auto }
+@media (max-width:520px){ .stu-go{ display:none } }

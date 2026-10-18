@@ -293,11 +293,28 @@ async function adminPending(req, env) {
 async function adminStudents(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const { results } = await env.DB.prepare(
-    `SELECT u.id, u.name, u.email, p.modality, p.sede, p.sessions_total, p.start_date, p.end_date
+    `SELECT u.id, u.name, u.email, p.id AS plan_id, p.modality, p.sede, p.sessions_total, p.start_date, p.end_date,
+            (SELECT MAX(logged_on) FROM training_logs WHERE user_id = u.id) AS last_log
        FROM users u LEFT JOIN plans p ON p.id = (SELECT id FROM plans WHERE user_id = u.id ORDER BY id DESC LIMIT 1)
       WHERE u.role = 'student' AND u.status = 'active' ORDER BY u.name`,
   ).all();
+  for (const s of results) s.used = s.modality === 'presencial' ? await usedSessions(env, s.plan_id) : null;
   return json({ ok: true, students: results });
+}
+
+// Elimina la cuenta de una alumna y todo lo suyo (plan, reservas, rutinas, registros, mediciones). No se puede deshacer.
+async function adminDeleteStudent(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  const userId = Number(b && b.userId);
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
+  const u = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
+  if (!u) return fail(404, 'No se encontró a la alumna.');
+  // Quita del Google Calendar las horas que tenía agendadas (si está conectado).
+  const { results: bks } = await env.DB.prepare("SELECT id FROM bookings WHERE user_id = ? AND gcal_event_id IS NOT NULL").bind(userId).all();
+  for (const k of bks) await gcalRemove(env, k.id);
+  await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run(); // el resto se borra en cascada
+  return json({ ok: true });
 }
 
 async function adminApprove(req, env) {
@@ -1110,6 +1127,7 @@ export default {
         case 'GET /api/admin/students': return await adminStudents(req, env);
         case 'POST /api/admin/approve': return await adminApprove(req, env);
         case 'POST /api/admin/reject': return await adminReject(req, env);
+        case 'POST /api/admin/student/delete': return await adminDeleteStudent(req, env);
         case 'GET /api/agenda': return await agenda(req, env);
         case 'POST /api/bookings': return await createBooking(req, env);
         case 'POST /api/bookings/cancel': return await cancelBooking(req, env);

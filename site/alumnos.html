@@ -34,30 +34,11 @@
       el('p', { class: 'hello' }, 'Hola, ' + user.name.split(' ')[0])),
     el('button', { class: 'btn ghost small', type: 'button', onclick: logout }, 'Cerrar sesión'));
 
-  const cards = [];
-  if (plan) {
-    const left = daysLeft(plan.end_date);
-    const facts = [
-      el('p', {}, el('span', { class: 'chip' }, plan.modality === 'presencial' ? 'Presencial 1:1' : 'Asesoría online')),
-    ];
-    if (plan.modality === 'presencial') {
-      facts.push(el('h1', {}, plan.sessions_total + ' sesiones'));
-      facts.push(el('p', { class: 'muted' }, SEDE_NOMBRE[plan.sede] || ''));
-    } else {
-      facts.push(el('h1', {}, 'Asesoría online'));
-    }
-    facts.push(el('p', {}, 'Del ', el('strong', {}, fmtDate(plan.start_date)), ' al ', el('strong', {}, fmtDate(plan.end_date)), ' · ',
-      el('span', { class: 'chip gold' }, left + (left === 1 ? ' día' : ' días'))));
-    cards.push(el('section', { class: 'card' }, ...facts));
-  } else {
-    cards.push(el('section', { class: 'card' }, el('h1', {}, 'Tu plan'), el('p', { class: 'muted' }, 'Yohi aún no ha cargado tu plan.')));
-  }
-  const agendaBox = el('section', { class: 'card', id: 'agenda', style: 'grid-column:1/-1' });
-  if (plan && plan.modality === 'presencial') cards.push(agendaBox);
-  const trainingBox = el('section', { class: 'card', id: 'entrenamiento', style: 'grid-column:1/-1' });
-  cards.push(trainingBox);
-  const medBox = el('section', { class: 'card', id: 'mediciones', style: 'grid-column:1/-1' });
-  cards.push(medBox);
+  const agendaBox = el('section', { class: 'card', id: 'agenda' });
+  const trainingBox = el('section', { class: 'card', id: 'entrenamiento' });
+  const medBox = el('section', { class: 'card', id: 'mediciones' });
+  const homeBox = el('div', { class: 'panel' }, el('p', { class: 'muted' }, 'Cargando…'));
+  const presencial = !!(plan && plan.modality === 'presencial');
 
   const METRICS = [['weight_kg', 'Peso', 'kg'], ['fat_pct', 'Grasa', '%'], ['muscle_kg', 'Músculo', 'kg']];
   let metric = 'weight_kg';
@@ -152,11 +133,125 @@
       days.length ? el('div', { class: 'days' }, ...days) : el('p', { class: 'muted' }, 'Yohi aún no abre horarios. Vuelve pronto.'),
       msg);
   }
-  if (plan && plan.modality === 'presencial') renderAgenda();
+  if (presencial) renderAgenda();
 
-  app.replaceChildren(top, el('div', { class: 'grid' }, ...cards),
+  if (!presencial) agendaBox.replaceChildren(el('h2', { style: 'margin-top:0' }, 'Agenda'),
+    el('p', { class: 'muted' }, plan ? 'Tu plan es de asesoría online, así que no tiene sesiones presenciales para agendar.' : 'Cuando Yohi cargue tu plan, aquí podrás pedir tus horas.'));
+
+  // ---- Inicio ----
+  const plain = (t) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const WEEKDAYS = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+  const todayIso = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+  const dayNameForStudent = (label, n) => {
+    const t = plain(label), m = t.match(/\bdia\s*(\d+)/);
+    if (m) return 'Día ' + m[1];
+    return /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.test(t) ? 'Día ' + (n + 1) : label;
+  };
+  function todayGroup(rd) {
+    if (!rd || !rd.routine || !rd.exercises.length) return null;
+    const groups = [];
+    for (const ex of rd.exercises) {
+      const d = (ex.day || '').trim();
+      let g = groups.find((x) => x.day === d);
+      if (!g) { g = { day: d, items: [] }; groups.push(g); }
+      g.items.push(ex);
+    }
+    const done = (ex) => rd.logs.filter((l) => l.exercise_id === ex.id && l.set_type === 'work').length >= ex.sets;
+    const wd = WEEKDAYS[new Date(todayIso + 'T12:00:00Z').getUTCDay()];
+    let n = 0;
+    groups.forEach((g) => { g.label = g.day ? dayNameForStudent(g.day, n++) : 'Tu rutina'; g.done = g.items.filter(done).length; });
+    let pick = groups.find((g) => plain(g.day).includes(wd)) || null;
+    if (!pick && rd.routine.day_on === todayIso) pick = groups[0];
+    if (!pick) pick = groups.find((g) => g.done < g.items.length) || groups[groups.length - 1];
+    return pick;
+  }
+  async function renderHome() {
+    const [rt, ag] = await Promise.all([api('/api/routine'), presencial ? api('/api/agenda') : Promise.resolve(null)]);
+    const kids = [];
+    // Plan
+    const left = plan ? daysLeft(plan.end_date) : 0;
+    if (plan) {
+      const used = ag && ag.ok && ag.data.plan ? ag.data.plan.used : null;
+      kids.push(el('section', { class: 'card', style: 'display:grid;gap:10px' },
+        el('div', { class: 'row', style: 'justify-content:space-between' },
+          el('span', { class: 'chip' }, presencial ? 'Presencial 1:1' : 'Asesoría online'),
+          el('span', { class: 'chip gold' }, left + (left === 1 ? ' día' : ' días'))),
+        presencial
+          ? el('h1', { style: 'margin:0' }, used === null ? plan.sessions_total + ' sesiones' : used + ' de ' + plan.sessions_total + ' sesiones')
+          : el('h1', { style: 'margin:0' }, 'Asesoría online'),
+        presencial && used !== null ? el('div', { class: 'bar', role: 'img', 'aria-label': used + ' de ' + plan.sessions_total + ' sesiones usadas' }, el('i', { style: 'width:' + Math.min(100, Math.round((used / plan.sessions_total) * 100)) + '%' })) : '',
+        el('p', { class: 'muted', style: 'margin:0;font-size:13.5px' }, (presencial ? (SEDE_NOMBRE[plan.sede] || '') + ' · ' : '') + 'plan vigente hasta el ' + fmtDate(plan.end_date))));
+    } else {
+      kids.push(el('section', { class: 'card' }, el('h1', {}, 'Tu plan'), el('p', { class: 'muted', style: 'margin:0' }, 'Yohi aún no ha cargado tu plan.')));
+    }
+    // Hoy te toca
+    const g = rt.ok ? todayGroup(rt.data) : null;
+    const goTo = (hash, text, ghost) => el('a', { class: 'btn' + (ghost ? ' ghost' : ''), href: hash }, text);
+    kids.push(el('section', { class: 'card', style: 'display:grid;gap:10px;border-color:rgba(255,109,180,.45)' },
+      el('div', { class: 'row', style: 'justify-content:space-between' }, el('span', { class: 'kick' }, 'Hoy te toca'),
+        g ? el('span', { class: 'chip' + (g.done === g.items.length ? '' : ' gold') }, g.done === g.items.length ? 'Completado' : g.done + '/' + g.items.length + ' ejercicios') : ''),
+      g ? el('p', { class: 'big', style: 'margin:0' }, g.label + ' · ' + g.items.length + (g.items.length === 1 ? ' ejercicio' : ' ejercicios'))
+        : el('p', { class: 'muted', style: 'margin:0' }, 'Yohi aún no ha cargado tu rutina. Aparecerá aquí cuando esté lista.'),
+      g ? goTo('#rutina', 'Ir a mi rutina') : ''));
+    // Próxima sesión
+    if (presencial && ag && ag.ok && ag.data.plan) {
+      const next = ag.data.mine[0];
+      kids.push(el('section', { class: 'card', style: 'display:grid;gap:8px' },
+        el('span', { class: 'kick' }, 'Próxima sesión'),
+        next
+          ? el('div', { class: 'row', style: 'justify-content:space-between' },
+              el('p', { class: 'big', style: 'margin:0' }, dayLabel(next.day) + ' · ' + next.time),
+              el('span', { class: 'badge ' + STATUS[next.status][1] }, STATUS[next.status][0]))
+          : el('p', { class: 'muted', style: 'margin:0' }, ag.data.plan.left > 0 ? 'Aún no tienes una hora pedida. Te quedan ' + ag.data.plan.left + (ag.data.plan.left === 1 ? ' sesión.' : ' sesiones.') : 'Ya usaste todas las sesiones de tu plan.'),
+        goTo('#agenda', next ? 'Ver mi agenda' : 'Pedir una hora', true)));
+    }
+    homeBox.replaceChildren(...kids);
+  }
+
+  // ---- Chat (por ahora: Mocca y WhatsApp) ----
+  const chatBox = el('section', { class: 'card', style: 'display:grid;gap:12px' },
+    el('h2', { style: 'margin:0' }, 'Chat'),
+    el('p', { class: 'muted', style: 'margin:0' }, 'Muy pronto vas a poder escribirle a Yohi desde aquí y ver sus respuestas. Mientras tanto:'),
+    el('div', { class: 'row' },
+      el('button', { class: 'btn', type: 'button', onclick: () => { const f = document.querySelector('.mc-fab'); if (f) f.click(); } }, 'Preguntarle a Mocca'),
+      el('a', { class: 'btn ghost', href: 'https://wa.me/' + WA_NUM, target: '_blank', rel: 'noopener' }, 'Escribir a Yohi por WhatsApp')),
+    el('p', { class: 'muted', style: 'margin:0;font-size:12.5px' }, 'Mocca resuelve dudas del portal. Dolor, lesiones y alimentación las ve Yohi directamente.'));
+
+  // ---- Pestañas ----
+  const ICON = {
+    inicio: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>',
+    rutina: '<path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/>',
+    progreso: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+    chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+    agenda: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  };
+  const TABS = [['inicio', 'Inicio', homeBox], ['rutina', 'Rutina', trainingBox], ['progreso', 'Progreso', medBox], ['chat', 'Chat', chatBox], ['agenda', 'Agenda', agendaBox]];
+  const panels = {};
+  const main = el('div', {});
+  for (const [id, , node] of TABS) { const w = el('div', { class: 'tabpanel', id: 'tab-' + id, hidden: '' }, node); panels[id] = w; main.append(w); }
+  const links = {};
+  const nav = el('nav', { class: 'tabbar', 'aria-label': 'Secciones' }, el('div', { class: 'tabbar-in' }, ...TABS.map(([id, label]) => {
+    const a = el('a', { class: 'tab', href: '#' + id });
+    a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[id] + '</svg>';
+    a.append(label); links[id] = a; return a;
+  })));
+  let started = false;
+  function showTab() {
+    const id = panels[location.hash.slice(1)] ? location.hash.slice(1) : 'inicio';
+    for (const k of Object.keys(panels)) { panels[k].hidden = k !== id; links[k].classList.toggle('on', k === id); if (k === id) links[k].setAttribute('aria-current', 'page'); else links[k].removeAttribute('aria-current'); }
+    if (id === 'inicio' && started) renderHome();
+    started = true;
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener('hashchange', showTab);
+
+  app.classList.add('has-tabs'); document.body.classList.add('tabs-on');
+  app.replaceChildren(top, main,
     el('p', { class: 'muted', style: 'margin-top:24px;font-size:13px' },
       'Tus datos están protegidos. ', el('a', { href: '/privacidad' }, 'Política de privacidad'), ' · ', el('a', { href: '/terminos' }, 'Términos')));
+  document.body.append(nav);
+  renderHome();
+  showTab();
 })();
 </script>
 </body>
