@@ -1,4 +1,5 @@
 import { gcalConfigured, gcalCreate, gcalDelete } from './gcal.js';
+import { mailConfigured, mailConfig, bookingEmail, sendMail } from './mail.js';
 // Portal de alumnos de Yohi Coach — API sobre Cloudflare Workers + D1.
 // Solo atiende /api/*; el resto del sitio lo sirven los archivos estáticos (ASSETS).
 
@@ -492,6 +493,16 @@ async function gcalRemove(env, id) {
   } catch (e) { console.error('gcal remove', e.message); return 'error'; }
 }
 const SEDE_LABEL = { quilpue: 'Quilpué', vina: 'Viña del Mar', quillota: 'Quillota' };
+// Aviso por correo a la alumna cuando Yohi confirma o mueve su hora. 'off' | 'ok' | 'error'
+async function mailBooking(env, id, kind) {
+  if (!mailConfigured(env)) return 'off';
+  try {
+    const r = await env.DB.prepare('SELECT b.day, b.time, b.sede, u.name, u.email FROM bookings b JOIN users u ON u.id = b.user_id WHERE b.id = ?').bind(id).first();
+    if (!r || !r.email) return 'error';
+    const msg = bookingEmail({ name: r.name, day: r.day, time: r.time, sedeName: 'Fitnex ' + (SEDE_LABEL[r.sede] || ''), kind, site: mailConfig(env).site });
+    return await sendMail(env, { to: r.email, ...msg });
+  } catch (e) { console.error('mailBooking', e.message); return 'error'; }
+}
 
 async function adminGcalSync(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
@@ -527,7 +538,7 @@ async function adminAgenda(req, env) {
     `SELECT b.id, b.day, b.time, b.status, b.sede, u.name FROM bookings b JOIN users u ON u.id = b.user_id
       WHERE b.status IN ('requested','confirmed') AND b.day >= ? ORDER BY b.day, b.time`,
   ).bind(today).all();
-  return json({ ok: true, today, days: days.map((d) => ({ day: d.day, mode: d.mode, sede: d.sede, custom: !!d.slots, slots: d.mode === 'closed' ? [] : slotsOf(d) })), bookings, gcal: gcalConfigured(env) });
+  return json({ ok: true, today, days: days.map((d) => ({ day: d.day, mode: d.mode, sede: d.sede, custom: !!d.slots, slots: d.mode === 'closed' ? [] : slotsOf(d) })), bookings, gcal: gcalConfigured(env), mail: mailConfigured(env) });
 }
 
 async function adminOpenDay(req, env) {
@@ -578,8 +589,9 @@ async function adminMoveBooking(env, id, day, time) {
   } catch { return fail(409, 'Esa hora acaba de ser tomada. Elige otra.'); }
   // Google Calendar: el evento viejo se borra y se crea uno nuevo en la hora nueva.
   let gcal = 'off';
-  if (bk.status === 'confirmed') { gcal = await gcalRemove(env, id); if (gcal !== 'error') gcal = await gcalAdd(env, id); }
-  return json({ ok: true, gcal });
+  let mail = 'off';
+  if (bk.status === 'confirmed') { gcal = await gcalRemove(env, id); if (gcal !== 'error') gcal = await gcalAdd(env, id); mail = await mailBooking(env, id, 'moved'); }
+  return json({ ok: true, gcal, mail });
 }
 
 async function adminBooking(req, env) {
@@ -594,7 +606,8 @@ async function adminBooking(req, env) {
   const row = await env.DB.prepare('SELECT status FROM bookings WHERE id = ?').bind(id).first();
   if (!row || row.status !== next) return fail(404, 'La reserva ya no está en ese estado.');
   const gcal = next === 'confirmed' ? await gcalAdd(env, id) : await gcalRemove(env, id);
-  return json({ ok: true, gcal });
+  const mail = next === 'confirmed' ? await mailBooking(env, id, 'confirmed') : 'off';
+  return json({ ok: true, gcal, mail });
 }
 
 /* ---------- mediciones (datos de salud: solo con autorización expresa) ---------- */

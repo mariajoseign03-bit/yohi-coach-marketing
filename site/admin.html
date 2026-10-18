@@ -86,6 +86,14 @@
     const msg = el('p', { class: 'err', role: 'alert' });
     const pendingBox = el('div');
     const calBox = el('div');
+    // Resultado de Google Calendar y del correo de aviso a la alumna.
+    const outcome = (d, doneText) => {
+      const bad = [];
+      if (d.gcal === 'error') bad.push('no se pudo actualizar Google Calendar (usa «Sincronizar»)');
+      if (d.mail === 'error') bad.push('no se pudo enviar el correo de aviso a la alumna');
+      msg.className = bad.length ? 'err' : 'ok';
+      msg.textContent = bad.length ? doneText + ', pero ' + bad.join(' y ') + '.' : (d.mail === 'ok' ? doneText + '. Le llegó un correo de aviso a la alumna.' : '');
+    };
 
     async function refresh() {
       const r = await api('/api/admin/agenda');
@@ -95,7 +103,7 @@
       if (action !== 'confirm' && !confirm('¿' + label + ' esta hora? La sesión vuelve al plan de la alumna.')) return;
       const r = await api('/api/admin/booking', { id, action });
       if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return; }
-      msg.textContent = r.data.gcal === 'error' ? 'Listo, pero no se pudo actualizar Google Calendar. Usa «Sincronizar».' : '';
+      outcome(r.data, action === 'confirm' ? 'Hora confirmada' : 'Listo');
       refresh();
     }
     async function syncGcal(btn) {
@@ -166,7 +174,7 @@
         const r = await api('/api/admin/booking', { id: b.id, action: 'move', day: daySel.value, time: timeSel.value });
         go.disabled = false;
         if (!r.ok) { msg.textContent = r.data.error || 'No se pudo mover.'; return; }
-        msg.textContent = r.data.gcal === 'error' ? 'Movida, pero no se pudo actualizar Google Calendar. Usa «Sincronizar».' : '';
+        outcome(r.data, 'Hora movida');
         agState.week = mondayOf(daySel.value); agState.month = daySel.value.slice(0, 7);
         refresh();
       };
@@ -288,6 +296,7 @@
         ag.gcal
           ? el('div', { class: 'row', style: 'align-items:center;gap:10px;margin:6px 0' }, el('span', { class: 'muted' }, '📅 Conectado a Google Calendar: las horas confirmadas aparecen allí solas.'), syncBtn)
           : el('p', { class: 'muted' }, '📅 Google Calendar sin conectar.'),
+        el('p', { class: 'muted', style: 'margin:6px 0' }, ag.mail ? '✉️ Correos de aviso activos: la alumna recibe un correo cuando confirmas o mueves su hora.' : '✉️ Correos de aviso sin conectar: por ahora la alumna solo ve el cambio en su portal.'),
         ...calendar(byDay, openMap));
     }
     paint();
