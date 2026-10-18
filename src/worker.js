@@ -817,9 +817,14 @@ async function adminRoutine(req, env) {
   }
   const { results: old } = await env.DB.prepare('SELECT id, name, day FROM routine_exercises WHERE routine_id = ?').bind(routine.id).all();
   const keyOf = (n, d) => String(n).trim().toLowerCase() + '|' + String(d || '').trim().toLowerCase();
-  const pool = new Map();
-  for (const o of old) { const k = keyOf(o.name, o.day); if (!pool.has(k)) pool.set(k, []); pool.get(k).push(o.id); }
+  // 1) Si el editor manda el id del ejercicio (porque se está editando una rutina existente), se conserva aunque cambie
+  //    el nombre del día o del ejercicio: así no se pierden los registros de la alumna.
+  const oldIds = new Set(old.map((o) => o.id));
   const keep = new Set();
+  const assigned = exs.map((ex) => { const w = Number(ex.id); if (Number.isInteger(w) && oldIds.has(w) && !keep.has(w)) { keep.add(w); return w; } return null; });
+  // 2) Los demás se emparejan por nombre y día, como antes.
+  const pool = new Map();
+  for (const o of old) { if (keep.has(o.id)) continue; const k = keyOf(o.name, o.day); if (!pool.has(k)) pool.set(k, []); pool.get(k).push(o.id); }
   const stmts = [];
   exs.forEach((ex, i) => {
     const vals = [
@@ -831,9 +836,9 @@ async function adminRoutine(req, env) {
       String(ex.day || '').trim().slice(0, 30),
       String(ex.notes || '').slice(0, 300),
     ];
-    const ids = pool.get(keyOf(ex.name, ex.day));
-    if (ids && ids.length) {
-      const id = ids.shift(); keep.add(id);
+    let id = assigned[i];
+    if (id == null) { const ids = pool.get(keyOf(ex.name, ex.day)); if (ids && ids.length) { id = ids.shift(); keep.add(id); } }
+    if (id != null) {
       stmts.push(env.DB.prepare('UPDATE routine_exercises SET pos = ?, name = ?, sets = ?, reps = ?, rest_sec = ?, warmup_sets = ?, day = ?, notes = ? WHERE id = ?').bind(i, ...vals, id));
     } else {
       stmts.push(env.DB.prepare('INSERT INTO routine_exercises (routine_id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(routine.id, i, ...vals));

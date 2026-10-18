@@ -500,7 +500,12 @@
     }
     function routinePanel(st) {
       const box = el('div', { style: 'margin-top:12px' }, el('p', { class: 'muted' }, 'Cargando…'));
-      let exercises = [{ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: '', notes: '' }];
+      // Cada ejercicio lleva un id de grupo interno (_g) para poder renombrar o borrar un día completo sin que se mezclen los nombres.
+      let gSeq = 0;
+      const tagGroups = (list) => { const m = new Map(); return list.map((x) => { const k = (x.day || '').trim(); if (!m.has(k)) m.set(k, ++gSeq); return { ...x, _g: m.get(k) }; }); };
+      const blankEx = (day, g) => ({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: day || '', notes: '', _g: g });
+      let exercises = [blankEx('', ++gSeq)];
+      let editingId = null;
       const weekIn = el('input', { name: 'week_of', type: 'date', value: (() => { const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)).toISOString().slice(0, 10); })() });
       const nameIn = el('input', { name: 'name', type: 'text', placeholder: 'Nombre de la rutina (opcional)' });
       // Semanal (varios días, desde el lunes) o diaria (una fecha puntual).
@@ -514,13 +519,12 @@
       kindSel.addEventListener('change', () => syncKind(false));
 
       function exRow(ex, idx) {
-        const rm = el('button', { type: 'button', class: 'btn ghost small', style: 'padding:4px 8px', onclick: () => { exercises.splice(idx, 1); renderForm(); } }, '✕');
+        const rm = el('button', { type: 'button', class: 'btn ghost small', style: 'padding:4px 8px', 'aria-label': 'Borrar ejercicio', onclick: () => { exercises.splice(exercises.indexOf(ex), 1); renderForm(); } }, '✕');
         const nameI = el('input', { type: 'text', placeholder: 'Ej: Press banca', value: ex.name, oninput: (e) => { ex.name = e.target.value; } });
         const setsI = el('input', { type: 'number', min: '1', max: '20', value: ex.sets, style: 'width:60px', oninput: (e) => { ex.sets = Number(e.target.value); } });
         const repsI = el('input', { type: 'text', placeholder: '8-12', value: ex.reps, style: 'width:70px', oninput: (e) => { ex.reps = e.target.value; } });
         const restI = el('input', { type: 'number', min: '0', max: '600', value: ex.restSec, style: 'width:70px', oninput: (e) => { ex.restSec = Number(e.target.value); } });
         const warmI = el('input', { type: 'number', min: '0', max: '5', value: ex.warmupSets, style: 'width:60px', oninput: (e) => { ex.warmupSets = Number(e.target.value); } });
-        const dayI = el('input', { type: 'text', placeholder: 'Día (Lunes, Día 1…)', maxlength: '30', value: ex.day || '', style: 'max-width:150px', oninput: (e) => { ex.day = e.target.value; } });
         const noteI = el('input', { type: 'text', placeholder: 'Nota para la alumna', value: ex.notes, oninput: (e) => { ex.notes = e.target.value; } });
         return el('div', { class: 'routine-ex' },
           el('div', { class: 'routine-ex-head' },
@@ -531,16 +535,33 @@
             el('label', { style: 'font-size:12px' }, 'Reps', repsI),
             el('label', { style: 'font-size:12px' }, 'Desc (s)', restI),
             el('label', { style: 'font-size:12px' }, 'Calent.', warmI)),
-          el('div', { style: 'margin-top:6px;display:flex;gap:8px;flex-wrap:wrap' }, dayI, el('div', { style: 'flex:1;min-width:160px' }, noteI)));
+          el('div', { style: 'margin-top:6px' }, noteI));
       }
 
       const exList = el('div');
       const msg = el('p', { class: 'err', role: 'alert' });
       const go = el('button', { class: 'btn small', type: 'submit' }, 'Guardar rutina');
-      const addBtn = el('button', { type: 'button', class: 'btn ghost small', style: 'margin-top:8px', onclick: () => { exercises.push({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: (exercises[exercises.length - 1] || {}).day || '', notes: '' }); renderForm(); } }, '+ Ejercicio');
+      const addBtn = el('button', { type: 'button', class: 'btn ghost small', style: 'margin-top:8px', onclick: () => { exercises.push(blankEx('Día ' + (groupOrder().length + 1), ++gSeq)); renderForm(); } }, '+ Agregar día');
+      const groupOrder = () => [...new Set(exercises.map((x) => x._g))];
+      function dayBlock(g) {
+        const items = exercises.filter((x) => x._g === g);
+        const nameIn2 = el('input', { type: 'text', class: 'day-name-in', placeholder: 'Nombre del día (Lunes, Día 1…) — opcional', maxlength: '30', 'aria-label': 'Nombre del día', value: items[0].day || '',
+          oninput: (e) => { for (const x of exercises) if (x._g === g) x.day = e.target.value; } });
+        const delDay = el('button', { type: 'button', class: 'btn ghost small danger', onclick: () => {
+          const n = items.filter((x) => x.name.trim()).length;
+          if (n && !confirm('¿Borrar ' + (items[0].day ? '«' + items[0].day + '»' : 'este día') + ' con sus ' + n + (n === 1 ? ' ejercicio' : ' ejercicios') + '? (Se aplica al tocar «Guardar rutina».)')) return;
+          exercises = exercises.filter((x) => x._g !== g);
+          if (!exercises.length) exercises = [blankEx('', ++gSeq)];
+          renderForm();
+        } }, 'Borrar día');
+        const addEx = el('button', { type: 'button', class: 'btn ghost small', onclick: () => { exercises.push(blankEx(items[0].day, g)); renderForm(); } }, '+ Ejercicio');
+        return el('div', { class: 'day-block' },
+          el('div', { class: 'day-block-head' }, nameIn2, delDay),
+          ...items.map((x, i) => exRow(x, i)), addEx);
+      }
 
       let draftReady = false;
-      function renderForm() { exList.replaceChildren(...exercises.map(exRow)); if (draftReady) setTimeout(saveDraft, 0); }
+      function renderForm() { exList.replaceChildren(...groupOrder().map(dayBlock)); if (draftReady) setTimeout(saveDraft, 0); }
 
       // Borrador automático del formulario de rutina (series, reps, descanso…): sobrevive a cambiar de página o tocar otra cosa.
       const rtDraftKey = 'yc-rt-draft:' + st.id;
@@ -558,7 +579,7 @@
         try {
           const d = JSON.parse(localStorage.getItem(rtDraftKey) || 'null');
           if (!d || !Array.isArray(d.exercises) || !d.exercises.length) return false;
-          exercises = d.exercises; kindSel.value = d.kind === 'day' ? 'day' : 'week'; weekIn.value = d.week || weekIn.value; nameIn.value = d.name || '';
+          exercises = tagGroups(d.exercises); kindSel.value = d.kind === 'day' ? 'day' : 'week'; weekIn.value = d.week || weekIn.value; nameIn.value = d.name || '';
           syncKind(true); renderForm();
           draftNote.textContent = '💾 Recuperamos tu borrador sin guardar. Revisa y toca «Guardar rutina».';
           return true;
@@ -575,7 +596,7 @@
           const r = await RoutineReader.read(f);
           if (!r.exercises.length) { upMsg.className = 'err'; upMsg.textContent = 'No pude encontrar ejercicios en ese archivo. Revisa que tenga ejercicio, series y repeticiones, o escríbelos abajo.'; }
           else {
-            exercises = r.exercises; if (!nameIn.value) nameIn.value = f.name.replace(/\.[^.]+$/, '').slice(0, 60);
+            exercises = tagGroups(r.exercises); if (!nameIn.value) nameIn.value = f.name.replace(/\.[^.]+$/, '').slice(0, 60);
             renderForm(); upMsg.className = 'ok';
             upMsg.textContent = 'Leí ' + r.exercises.length + (r.exercises.length === 1 ? ' ejercicio' : ' ejercicios') + '. Revisa los datos' + (r.missingRest ? ' (en ' + r.missingRest + ' no encontré el descanso y puse 90 s)' : '') + ', elige la semana y toca Guardar rutina.';
           }
@@ -583,8 +604,15 @@
         upBtn.disabled = false; fileIn.value = '';
       });
 
+      const delAll = el('button', { type: 'button', class: 'btn ghost small danger', hidden: '', onclick: async () => {
+        if (!editingId || !confirm('¿Borrar la rutina completa? Se pierden también los registros de la alumna en esa rutina.')) return;
+        await api('/api/admin/routine/delete', { id: editingId });
+        editingId = null; syncEditing(); exercises = [blankEx('', ++gSeq)]; nameIn.value = ''; clearDraft(); renderForm(); loadRoutines();
+      } }, 'Borrar rutina completa');
+      const editNote = el('p', { class: 'muted', role: 'status', style: 'font-size:13px;margin:0', hidden: '' }, '✏️ Estás editando una rutina que ya existe. Al guardar, reemplaza a la anterior de esa fecha.');
+      function syncEditing() { delAll.hidden = !editingId; editNote.hidden = !editingId; }
       const form = el('form', { class: 'form', novalidate: '' },
-        el('div', { style: 'margin-bottom:10px' }, upBtn, fileIn, upMsg),
+        el('div', { class: 'row', style: 'margin-bottom:10px' }, upBtn, delAll), fileIn, upMsg, editNote,
         el('label', {}, 'Tipo de rutina', kindSel),
         dateLbl,
         el('label', {}, 'Nombre', nameIn),
@@ -595,15 +623,15 @@
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault(); msg.textContent = ''; go.disabled = true;
-        const valid = exercises.filter(x => x.name.trim());
+        const valid = groupOrder().flatMap((g) => exercises.filter((x) => x._g === g)).filter(x => x.name.trim());
         if (!valid.length) { msg.textContent = 'Agrega al menos un ejercicio con nombre.'; go.disabled = false; return; }
         const r = await api('/api/admin/routine', {
           userId: st.id, weekOf: weekIn.value, daily: kindSel.value === 'day', name: nameIn.value,
-          exercises: valid.map(x => ({ name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets ?? 1, day: (x.day || '').trim(), notes: x.notes || '' }))
+          exercises: valid.map(x => ({ id: x.id, name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets ?? 1, day: (x.day || '').trim(), notes: x.notes || '' }))
         });
         go.disabled = false;
         if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
-        msg.className = 'ok'; msg.textContent = '✓ Rutina guardada'; clearDraft();
+        msg.className = 'ok'; msg.textContent = '✓ Rutina guardada'; clearDraft(); editingId = null; syncEditing();
         loadRoutines();
       });
 
@@ -679,8 +707,8 @@
             kindSel.value = rt.day_on ? 'day' : 'week'; weekIn.value = rt.week_of; syncKind(true); nameIn.value = rt.name || '';
             const rd = await api('/api/admin/routine?id=' + rt.id);
             if (rd.ok) {
-              exercises = rd.data.exercises.map(ex => ({ name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '' }));
-              renderForm();
+              exercises = tagGroups(rd.data.exercises.map(ex => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '' })));
+              editingId = rt.id; syncEditing(); renderForm();
             }
           } }, 'Editar');
           return el('div', { style: 'padding:8px 0;border-bottom:1px solid rgba(255,214,232,.1)' },
