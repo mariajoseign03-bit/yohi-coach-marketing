@@ -1,15 +1,16 @@
-// Avisos por correo con Cloudflare Email Service (API REST). Si faltan los secretos, todo es un no-op y el portal sigue igual.
-// Secretos: CF_ACCOUNT_ID, EMAIL_API_TOKEN (permiso «Email Sending: Edit»). Opcionales: MAIL_FROM, MAIL_FROM_NAME, SITE_URL.
+// Avisos por correo. Proveedor preferido: Resend (secreto RESEND_API_KEY). Alternativa: Cloudflare Email Service (CF_ACCOUNT_ID + EMAIL_API_TOKEN).
+// Si faltan los secretos, todo es un no-op y el portal sigue igual. Opcionales: MAIL_FROM, MAIL_FROM_NAME, SITE_URL.
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 
 export function mailConfig(env) {
-  if (!env.CF_ACCOUNT_ID || !env.EMAIL_API_TOKEN) return null;
-  return {
-    account: env.CF_ACCOUNT_ID.trim(), token: env.EMAIL_API_TOKEN.trim(),
+  const common = {
     from: (env.MAIL_FROM || 'hola@yohicoach.cl').trim(), fromName: (env.MAIL_FROM_NAME || 'Yohi Coach').trim(),
     site: (env.SITE_URL || 'https://yohicoach.cl').replace(/\/+$/, ''),
   };
+  if (env.RESEND_API_KEY && env.RESEND_API_KEY.trim()) return { ...common, provider: 'resend', token: env.RESEND_API_KEY.trim() };
+  if (env.CF_ACCOUNT_ID && env.EMAIL_API_TOKEN) return { ...common, provider: 'cloudflare', account: env.CF_ACCOUNT_ID.trim(), token: env.EMAIL_API_TOKEN.trim() };
+  return null;
 }
 export const mailConfigured = (env) => !!mailConfig(env);
 
@@ -54,6 +55,16 @@ export async function sendMail(env, { to, subject, text, html }) {
   const c = mailConfig(env);
   if (!c) return 'off';
   try {
+    if (c.provider === 'resend') {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${c.token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ from: `${c.fromName} <${c.from}>`, to: [to], subject, text, html }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.id) { console.error('mail resend', res.status, JSON.stringify(data).slice(0, 300)); return 'error'; }
+      return 'ok';
+    }
     const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(c.account)}/email/sending/send`, {
       method: 'POST',
       headers: { authorization: `Bearer ${c.token}`, 'content-type': 'application/json' },
