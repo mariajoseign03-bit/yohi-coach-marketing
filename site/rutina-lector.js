@@ -113,7 +113,7 @@
     return null;
   }
   const cleanName = (s) => clean(s).replace(/^\s*(?:\d{1,2}\s*[.)\-–]|[•·*\-–])\s*/, '').replace(/[:\-–|]+$/, '').trim();
-  const BAD_NAME = /^(ejercicios?|series?|reps?|repeticiones|descanso|pausa|nota|notas|observaciones?|calentamiento|total|semana|dia|rutina|plan|nombre|alumna?|fecha|rir|peso|kg|tempo|carga)\b/;
+  const BAD_NAME = /^(ejercicios?|series?|reps?|repeticiones|descanso|pausa|nota|notas|observaciones?|calentamiento|total|semana|dia|rutina|plan|nombre|alumn[ao]|fecha|rir|peso|kg|tempo|carga)\b/;
   const okName = (n) => n.length >= 3 && n.length <= 80 && /[a-záéíóúñ]{3}/i.test(n) && !BAD_NAME.test(norm(n)) && !DAY_RE.test(norm(n));
   const WEEKDAY_RE = /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/;
   function normDay(label, idx) {

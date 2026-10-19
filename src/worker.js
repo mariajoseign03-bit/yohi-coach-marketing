@@ -303,14 +303,14 @@ async function adminStudents(req, env) {
   return json({ ok: true, students: results });
 }
 
-// Elimina la cuenta de una alumna y todo lo suyo (plan, reservas, rutinas, registros, mediciones). No se puede deshacer.
+// Elimina la cuenta de un alumno y todo lo suyo (plan, reservas, rutinas, registros, mediciones). No se puede deshacer.
 async function adminDeleteStudent(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const b = await readBody(req);
   const userId = Number(b && b.userId);
   if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   const u = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
-  if (!u) return fail(404, 'No se encontró a la alumna.');
+  if (!u) return fail(404, 'No se encontró al alumno.');
   // Quita del Google Calendar las horas que tenía agendadas (si está conectado).
   const { results: bks } = await env.DB.prepare("SELECT id FROM bookings WHERE user_id = ? AND gcal_event_id IS NOT NULL").bind(userId).all();
   for (const k of bks) await gcalRemove(env, k.id);
@@ -475,7 +475,7 @@ async function gcalAdd(env, id) {
       `SELECT b.id, b.day, b.time, b.sede, b.status, b.gcal_event_id, u.name FROM bookings b JOIN users u ON u.id = b.user_id WHERE b.id = ?`,
     ).bind(id).first();
     if (!r || r.status !== 'confirmed' || r.gcal_event_id) return 'ok';
-    const firstName = String(r.name || 'Alumna').trim().split(/\s+/)[0];
+    const firstName = String(r.name || 'Alumno').trim().split(/\s+/)[0];
     const evId = await gcalCreate(env, { firstName, day: r.day, time: r.time, sedeName: SEDE_LABEL[r.sede] || r.sede, status: r.status });
     if (evId) await env.DB.prepare('UPDATE bookings SET gcal_event_id = ? WHERE id = ?').bind(evId, id).run();
     return 'ok';
@@ -493,7 +493,7 @@ async function gcalRemove(env, id) {
   } catch (e) { console.error('gcal remove', e.message); return 'error'; }
 }
 const SEDE_LABEL = { quilpue: 'Quilpué', vina: 'Viña del Mar', quillota: 'Quillota' };
-// Aviso por correo a la alumna cuando Yohi confirma o mueve su hora. 'off' | 'ok' | 'error'
+// Aviso por correo al alumno cuando Yohi confirma o mueve su hora. 'off' | 'ok' | 'error'
 async function mailBooking(env, id, kind) {
   if (!mailConfigured(env)) return 'off';
   try {
@@ -627,7 +627,7 @@ async function myMeasurements(req, env) {
   return json({ ok: true, enabled: true, items: results.map(withExtra) });
 }
 
-// La alumna activa o retira su autorización. Al retirarla se borran sus mediciones.
+// El alumno activa o retira su autorización. Al retirarla se borran sus mediciones.
 async function setHealthConsent(req, env) {
   const user = await currentUser(req, env);
   if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
@@ -647,9 +647,9 @@ async function setHealthConsent(req, env) {
 async function adminMeasurements(req, env, url) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const userId = Number(url.searchParams.get('userId'));
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   const u = await env.DB.prepare("SELECT health_consent_at FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
-  if (!u) return fail(404, 'No se encontró la alumna.');
+  if (!u) return fail(404, 'No se encontró el alumno.');
   if (!u.health_consent_at) return json({ ok: true, enabled: false, items: [] });
   const { results } = await env.DB.prepare(
     'SELECT id, measured_on, weight_kg, fat_pct, muscle_kg, (pdf_name IS NOT NULL) AS has_pdf, extra FROM measurements WHERE user_id = ? ORDER BY measured_on DESC, id DESC',
@@ -712,7 +712,7 @@ async function adminAddMeasurement(req, env) {
   }
   if (!b) return fail(400, 'Solicitud inválida.');
   const userId = Number(b.userId);
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   const date = String(b.date || '');
   if (!validDate(date) || date > todayCL(env)) return fail(400, 'Fecha inválida (no puede ser futura).');
   const w = num(b.weight_kg, 20, 300), f = num(b.fat_pct, 2, 70), m = num(b.muscle_kg, 5, 150);
@@ -726,8 +726,8 @@ async function adminAddMeasurement(req, env) {
     if (!fileKind(bytes)) return fail(400, 'El archivo debe ser una imagen (JPG o PNG) o un PDF.');
   }
   const u = await env.DB.prepare("SELECT health_consent_at FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
-  if (!u) return fail(404, 'No se encontró la alumna.');
-  if (!u.health_consent_at) return fail(403, 'Esta alumna no ha autorizado el registro de datos de salud.');
+  if (!u) return fail(404, 'No se encontró el alumno.');
+  if (!u.health_consent_at) return fail(403, 'Este alumno no ha autorizado el registro de datos de salud.');
   const name = file ? String(file.name || 'informe').replace(/[^\w.\- ]/g, '_').slice(0, 80) : null;
   const ins = await env.DB.prepare('INSERT INTO measurements (user_id, measured_on, weight_kg, fat_pct, muscle_kg, pdf_name, extra) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(userId, date, w, f, m, name, extra ? JSON.stringify(extra) : null).run();
   if (bytes) {
@@ -793,18 +793,18 @@ async function adminDeleteMeasurement(req, env) {
 
 /* ---------- rutinas y registro de entrenamiento ---------- */
 
-// Admin: crear o actualizar la rutina semanal de una alumna.
+// Admin: crear o actualizar la rutina semanal de un alumno.
 // Body: { userId, weekOf, name?, exercises: [{ name, sets, reps, restSec, warmupSets, notes }] }
 async function adminRoutine(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const b = await readBody(req);
   if (!b) return fail(400, 'Solicitud inválida.');
   const userId = Number(b.userId);
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   const weekOf = String(b.weekOf || '');
   if (!validDate(weekOf)) return fail(400, 'Fecha de semana inválida.');
   const user = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
-  if (!user) return fail(404, 'No se encontró la alumna.');
+  if (!user) return fail(404, 'No se encontró el alumno.');
   const exs = b.exercises;
   if (!Array.isArray(exs) || exs.length === 0 || exs.length > 60) return fail(400, 'Envía entre 1 y 60 ejercicios.');
   for (const ex of exs) {
@@ -813,7 +813,7 @@ async function adminRoutine(req, env) {
   const name = String(b.name || '').trim().slice(0, 120);
 
   // Upsert: si ya existe rutina para esa semana, la actualiza. Los ejercicios que siguen (mismo nombre y día)
-  // conservan su id, así lo que la alumna ya registró (series y observaciones) no se pierde al corregir la rutina.
+  // conservan su id, así lo que el alumno ya registró (series y observaciones) no se pierde al corregir la rutina.
   // Rutina diaria: week_of guarda la fecha del día y day_on la marca como diaria (NULL = semanal).
   const dayOn = b.daily ? weekOf : null;
   let routine = await env.DB.prepare('SELECT id, day_on FROM routines WHERE user_id = ? AND week_of = ?').bind(userId, weekOf).first();
@@ -831,7 +831,7 @@ async function adminRoutine(req, env) {
   const { results: old } = await env.DB.prepare('SELECT id, name, day FROM routine_exercises WHERE routine_id = ?').bind(routine.id).all();
   const keyOf = (n, d) => String(n).trim().toLowerCase() + '|' + String(d || '').trim().toLowerCase();
   // 1) Si el editor manda el id del ejercicio (porque se está editando una rutina existente), se conserva aunque cambie
-  //    el nombre del día o del ejercicio: así no se pierden los registros de la alumna.
+  //    el nombre del día o del ejercicio: así no se pierden los registros del alumno.
   const oldIds = new Set(old.map((o) => o.id));
   const keep = new Set();
   const assigned = exs.map((ex) => { const w = Number(ex.id); if (Number.isInteger(w) && oldIds.has(w) && !keep.has(w)) { keep.add(w); return w; } return null; });
@@ -872,11 +872,11 @@ async function adminDeleteRoutine(req, env) {
   return json({ ok: true });
 }
 
-// Admin: listar rutinas de una alumna
+// Admin: listar rutinas de un alumno
 async function adminRoutines(req, env, url) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const userId = Number(url.searchParams.get('userId'));
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   const { results: routines } = await env.DB.prepare(
     'SELECT id, week_of, name, day_on, created_at FROM routines WHERE user_id = ? ORDER BY week_of DESC LIMIT 20',
   ).bind(userId).all();
@@ -896,11 +896,11 @@ async function adminRoutineDetail(req, env, url) {
   return json({ ok: true, routine, exercises });
 }
 
-// Admin: ver logs de entrenamiento de una alumna (para seguimiento)
+// Admin: ver logs de entrenamiento de un alumno (para seguimiento)
 async function adminTrainingLogs(req, env, url) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const userId = Number(url.searchParams.get('userId'));
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   const weekOf = url.searchParams.get('weekOf') || '';
   if (weekOf && !validDate(weekOf)) return fail(400, 'Fecha inválida.');
   let logs;
@@ -919,7 +919,7 @@ async function adminTrainingLogs(req, env, url) {
         WHERE tl.user_id = ? ORDER BY tl.logged_on DESC, re.pos, tl.set_type DESC, tl.set_num LIMIT 200`,
     ).bind(userId).all());
   }
-  // Observaciones de la alumna en el mismo período
+  // Observaciones del alumno en el mismo período
   let notes;
   if (weekOf) {
     ({ results: notes } = await env.DB.prepare(
@@ -933,7 +933,7 @@ async function adminTrainingLogs(req, env, url) {
   return json({ ok: true, logs, notes });
 }
 
-// Alumna: obtener su rutina de la semana actual (o una semana específica)
+// Alumno: obtener su rutina de la semana actual (o una semana específica)
 async function myRoutine(req, env, url) {
   const user = await currentUser(req, env);
   if (!user) return fail(401, 'No has iniciado sesión.');
@@ -959,7 +959,7 @@ async function myRoutine(req, env, url) {
   const { results: exercises } = await env.DB.prepare(
     'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
   ).bind(routine.id).all();
-  // También traer los logs de la alumna para esta semana
+  // También traer los logs del alumno para esta semana
   const weekEnd = addDays(weekOf, 6);
   const { results: logs } = await env.DB.prepare(
     `SELECT id, exercise_id, logged_on, set_type, set_num, kg, reps, rir
@@ -972,7 +972,7 @@ async function myRoutine(req, env, url) {
   return json({ ok: true, routine, exercises, logs, notes });
 }
 
-// Alumna: listar semanas disponibles con rutina
+// Alumno: listar semanas disponibles con rutina
 async function myRoutineWeeks(req, env) {
   const user = await currentUser(req, env);
   if (!user) return fail(401, 'No has iniciado sesión.');
@@ -982,16 +982,16 @@ async function myRoutineWeeks(req, env) {
   return json({ ok: true, weeks: results });
 }
 
-// Alumna: registrar un set (o varios sets de un ejercicio a la vez)
+// Alumno: registrar un set (o varios sets de un ejercicio a la vez)
 // Body: { exerciseId, loggedOn, sets: [{ setType, setNum, kg, reps, rir }] }
-// Guarda series/observación de un ejercicio para una alumna (la usan la alumna y Yohi).
+// Guarda series/observación de un ejercicio para un alumno (la usan el alumno y Yohi).
 async function saveLog(env, userId, b) {
   if (!b) return fail(400, 'Solicitud inválida.');
   const exerciseId = Number(b.exerciseId);
   if (!Number.isInteger(exerciseId)) return fail(400, 'Ejercicio inválido.');
   const loggedOn = String(b.loggedOn || todayCL(env));
   if (!validDate(loggedOn)) return fail(400, 'Fecha inválida.');
-  // Verificar que el ejercicio pertenece a una rutina de esta alumna
+  // Verificar que el ejercicio pertenece a una rutina de este alumno
   const ex = await env.DB.prepare(
     `SELECT re.id FROM routine_exercises re JOIN routines r ON r.id = re.routine_id
       WHERE re.id = ? AND r.user_id = ?`,
@@ -1002,7 +1002,7 @@ async function saveLog(env, userId, b) {
   if (!Array.isArray(sets) || sets.length > 25) return fail(400, 'Envía hasta 25 series.');
   if (sets.length === 0 && b.note === undefined && !b.clearSets) return fail(400, 'Llena al menos una serie o escribe una observación.');
   const stmts = [];
-  // Observación de la alumna: una por ejercicio y fecha; vacía la borra.
+  // Observación del alumno: una por ejercicio y fecha; vacía la borra.
   if (b.note !== undefined) {
     stmts.push(note
       ? env.DB.prepare(`INSERT INTO training_notes (user_id, exercise_id, logged_on, note) VALUES (?, ?, ?, ?)
@@ -1034,22 +1034,22 @@ async function logSet(req, env) {
   return saveLog(env, user.id, b);
 }
 
-// Yohi registra o corrige pesos en la ficha de una alumna.
+// Yohi registra o corrige pesos en la ficha de un alumno.
 async function adminLogSet(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const b = await readBody(req);
   const userId = Number(b && b.userId);
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   return saveLog(env, userId, b);
 }
 
-// Alumna: ver progreso de un ejercicio a lo largo de las semanas
+// Alumno: ver progreso de un ejercicio a lo largo de las semanas
 async function exerciseProgress(req, env, url) {
   const user = await currentUser(req, env);
   if (!user) return fail(401, 'No has iniciado sesión.');
   const exName = url.searchParams.get('name') || '';
   if (!exName) return fail(400, 'Nombre del ejercicio requerido.');
-  // Buscar todas las ocurrencias del ejercicio (por nombre) en las rutinas de la alumna
+  // Buscar todas las ocurrencias del ejercicio (por nombre) en las rutinas del alumno
   const { results } = await env.DB.prepare(
     `SELECT tl.logged_on, tl.set_num, tl.kg, tl.reps, tl.rir
        FROM training_logs tl
@@ -1074,7 +1074,7 @@ async function exerciseProgress(req, env, url) {
   return json({ ok: true, exercise: exName, progress });
 }
 
-/* ---------- anamnesis (ficha de salud): la completan la alumna y Yohi ---------- */
+/* ---------- anamnesis (ficha de salud): la completan el alumno y Yohi ---------- */
 const ANAM_FIELDS = ['goal', 'experience', 'injuries', 'health_history'];
 async function anamState(env, userId) {
   const u = await env.DB.prepare("SELECT anamnesis_consent_at FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
@@ -1085,8 +1085,8 @@ async function anamState(env, userId) {
 }
 async function anamSave(env, userId, b, by) {
   const u = await env.DB.prepare("SELECT anamnesis_consent_at FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
-  if (!u) return fail(404, 'No se encontró a la alumna.');
-  if (!u.anamnesis_consent_at) return fail(403, 'La alumna no ha autorizado su ficha de salud.');
+  if (!u) return fail(404, 'No se encontró al alumno.');
+  if (!u.anamnesis_consent_at) return fail(403, 'El alumno no ha autorizado su ficha de salud.');
   const v = {};
   for (const k of ANAM_FIELDS) v[k] = String((b && b[k]) || '').trim().slice(0, 800);
   await env.DB.prepare(
@@ -1125,22 +1125,22 @@ async function setAnamnesisConsent(req, env) {
 async function adminAnamnesis(req, env, url) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const userId = Number(url.searchParams.get('userId'));
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   const st = await anamState(env, userId);
-  return st ? json(st) : fail(404, 'No se encontró a la alumna.');
+  return st ? json(st) : fail(404, 'No se encontró al alumno.');
 }
 async function adminSaveAnamnesis(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const b = await readBody(req);
   const userId = Number(b && b.userId);
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   return anamSave(env, userId, b, 'coach');
 }
 
 /* ---------- notas e hitos de Yohi + progreso de kilos ---------- */
 const NOTE_KINDS = ['note', 'milestone'];
 
-// La alumna ve solo lo que Yohi marcó como visible.
+// El alumno ve solo lo que Yohi marcó como visible.
 async function myNotes(req, env) {
   const user = await currentUser(req, env);
   if (!user) return fail(401, 'No has iniciado sesión.');
@@ -1152,7 +1152,7 @@ async function myNotes(req, env) {
 async function adminNotes(req, env, url) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const userId = Number(url.searchParams.get('userId'));
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   const { results } = await env.DB.prepare(
     'SELECT id, kind, title, body, visible, created_at FROM coach_notes WHERE user_id = ? ORDER BY id DESC LIMIT 200',
   ).bind(userId).all();
@@ -1166,10 +1166,10 @@ async function adminAddNote(req, env) {
   const kind = NOTE_KINDS.includes(b.kind) ? b.kind : 'note';
   const title = String(b.title || '').trim().slice(0, 120);
   const body = String(b.body || '').trim().slice(0, 1500);
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   if (!title) return fail(400, 'Escribe un título.');
   const u = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'student'").bind(userId).first();
-  if (!u) return fail(404, 'No se encontró a la alumna.');
+  if (!u) return fail(404, 'No se encontró al alumno.');
   await env.DB.prepare('INSERT INTO coach_notes (user_id, kind, title, body, visible) VALUES (?, ?, ?, ?, ?)')
     .bind(userId, kind, title, body, b.visible === false ? 0 : 1).run();
   return json({ ok: true });
@@ -1216,11 +1216,11 @@ async function myProgress(req, env) {
 async function adminProgress(req, env, url) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const userId = Number(url.searchParams.get('userId'));
-  if (!Number.isInteger(userId)) return fail(400, 'Alumna inválida.');
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
   return json(await progressFor(env, userId));
 }
 
-// Yohi corrige el plan de una alumna (cambiar modalidad, sede, sesiones o fechas) o lo renueva con uno nuevo.
+// Yohi corrige el plan de un alumno (cambiar modalidad, sede, sesiones o fechas) o lo renueva con uno nuevo.
 async function adminPlan(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const b = await readBody(req);
@@ -1256,7 +1256,7 @@ async function adminPlan(req, env) {
   const { results: active } = await env.DB.prepare("SELECT id FROM bookings WHERE plan_id = ? AND status IN ('requested','confirmed') AND day >= ?").bind(cur.id, today).all();
   if (modality === 'presencial') {
     const used = await usedSessions(env, cur.id);
-    if (sessions < used) return fail(400, `La alumna ya usó ${used} sesiones; no puede quedar con menos.`);
+    if (sessions < used) return fail(400, `El alumno ya usó ${used} sesiones; no puede quedar con menos.`);
   } else if (active.length && b.cancelBookings !== true) {
     return fail(409, `Tiene ${active.length} hora(s) pedidas o confirmadas. Si pasa a online se cancelan y se devuelven.`);
   }

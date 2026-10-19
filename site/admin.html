@@ -86,13 +86,13 @@
     const msg = el('p', { class: 'err', role: 'alert' });
     const pendingBox = el('div');
     const calBox = el('div');
-    // Resultado de Google Calendar y del correo de aviso a la alumna.
+    // Resultado de Google Calendar y del correo de aviso al alumno.
     const outcome = (d, doneText) => {
       const bad = [];
       if (d.gcal === 'error') bad.push('no se pudo actualizar Google Calendar (usa «Sincronizar»)');
-      if (d.mail === 'error') bad.push('no se pudo enviar el correo de aviso a la alumna');
+      if (d.mail === 'error') bad.push('no se pudo enviar el correo de aviso al alumno');
       msg.className = bad.length ? 'err' : 'ok';
-      msg.textContent = bad.length ? doneText + ', pero ' + bad.join(' y ') + '.' : (d.mail === 'ok' ? doneText + '. Le llegó un correo de aviso a la alumna.' : '');
+      msg.textContent = bad.length ? doneText + ', pero ' + bad.join(' y ') + '.' : (d.mail === 'ok' ? doneText + '. Le llegó un correo de aviso al alumno.' : '');
     };
 
     async function refresh() {
@@ -100,7 +100,7 @@
       if (r.ok) { ag = r.data; paint(); } else msg.textContent = r.data.error || 'No se pudo actualizar la agenda.';
     }
     async function bookingAct(id, action, label) {
-      if (action !== 'confirm' && !confirm('¿' + label + ' esta hora? La sesión vuelve al plan de la alumna.')) return;
+      if (action !== 'confirm' && !confirm('¿' + label + ' esta hora? La sesión vuelve al plan del alumno.')) return;
       const r = await api('/api/admin/booking', { id, action });
       if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return; }
       outcome(r.data, action === 'confirm' ? 'Hora confirmada' : 'Listo');
@@ -272,7 +272,7 @@
       }
       return [
         el('h2', {}, 'Agenda'),
-        el('p', { class: 'muted', style: 'font-size:13px' }, 'Toca una semana para abrirla: ahí eliges la disponibilidad de cada día y ves las horas que piden las alumnas. Un día con horas pedidas no se puede cambiar hasta responderlas.'),
+        el('p', { class: 'muted', style: 'font-size:13px' }, 'Toca una semana para abrirla: ahí eliges la disponibilidad de cada día y ves las horas que piden los alumnos. Un día con horas pedidas no se puede cambiar hasta responderlas.'),
         nav, grid,
         el('p', { class: 'cal-legend muted' }, el('i', { class: 'dot req' }), ' por confirmar  ', el('i', { class: 'dot ok' }), ' confirmada  · el texto bajo el número es la disponibilidad'),
       ];
@@ -296,7 +296,7 @@
         ag.gcal
           ? el('div', { class: 'row', style: 'align-items:center;gap:10px;margin:6px 0' }, el('span', { class: 'muted' }, '📅 Conectado a Google Calendar: las horas confirmadas aparecen allí solas.'), syncBtn)
           : el('p', { class: 'muted' }, '📅 Google Calendar sin conectar.'),
-        el('p', { class: 'muted', style: 'margin:6px 0' }, ag.mail ? '✉️ Correos de aviso activos: la alumna recibe un correo cuando confirmas o mueves su hora.' : '✉️ Correos de aviso sin conectar: por ahora la alumna solo ve el cambio en su portal.'),
+        el('p', { class: 'muted', style: 'margin:6px 0' }, ag.mail ? '✉️ Correos de aviso activos: el alumno recibe un correo cuando confirmas o mueves su hora.' : '✉️ Correos de aviso sin conectar: por ahoral alumno solo ve el cambio en su portal.'),
         ...calendar(byDay, openMap));
     }
     paint();
@@ -326,7 +326,7 @@
       async function load() {
         const r = await api('/api/admin/measurements?userId=' + st.id);
         if (!r.ok) { box.replaceChildren(el('p', { class: 'err' }, r.data.error || 'No se pudo cargar.')); return; }
-        if (!r.data.enabled) { box.replaceChildren(el('p', { class: 'muted' }, 'Esta alumna no ha autorizado el registro de mediciones (datos de salud). No se pueden cargar.')); return; }
+        if (!r.data.enabled) { box.replaceChildren(el('p', { class: 'muted' }, 'Este alumno no ha autorizado el registro de mediciones (datos de salud). No se pueden cargar.')); return; }
         const msg = el('p', { class: 'err', role: 'alert' });
         const inp = (name, ph, step) => el('input', { name, type: 'number', step, inputmode: 'decimal', placeholder: ph, 'aria-label': ph });
         const date = el('input', { name: 'date', type: 'date', value: today, max: today, 'aria-label': 'Fecha' });
@@ -424,7 +424,7 @@
       });
       return form;
     }
-    // Yohi registra o corrige los pesos de una alumna (misma ficha que ve la alumna).
+    // Yohi registra o corrige los pesos de un alumno (misma ficha que ve el alumno).
     function regEditor(ex, exLogs, rt, userId, openNow, onSaved) {
       const isoAddDays = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n, 12)).toISOString().slice(0, 10); };
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
@@ -491,7 +491,7 @@
       }
       return g;
     }
-    // Rutina de una alumna en grande, con un bloque desplegable por día.
+    // Rutina de un alumno en grande, con un bloque desplegable por día.
     function routineView(exs) {
       const row = (ex, i) => el('div', { class: 'rv-ex' },
         el('div', { class: 'rv-name' }, el('span', { class: 'rv-num' }, String(i + 1)), ex.name),
@@ -534,7 +534,7 @@
         const repsI = el('input', { type: 'text', placeholder: '8-12', value: ex.reps, style: 'width:70px', oninput: (e) => { ex.reps = e.target.value; } });
         const restI = el('input', { type: 'number', min: '0', max: '600', value: ex.restSec, style: 'width:70px', oninput: (e) => { ex.restSec = Number(e.target.value); } });
         const warmI = el('input', { type: 'number', min: '0', max: '5', value: ex.warmupSets, style: 'width:60px', oninput: (e) => { ex.warmupSets = Number(e.target.value); } });
-        const noteI = el('input', { type: 'text', placeholder: 'Nota para la alumna', value: ex.notes, oninput: (e) => { ex.notes = e.target.value; } });
+        const noteI = el('input', { type: 'text', placeholder: 'Nota paral alumno', value: ex.notes, oninput: (e) => { ex.notes = e.target.value; } });
         return el('div', { class: 'routine-ex' },
           el('div', { class: 'routine-ex-head' },
             el('span', { class: 'routine-ex-num' }, String(idx + 1)),
@@ -614,7 +614,7 @@
       });
 
       const delAll = el('button', { type: 'button', class: 'btn ghost small danger', hidden: '', onclick: async () => {
-        if (!editingId || !confirm('¿Borrar la rutina completa? Se pierden también los registros de la alumna en esa rutina.')) return;
+        if (!editingId || !confirm('¿Borrar la rutina completa? Se pierden también los registros del alumno en esa rutina.')) return;
         await api('/api/admin/routine/delete', { id: editingId });
         editingId = null; syncEditing(); exercises = [blankEx('', ++gSeq)]; nameIn.value = ''; clearDraft(); renderForm(); loadRoutines();
       } }, 'Borrar rutina completa');
@@ -659,7 +659,7 @@
             if (!rd.ok) return;
             detR.append(routineView(rd.data.exercises));
           });
-          const detLog = el('details', {}, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex;font-size:13px' }, '📊 Ver registro de la alumna'));
+          const detLog = el('details', {}, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex;font-size:13px' }, '📊 Ver registro del alumno'));
           const loadLog = async (keep) => {
             keep = keep || {};
             const [rd, lg] = await Promise.all([api('/api/admin/routine?id=' + rt.id), api('/api/admin/training-logs?userId=' + st.id + '&weekOf=' + rt.week_of)]);
@@ -702,7 +702,7 @@
                   body.append(det);
                 }
               }
-              if (!any) body.prepend(el('p', { class: 'muted', style: 'font-size:13px' }, 'La alumna aún no ha registrado nada esta semana.'));
+              if (!any) body.prepend(el('p', { class: 'muted', style: 'font-size:13px' }, 'El alumno aún no ha registrado nada esta semana.'));
             }
             const old = detLog.querySelector('.reg-wrap'); if (old) old.remove();
             body.classList.add('reg-wrap'); detLog.append(body);
@@ -768,7 +768,7 @@
       let q = '', filt = 'todas';
       const listBox = el('div', { class: 'card', style: 'padding:6px 18px' });
       const FILTERS = [['todas', 'Todas'], ['presencial', 'Presencial'], ['online', 'Online'], ['vence', 'Por vencer']];
-      const segBox = el('div', { class: 'seg', role: 'group', 'aria-label': 'Filtrar alumnas' });
+      const segBox = el('div', { class: 'seg', role: 'group', 'aria-label': 'Filtrar alumnos' });
       const match = (s) => {
         if (q && !(plain(s.name) + ' ' + plain(s.email)).includes(plain(q))) return false;
         if (filt === 'presencial') return s.modality === 'presencial';
@@ -784,34 +784,34 @@
             el('span', { class: 'avatar' }, initials(s.name)),
             el('div', { class: 'stu-main' }, el('strong', {}, s.name), el('span', { class: 'muted' }, rel(s.last_log))),
             planChip(s), el('span', { class: 'stu-go', 'aria-hidden': 'true' }, '›'))))
-          : el('p', { class: 'muted', style: 'margin:14px 0' }, students.length ? 'Ninguna alumna coincide con la búsqueda.' : 'Aún no hay alumnos activos.'));
+          : el('p', { class: 'muted', style: 'margin:14px 0' }, students.length ? 'Ningún alumno coincide con la búsqueda.' : 'Aún no hay alumnos activos.'));
       }
-      const search = el('input', { type: 'search', placeholder: 'Buscar alumna por nombre o correo…', 'aria-label': 'Buscar alumna', oninput: (e) => { q = e.target.value; paintList(); } });
+      const search = el('input', { type: 'search', placeholder: 'Buscar alumno por nombre o correo…', 'aria-label': 'Buscar alumno', oninput: (e) => { q = e.target.value; paintList(); } });
       paintList();
       return [
         ...(pendingList.length ? [el('h2', { style: 'margin-top:0' }, 'Cuentas por aprobar'), el('div', { class: 'list' }, ...pendingCards)] : []),
-        el('h2', { style: pendingList.length ? '' : 'margin-top:0' }, 'Alumnas'),
+        el('h2', { style: pendingList.length ? '' : 'margin-top:0' }, 'Alumnos'),
         el('div', { class: 'row', style: 'gap:10px' }, el('div', { style: 'flex:1;min-width:220px' }, search), segBox),
         listBox,
       ];
     }
 
-    // Anamnesis: Yohi y la alumna la completan; solo si la alumna lo autorizó.
+    // Anamnesis: Yohi y el alumno la completan; solo si el alumno lo autorizó.
     function anamnesisPanel(st) {
       const box = el('section', { class: 'card', style: 'display:grid;gap:12px' });
       const head = el('div', { class: 'row', style: 'justify-content:space-between' }, el('h2', { style: 'margin:0' }, 'Anamnesis'), el('span', { class: 'chip mute' }, 'Yohi y ' + st.name.split(' ')[0]));
       box.append(head, el('p', { class: 'muted', style: 'margin:0' }, 'Cargando…'));
       api('/api/admin/anamnesis?userId=' + st.id).then((r) => {
         if (!r.ok) { box.replaceChildren(head, el('p', { class: 'err' }, r.data.error || 'No se pudo cargar.')); return; }
-        if (!r.data.enabled) { box.replaceChildren(head, el('p', { class: 'muted', style: 'margin:0' }, 'Esta alumna no ha autorizado su ficha de salud (datos de salud). Puede hacerlo desde su portal, en Progreso.')); return; }
+        if (!r.data.enabled) { box.replaceChildren(head, el('p', { class: 'muted', style: 'margin:0' }, 'Este alumno no ha autorizado su ficha de salud (datos de salud). Puede hacerlo desde su portal, en Progreso.')); return; }
         box.replaceChildren(head,
-          el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, 'Es información de salud: la ven solo tú y la alumna, y ella también puede completarla. Se guarda sola mientras escribes.'),
+          el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, 'Es información de salud: la ven solo tú y el alumno, que también puede completarla. Se guarda sola mientras escribes.'),
           anamnesisForm(r.data.data, (v) => api('/api/admin/anamnesis', { userId: st.id, ...v }), 'coach'));
       });
       return box;
     }
 
-    // Notas e hitos: Yohi escribe; elige si la alumna los ve o quedan privados.
+    // Notas e hitos: Yohi escribe; elige si el alumno los ve o quedan privados.
     function notesPanel(st) {
       const first = st.name.split(' ')[0];
       const box = el('section', { class: 'card', style: 'display:grid;gap:12px' }, el('h2', { style: 'margin:0' }, 'Notas e hitos'));
@@ -851,7 +851,7 @@
       return box;
     }
 
-    // --- Ficha de una alumna: Rutina / Progreso ---
+    // --- Ficha de un alumno: Rutina / Progreso ---
     function fichaView(st, sub) {
       const delBox = el('div', { class: 'card', hidden: '', style: 'border-color:rgba(255,107,107,.5);display:grid;gap:10px' });
       const confirmIn = el('input', { type: 'text', placeholder: 'ELIMINAR', 'aria-label': 'Escribe ELIMINAR para confirmar', autocomplete: 'off' });
@@ -917,7 +917,7 @@
       paint();
       const st = editId ? students.find((x) => x.id === editId) : null;
       return [
-        el('h2', { style: 'margin-top:0' }, 'Planes de las alumnas'),
+        el('h2', { style: 'margin-top:0' }, 'Planes de los alumnos'),
         ...(st ? [el('div', { class: 'card', style: 'border-color:rgba(255,109,180,.45)' },
           el('div', { class: 'row', style: 'justify-content:space-between' }, el('h2', { style: 'margin:0' }, 'Editar plan · ' + st.name),
             el('div', { class: 'row' }, el('a', { class: 'btn ghost small', href: '#alumno/' + st.id }, 'Volver a la ficha'), el('a', { class: 'btn ghost small', href: '#planes' }, 'Cerrar'))),
@@ -928,8 +928,8 @@
 
     const mensajesView = () => [el('h2', { style: 'margin-top:0' }, 'Mensajes'),
       el('section', { class: 'card', style: 'display:grid;gap:10px' },
-        el('p', { style: 'margin:0' }, 'Aquí van a llegar los mensajes de tus alumnas, con aviso cuando el asistente derive una duda de dolor, lesión o alimentación.'),
-        el('p', { class: 'muted', style: 'margin:0;font-size:13.5px' }, 'Todavía no está activo. Mientras tanto, las alumnas pueden escribirte por WhatsApp desde su portal.'))];
+        el('p', { style: 'margin:0' }, 'Aquí van a llegar los mensajes de tus alumnos, con aviso cuando el asistente derive una duda de dolor, lesión o alimentación.'),
+        el('p', { class: 'muted', style: 'margin:0;font-size:13.5px' }, 'Todavía no está activo. Mientras tanto, los alumnos pueden escribirte por WhatsApp desde su portal.'))];
 
     let content;
     if (tab === 'agenda') content = ag.ok ? agendaSection(ag.data) : [el('p', { class: 'err' }, 'No se pudo cargar la agenda.')];

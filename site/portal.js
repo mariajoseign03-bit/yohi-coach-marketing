@@ -23,7 +23,7 @@ async function apiForm(path, formData) {
   }
 }
 
-// Crea un elemento con texto seguro (nunca interpreta HTML: los nombres los escriben las alumnas).
+// Crea un elemento con texto seguro (nunca interpreta HTML: los nombres los escriben los alumnos).
 function el(tag, attrs, ...kids) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -201,7 +201,7 @@ function prCard(data) {
   return wrap;
 }
 const NOTE_LABEL = { note: 'Nota', milestone: 'Hito' };
-// Notas e hitos de Yohi que ve la alumna.
+// Notas e hitos de Yohi que ve el alumno.
 function coachNotesCard(notes) {
   const wrap = el('section', { class: 'card', style: 'display:grid;gap:12px' }, el('h2', { style: 'margin:0' }, 'Notas e hitos de Yohi'));
   if (!notes.length) { wrap.append(el('p', { class: 'muted', style: 'margin:0' }, 'Yohi todavía no te ha dejado notas. Cuando lo haga, las verás aquí.')); return wrap; }
@@ -213,14 +213,14 @@ function coachNotesCard(notes) {
   return wrap;
 }
 
-// ---- Anamnesis (ficha de salud): la completan la alumna y Yohi ----
+// ---- Anamnesis (ficha de salud): la completan el alumno y Yohi ----
 // data: {goal, experience, injuries, health_history, updated_by, updated_at} | null.  save(values) -> Promise<{ok,data}>
 function anamnesisForm(data, save, viewer) {
   const FIELDS = [['goal', 'Objetivo', 'Ej: ganar fuerza en tren inferior'], ['experience', 'Experiencia entrenando', 'Ej: 1 año, sin técnica de barra'],
     ['injuries', 'Lesiones o molestias', 'Ej: rodilla derecha, molestia al bajar escaleras'], ['health_history', 'Antecedentes de salud', 'Condiciones, cirugías, medicamentos, alergias…']];
   const inputs = {};
   const status = el('span', { class: 'muted', style: 'font-size:13px', role: 'status' });
-  const who = (by) => (by === 'coach' ? 'Yohi' : viewer === 'student' ? 'ti' : 'la alumna');
+  const who = (by) => (by === 'coach' ? 'Yohi' : viewer === 'student' ? 'ti' : 'el alumno');
   const info = el('p', { class: 'muted', style: 'margin:0;font-size:12.5px' },
     data ? 'Última actualización de ' + who(data.updated_by) + ' · ' + fmtDate((data.updated_at || '').slice(0, 10)) : 'Aún sin completar.');
   const collect = () => Object.fromEntries(FIELDS.map(([k]) => [k, inputs[k].value]));

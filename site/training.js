@@ -1,4 +1,4 @@
-/* Registro de entrenamiento — vista alumna (training.js)
+/* Registro de entrenamiento — vista del alumno (training.js)
    Depende de portal.js (el, api, fmtDate, MESES) */
 
 const TRAINING_INFO = {
@@ -35,7 +35,7 @@ function trainingSection(container) {
     }
 
     const { routine, exercises, logs } = r.data;
-    // Última observación de la alumna por ejercicio (vienen ordenadas por fecha)
+    // Última observación del alumno por ejercicio (vienen ordenadas por fecha)
     const notesByEx = {};
     for (const n of (r.data.notes || [])) notesByEx[n.exercise_id] = n.note;
 
@@ -90,7 +90,7 @@ function trainingSection(container) {
     }
     const card = (ex, i) => buildExercise(ex, i, logsByEx[ex.id] || [], weekOf, notesByEx[ex.id] || '');
     if (groups.length === 1 && !groups[0].day) return el('div', { class: 'training-exercises' }, ...exercises.map(card));
-    // La alumna ve "Día 1", "Día 2"…, aunque Yohi haya escrito Lunes, Martes…
+    // El alumno ve "Día 1", "Día 2"…, aunque Yohi haya escrito Lunes, Martes…
     const plain = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const dayName = (label, n) => {
       const t = plain(label), m = t.match(/\bdia\s*(\d+)/);
@@ -314,7 +314,7 @@ function trainingSection(container) {
       body.append(el('p', { class: 'ex-note' }, '💬 ', ex.notes));
     }
 
-    // Observaciones de la alumna (Yohi las ve en su panel)
+    // Observaciones del alumno (Yohi las ve en su panel)
     const initialNote = existingNote || '';
     const obsIn = el('textarea', { class: 'ex-obs', maxlength: '500', placeholder: 'Cómo te sentiste, molestias, cambios que hiciste…' });
     obsIn.rows = 2; obsIn.value = initialNote;

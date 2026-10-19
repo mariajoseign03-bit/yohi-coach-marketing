@@ -150,7 +150,7 @@
   }
   renderProgress();
 
-  // Ficha de salud (anamnesis): solo con autorización aparte; la completan la alumna y Yohi.
+  // Ficha de salud (anamnesis): solo con autorización aparte; la completan el alumno y Yohi.
   async function renderAnam() {
     const head = el('h2', { style: 'margin:0' }, 'Mi ficha de salud');
     const r = await api('/api/anamnesis');

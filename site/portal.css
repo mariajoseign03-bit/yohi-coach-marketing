@@ -284,13 +284,13 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .day-group > .training-exercises{ padding:0 16px 6px }
 .day-group .exercise:first-child{ padding-top:2px }
 
-/* Observaciones de la alumna */
+/* Observaciones del alumno */
 .ex-obs-wrap{ display:grid; gap:6px; margin-top:12px }
 .ex-obs-label{ font:700 12px/1 var(--f-text); color:var(--accent-soft) }
 .ex-obs{ width:100%; min-height:64px; padding:10px 12px; border-radius:12px; border:1.5px solid rgba(255,214,232,.15); background:rgba(255,255,255,.04); color:var(--fg); font:500 14px/1.4 var(--f-text); resize:vertical; box-sizing:border-box }
 .ex-obs:focus{ outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(255,79,163,.25) }
 
-/* Rutina de la alumna en grande (vista de Yohi), un bloque por día */
+/* Rutina del alumno en grande (vista de Yohi), un bloque por día */
 .rv-days{ display:grid; gap:8px; margin-top:8px }
 .rv-flat{ margin-top:8px }
 .rv-day{ border:1px solid rgba(255,214,232,.14); border-radius:14px; background:rgba(255,255,255,.02) }
@@ -313,7 +313,7 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .rv-chip.gold b{ color:var(--gold) }
 .rv-note{ margin:8px 0 0 38px; font-size:13px; color:var(--muted) }
 
-/* Registro de la alumna (vista de Yohi) */
+/* Registro del alumno (vista de Yohi) */
 .reg-day{ margin:12px 0 4px; font:800 12px/1 var(--f-text); letter-spacing:.08em; text-transform:uppercase; color:var(--accent-soft) }
 .reg-ex{ padding:8px 0; border-bottom:1px solid rgba(255,214,232,.06) }
 .reg-name{ font-weight:700; font-size:15px }
@@ -418,7 +418,7 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .mv-body{ display:flex; flex-wrap:wrap; gap:6px; padding:6px 0 2px }
 .mv-body select{ min-height:38px; border-radius:10px; border:1.5px solid rgba(255,214,232,.15); background:rgba(255,255,255,.04); color:var(--fg); font:600 13px/1 var(--f-text); padding:0 8px; max-width:100% }
 
-/* ---- pestañas del portal de alumnas (barra inferior) ---- */
+/* ---- pestañas del portal de alumnos (barra inferior) ---- */
 .panel{ display:grid; gap:16px }
 .tabpanel{ display:grid; gap:16px }
 .kick{ font:400 15px/1 var(--f-display); letter-spacing:.14em; text-transform:uppercase; color:var(--accent-text) }
@@ -435,7 +435,7 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 body.tabs-on .mc-fab{ bottom:calc(84px + env(safe-area-inset-bottom)) }
 body.tabs-on .mc-panel{ bottom:calc(160px + env(safe-area-inset-bottom)); max-height:min(560px,calc(100dvh - 220px)) }
 
-/* ---- panel de Yohi: pestañas, lista de alumnas y ficha ---- */
+/* ---- panel de Yohi: pestañas, lista de alumnos y ficha ---- */
 .tabs{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 20px }
 .tabs a{ display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 18px; border-radius:999px; border:1.5px solid rgba(255,214,232,.2); font:800 12.5px/1 var(--f-text); letter-spacing:.05em; text-transform:uppercase; color:var(--muted); text-decoration:none }
 .tabs a.on{ background:var(--accent); border-color:var(--accent); color:var(--on-accent) }
