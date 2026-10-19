@@ -296,7 +296,7 @@
         ag.gcal
           ? el('div', { class: 'row', style: 'align-items:center;gap:10px;margin:6px 0' }, el('span', { class: 'muted' }, '📅 Conectado a Google Calendar: las horas confirmadas aparecen allí solas.'), syncBtn)
           : el('p', { class: 'muted' }, '📅 Google Calendar sin conectar.'),
-        el('p', { class: 'muted', style: 'margin:6px 0' }, ag.mail ? '✉️ Correos de aviso activos: el alumno recibe un correo cuando confirmas o mueves su hora.' : '✉️ Correos de aviso sin conectar: por ahoral alumno solo ve el cambio en su portal.'),
+        el('p', { class: 'muted', style: 'margin:6px 0' }, ag.mail ? '✉️ Correos de aviso activos: el alumno recibe un correo cuando confirmas o mueves su hora.' : '✉️ Correos de aviso sin conectar: por ahora el alumno solo ve el cambio en su portal.'),
         ...calendar(byDay, openMap));
     }
     paint();
@@ -442,7 +442,7 @@
         rows.push(r);
       };
       const fill = () => {
-        grid.replaceChildren(el('div', { class: 'set-row set-header' }, el('span', { class: 'set-col num' }, 'Serie'), el('span', { class: 'set-col' }, 'KG'), el('span', { class: 'set-col' }, 'Reps'), el('span', { class: 'set-col' }, 'RIR')));
+        grid.replaceChildren(el('div', { class: 'set-row set-header' }, el('span', { class: 'set-col num' }, 'Serie'), el('span', { class: 'set-col' }, ex.unit === 'lbs' ? 'LBS' : 'KG'), el('span', { class: 'set-col' }, 'Reps'), el('span', { class: 'set-col' }, 'RIR')));
         rows = [];
         const day = exLogs.filter((l) => l.logged_on === dateIn.value);
         for (let i = 1; i <= (ex.warmup_sets || 0); i++) mk('warmup', i, day.find((l) => l.set_type === 'warmup' && l.set_num === i));
@@ -499,7 +499,8 @@
           el('span', { class: 'rv-chip' }, el('b', {}, String(ex.sets)), ' series'),
           el('span', { class: 'rv-chip' }, el('b', {}, String(ex.reps)), ' reps'),
           el('span', { class: 'rv-chip' }, el('b', {}, String(ex.rest_sec)), ' s desc'),
-          ex.warmup_sets ? el('span', { class: 'rv-chip gold' }, el('b', {}, String(ex.warmup_sets)), ' calent.') : ''),
+          ex.warmup_sets ? el('span', { class: 'rv-chip gold' }, el('b', {}, String(ex.warmup_sets)), ' calent.') : '',
+          ex.target_load ? el('span', { class: 'rv-chip gold' }, 'Carga ', el('b', {}, ex.target_load), ' ' + (ex.unit === 'lbs' ? 'lbs' : 'kg')) : ''),
         ex.notes ? el('p', { class: 'rv-note' }, '💬 ', ex.notes) : '');
       const groups = dayGroups(exs);
       if (groups.length === 1 && !groups[0].day) return el('div', { class: 'rv-flat' }, ...exs.map(row));
@@ -512,7 +513,7 @@
       // Cada ejercicio lleva un id de grupo interno (_g) para poder renombrar o borrar un día completo sin que se mezclen los nombres.
       let gSeq = 0;
       const tagGroups = (list) => { const m = new Map(); return list.map((x) => { const k = (x.day || '').trim(); if (!m.has(k)) m.set(k, ++gSeq); return { ...x, _g: m.get(k) }; }); };
-      const blankEx = (day, g) => ({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: day || '', notes: '', _g: g });
+      const blankEx = (day, g) => ({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: day || '', notes: '', load: '', unit: 'kg', _g: g });
       let exercises = [blankEx('', ++gSeq)];
       let editingId = null;
       const weekIn = el('input', { name: 'week_of', type: 'date', value: (() => { const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)).toISOString().slice(0, 10); })() });
@@ -534,7 +535,11 @@
         const repsI = el('input', { type: 'text', placeholder: '8-12', value: ex.reps, style: 'width:70px', oninput: (e) => { ex.reps = e.target.value; } });
         const restI = el('input', { type: 'number', min: '0', max: '600', value: ex.restSec, style: 'width:70px', oninput: (e) => { ex.restSec = Number(e.target.value); } });
         const warmI = el('input', { type: 'number', min: '0', max: '5', value: ex.warmupSets, style: 'width:60px', oninput: (e) => { ex.warmupSets = Number(e.target.value); } });
-        const noteI = el('input', { type: 'text', placeholder: 'Nota paral alumno', value: ex.notes, oninput: (e) => { ex.notes = e.target.value; } });
+        const loadI = el('input', { type: 'text', inputmode: 'decimal', placeholder: 'Ej: 40', value: ex.load || '', style: 'width:80px', 'aria-label': 'Carga sugerida', oninput: (e) => { ex.load = e.target.value; } });
+        const unitS = el('select', { 'aria-label': 'Unidad de peso', style: 'width:78px', onchange: (e) => { ex.unit = e.target.value; renderForm(); } },
+          el('option', { value: 'kg' }, 'kg'), el('option', { value: 'lbs' }, 'lbs'));
+        unitS.value = ex.unit === 'lbs' ? 'lbs' : 'kg';
+        const noteI = el('input', { type: 'text', placeholder: 'Nota para el alumno', value: ex.notes, oninput: (e) => { ex.notes = e.target.value; } });
         return el('div', { class: 'routine-ex' },
           el('div', { class: 'routine-ex-head' },
             el('span', { class: 'routine-ex-num' }, String(idx + 1)),
@@ -543,7 +548,9 @@
             el('label', { style: 'font-size:12px' }, 'Series', setsI),
             el('label', { style: 'font-size:12px' }, 'Reps', repsI),
             el('label', { style: 'font-size:12px' }, 'Desc (s)', restI),
-            el('label', { style: 'font-size:12px' }, 'Calent.', warmI)),
+            el('label', { style: 'font-size:12px' }, 'Calent.', warmI),
+            el('label', { style: 'font-size:12px' }, 'Carga (' + (ex.unit === 'lbs' ? 'lbs' : 'kg') + ')', loadI),
+            el('label', { style: 'font-size:12px' }, 'Unidad', unitS)),
           el('div', { style: 'margin-top:6px' }, noteI));
       }
 
@@ -636,7 +643,7 @@
         if (!valid.length) { msg.textContent = 'Agrega al menos un ejercicio con nombre.'; go.disabled = false; return; }
         const r = await api('/api/admin/routine', {
           userId: st.id, weekOf: weekIn.value, daily: kindSel.value === 'day', name: nameIn.value,
-          exercises: valid.map(x => ({ id: x.id, name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets ?? 1, day: (x.day || '').trim(), notes: x.notes || '' }))
+          exercises: valid.map(x => ({ id: x.id, name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets ?? 1, day: (x.day || '').trim(), notes: x.notes || '', load: (x.load || '').trim(), unit: x.unit === 'lbs' ? 'lbs' : 'kg' }))
         });
         go.disabled = false;
         if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
@@ -684,7 +691,7 @@
                   for (const d of dates) {
                     any = true;
                     const sets = exLogs.filter((l) => l.logged_on === d);
-                    const fmtSet = (l) => (l.set_type === 'warmup' ? 'C' : 'S') + l.set_num + ': ' + fmtN(l.kg) + ' kg × ' + fmtN(l.reps) + (l.rir != null ? ' (RIR ' + l.rir + ')' : '');
+                    const fmtSet = (l) => (l.set_type === 'warmup' ? 'C' : 'S') + l.set_num + ': ' + fmtN(l.kg) + ' ' + (l.unit === 'lbs' ? 'lbs' : 'kg') + ' × ' + fmtN(l.reps) + (l.rir != null ? ' (RIR ' + l.rir + ')' : '');
                     item.append(el('div', { class: 'reg-date' }, fmtD(d)));
                     if (sets.length) item.append(el('div', { class: 'reg-sets' }, sets.map(fmtSet).join('  ·  ')));
                     for (const n of exNotes.filter((x) => x.logged_on === d)) item.append(el('p', { class: 'reg-note' }, '📝 ', n.note));
@@ -716,7 +723,7 @@
             kindSel.value = rt.day_on ? 'day' : 'week'; weekIn.value = rt.week_of; syncKind(true); nameIn.value = rt.name || '';
             const rd = await api('/api/admin/routine?id=' + rt.id);
             if (rd.ok) {
-              exercises = tagGroups(rd.data.exercises.map(ex => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '' })));
+              exercises = tagGroups(rd.data.exercises.map(ex => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '', load: ex.target_load || '', unit: ex.unit === 'lbs' ? 'lbs' : 'kg' })));
               editingId = rt.id; syncEditing(); renderForm();
             }
           } }, 'Editar');

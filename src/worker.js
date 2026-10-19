@@ -794,7 +794,7 @@ async function adminDeleteMeasurement(req, env) {
 /* ---------- rutinas y registro de entrenamiento ---------- */
 
 // Admin: crear o actualizar la rutina semanal de un alumno.
-// Body: { userId, weekOf, name?, exercises: [{ name, sets, reps, restSec, warmupSets, notes }] }
+// Body: { userId, weekOf, name?, exercises: [{ name, sets, reps, restSec, warmupSets, notes, load, unit: 'kg'|'lbs' }] }
 async function adminRoutine(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const b = await readBody(req);
@@ -848,13 +848,15 @@ async function adminRoutine(req, env) {
       ex.warmupSets == null || ex.warmupSets === '' ? 1 : Math.max(0, Math.min(10, Number(ex.warmupSets) || 0)),
       String(ex.day || '').trim().slice(0, 30),
       String(ex.notes || '').slice(0, 300),
+      String(ex.load == null ? '' : ex.load).trim().slice(0, 20),
+      ex.unit === 'lbs' ? 'lbs' : 'kg',
     ];
     let id = assigned[i];
     if (id == null) { const ids = pool.get(keyOf(ex.name, ex.day)); if (ids && ids.length) { id = ids.shift(); keep.add(id); } }
     if (id != null) {
-      stmts.push(env.DB.prepare('UPDATE routine_exercises SET pos = ?, name = ?, sets = ?, reps = ?, rest_sec = ?, warmup_sets = ?, day = ?, notes = ? WHERE id = ?').bind(i, ...vals, id));
+      stmts.push(env.DB.prepare('UPDATE routine_exercises SET pos = ?, name = ?, sets = ?, reps = ?, rest_sec = ?, warmup_sets = ?, day = ?, notes = ?, target_load = ?, unit = ? WHERE id = ?').bind(i, ...vals, id));
     } else {
-      stmts.push(env.DB.prepare('INSERT INTO routine_exercises (routine_id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(routine.id, i, ...vals));
+      stmts.push(env.DB.prepare('INSERT INTO routine_exercises (routine_id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(routine.id, i, ...vals));
     }
   });
   for (const o of old) if (!keep.has(o.id)) stmts.push(env.DB.prepare('DELETE FROM routine_exercises WHERE id = ?').bind(o.id));
@@ -891,7 +893,7 @@ async function adminRoutineDetail(req, env, url) {
   const routine = await env.DB.prepare('SELECT id, user_id, week_of, name, day_on FROM routines WHERE id = ?').bind(id).first();
   if (!routine) return fail(404, 'Rutina no encontrada.');
   const { results: exercises } = await env.DB.prepare(
-    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
+    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
   ).bind(id).all();
   return json({ ok: true, routine, exercises });
 }
@@ -907,14 +909,14 @@ async function adminTrainingLogs(req, env, url) {
   if (weekOf) {
     const weekEnd = addDays(weekOf, 6);
     ({ results: logs } = await env.DB.prepare(
-      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, re.name AS exercise_name
+      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, re.name AS exercise_name, re.unit AS unit
          FROM training_logs tl JOIN routine_exercises re ON re.id = tl.exercise_id
         WHERE tl.user_id = ? AND tl.logged_on >= ? AND tl.logged_on <= ?
         ORDER BY tl.logged_on, re.pos, tl.set_type DESC, tl.set_num`,
     ).bind(userId, weekOf, weekEnd).all());
   } else {
     ({ results: logs } = await env.DB.prepare(
-      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, re.name AS exercise_name
+      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, re.name AS exercise_name, re.unit AS unit
          FROM training_logs tl JOIN routine_exercises re ON re.id = tl.exercise_id
         WHERE tl.user_id = ? ORDER BY tl.logged_on DESC, re.pos, tl.set_type DESC, tl.set_num LIMIT 200`,
     ).bind(userId).all());
@@ -957,7 +959,7 @@ async function myRoutine(req, env, url) {
   }
   if (!routine) return json({ ok: true, routine: null, exercises: [], logs: [] });
   const { results: exercises } = await env.DB.prepare(
-    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
+    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
   ).bind(routine.id).all();
   // También traer los logs del alumno para esta semana
   const weekEnd = addDays(weekOf, 6);
@@ -1186,25 +1188,32 @@ async function adminDeleteNote(req, env) {
 // Kilos de trabajo por ejercicio: mejor peso de cada semana (para el gráfico) y mejor marca (PR).
 async function progressFor(env, userId) {
   const { results } = await env.DB.prepare(
-    `SELECT re.name, tl.logged_on, tl.kg, tl.reps
+    `SELECT re.name, re.unit, tl.logged_on, tl.kg, tl.reps
        FROM training_logs tl
        JOIN routine_exercises re ON re.id = tl.exercise_id
       WHERE tl.user_id = ? AND tl.set_type = 'work' AND tl.kg IS NOT NULL AND tl.kg > 0
       ORDER BY tl.logged_on LIMIT 3000`,
   ).bind(userId).all();
   const mondayOf = (iso) => { const [y, m, d] = iso.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1, d, 12)); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7)); return t.toISOString().slice(0, 10); };
+  // Si Yohi cambió la unidad de un ejercicio (kg ↔ lbs), los registros antiguos se convierten a la unidad más reciente.
+  const LB = 2.20462;
+  const conv = (v, from, to) => (from === to ? v : Math.round((to === 'lbs' ? v * LB : v / LB) * 10) / 10);
+  const lastUnit = new Map();
+  for (const r of results) lastUnit.set(r.name.trim().toLowerCase(), r.unit === 'lbs' ? 'lbs' : 'kg');
   const by = new Map();
   for (const r of results) {
     const key = r.name.trim().toLowerCase();
+    const unit = lastUnit.get(key);
+    const kg = conv(r.kg, r.unit === 'lbs' ? 'lbs' : 'kg', unit);
     let e = by.get(key);
-    if (!e) { e = { name: r.name.trim(), weeks: new Map(), pr: null, last: '' }; by.set(key, e); }
+    if (!e) { e = { name: r.name.trim(), unit, weeks: new Map(), pr: null, last: '' }; by.set(key, e); }
     const wk = mondayOf(r.logged_on);
-    e.weeks.set(wk, Math.max(e.weeks.get(wk) || 0, r.kg));
-    if (!e.pr || r.kg > e.pr.kg || (r.kg === e.pr.kg && (r.reps || 0) > (e.pr.reps || 0))) e.pr = { kg: r.kg, reps: r.reps, date: r.logged_on };
+    e.weeks.set(wk, Math.max(e.weeks.get(wk) || 0, kg));
+    if (!e.pr || kg > e.pr.kg || (kg === e.pr.kg && (r.reps || 0) > (e.pr.reps || 0))) e.pr = { kg, reps: r.reps, date: r.logged_on };
     e.last = r.logged_on;
   }
   const exercises = [...by.values()].sort((a, b) => (a.last < b.last ? 1 : -1)).map((e) => ({
-    name: e.name, pr: e.pr, last: e.last, weeks: [...e.weeks.entries()].sort().map(([week, kg]) => ({ week, kg })),
+    name: e.name, unit: e.unit, pr: e.pr, last: e.last, weeks: [...e.weeks.entries()].sort().map(([week, kg]) => ({ week, kg })),
   }));
   return { ok: true, exercises };
 }

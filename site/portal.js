@@ -179,10 +179,10 @@ function evolutionCard(data) {
   if (!data.length) { wrap.append(el('p', { class: 'muted', style: 'margin:0' }, 'Cuando se registren kilos en la rutina, aquí aparecerá cómo van subiendo semana a semana.')); return wrap; }
   const sel = el('select', { 'aria-label': 'Ejercicio' }, data.map((e, i) => el('option', { value: String(i) }, e.name)));
   const chartBox = el('div', { style: 'max-width:560px;width:100%;margin:0 auto' });
-  const note = el('p', { class: 'muted', style: 'margin:0;font-size:12.5px' }, 'Mejor serie de cada semana, en kilos. Cuánto subes depende de tu RIR y de tu técnica, no solo del peso.');
+  const note = el('p', { class: 'muted', style: 'margin:0;font-size:12.5px' }, 'Mejor serie de cada semana (en la unidad de cada ejercicio). Cuánto subes depende de tu RIR y de tu técnica, no solo del peso.');
   const paint = () => {
     const e = data[Number(sel.value)];
-    const ch = lineChart(e.weeks.map((w) => ({ measured_on: w.week, kg: w.kg })), 'kg', 'kg');
+    const ch = lineChart(e.weeks.map((w) => ({ measured_on: w.week, kg: w.kg })), 'kg', e.unit || 'kg');
     chartBox.replaceChildren(ch || '', e.weeks.length < 2 ? el('p', { class: 'muted', style: 'margin:6px 0 0;font-size:13px' }, 'Con una semana más de registro se dibuja la línea.') : '');
   };
   sel.addEventListener('change', paint); paint();
@@ -195,7 +195,7 @@ function prCard(data) {
   for (const e of data.slice(0, 10)) {
     wrap.append(el('div', { class: 'pr-row' }, el('span', { class: 'chip gold' }, 'PR'),
       el('div', { style: 'flex:1;min-width:0' }, el('strong', {}, e.name), el('div', { class: 'muted', style: 'font-size:12.5px' }, fmtDate(e.pr.date))),
-      el('strong', {}, fmtN(e.pr.kg) + ' kg' + (e.pr.reps ? ' × ' + e.pr.reps : ''))));
+      el('strong', {}, fmtN(e.pr.kg) + ' ' + (e.unit || 'kg') + (e.pr.reps ? ' × ' + e.pr.reps : ''))));
   }
   wrap.append(el('p', { class: 'muted', style: 'margin:0;font-size:12.5px' }, 'PR = el mayor peso que has registrado en ese ejercicio.'));
   return wrap;

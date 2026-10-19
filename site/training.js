@@ -6,7 +6,7 @@ const TRAINING_INFO = {
   reps: { title: 'Repeticiones', text: 'Veces que hiciste el movimiento completo. Si superas el rango con buen RIR, sube peso.' },
   rest: { title: 'Descanso', text: 'Tiempo entre series. Lo define Yohi en tu rutina según el objetivo del ejercicio.' },
   warmup: { title: 'Series de calentamiento', text: 'Series livianas previas para preparar músculos y articulaciones. No cuentan en el progreso.' },
-  kg: { title: 'Peso (kg)', text: 'Kilos que cargaste. Registrarlo te muestra si vas progresando semana a semana.' },
+  kg: { title: 'Carga', text: 'Peso que cargaste, en la unidad (kg o lbs) que Yohi eligió para este ejercicio. Registrarlo te muestra si vas progresando semana a semana.' },
   vol: { title: 'Volumen total', text: 'Peso × reps de todas tus series de trabajo. Más volumen = más trabajo. Sirve para comparar semanas.' },
 };
 
@@ -269,6 +269,7 @@ function trainingSection(container) {
     const badgeClass = isDone ? 'done' : (workLogs.length > 0 ? 'partial' : '');
     const badgeText = isDone ? '✓' : (workLogs.length > 0 ? workLogs.length + '/' + ex.sets : idx + 1);
 
+    const unitTxt = ex.unit === 'lbs' ? 'lbs' : 'kg';
     let expanded = false;
     const body = el('div', { hidden: '' });
 
@@ -286,13 +287,13 @@ function trainingSection(container) {
       badge,
       el('div', { class: 'ex-info' },
         el('span', { class: 'ex-name' }, ex.name),
-        el('span', { class: 'ex-meta' }, ex.sets + '×' + ex.reps + ' · ' + ex.rest_sec + 's desc')),
+        el('span', { class: 'ex-meta' }, ex.sets + '×' + ex.reps + ' · ' + ex.rest_sec + 's desc' + (ex.target_load ? ' · carga ' + ex.target_load + ' ' + unitTxt : ''))),
       el('span', { class: 'ex-tap' }, 'Toca para registrar'));
 
     // Tabla de series de trabajo
     const tableHead = el('div', { class: 'set-row set-header' },
       el('span', { class: 'set-col num' }, 'Serie'),
-      el('span', { class: 'set-col' }, 'KG ', infoButton('kg')),
+      el('span', { class: 'set-col' }, unitTxt.toUpperCase() + ' ', infoButton('kg')),
       el('span', { class: 'set-col' }, 'Reps ', infoButton('reps')),
       el('span', { class: 'set-col' }, 'RIR ', infoButton('rir')),
       el('span', { class: 'set-col rest' }, 'Desc ', infoButton('rest')));
@@ -417,7 +418,7 @@ function trainingSection(container) {
         vol += k * r;
       }
       volWrap.replaceChildren(
-        vol > 0 ? el('span', { class: 'vol-badge' }, infoButton('vol'), ' Vol: ', el('strong', {}, Math.round(vol) + ' kg')) : '');
+        vol > 0 ? el('span', { class: 'vol-badge' }, infoButton('vol'), ' Vol: ', el('strong', {}, Math.round(vol) + ' ' + unitTxt)) : '');
     }
     for (const s of setRows) {
       if (s.setType !== 'work') continue;
