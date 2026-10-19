@@ -207,6 +207,14 @@ details.more summary{ cursor:pointer; font-weight:700; font-size:13.5px; min-hei
 .timer-btn.pause{ background:rgba(242,199,110,.15); color:var(--gold); border:1.5px solid rgba(242,199,110,.3) }
 .timer-btn.reset{ flex:0 0 40px; width:40px; background:rgba(255,255,255,.06); color:var(--muted); border:1px solid rgba(255,255,255,.1); font-size:16px; display:grid; place-items:center }
 
+/* Mini temporizador flotante (cuando el grande queda fuera de pantalla) */
+.timer-pill{ position:fixed; left:16px; bottom:calc(84px + env(safe-area-inset-bottom)); z-index:14; display:flex; align-items:center; gap:10px; padding:6px 6px 6px 14px; border-radius:999px; background:rgba(11,11,11,.94); border:1.5px solid rgba(242,199,110,.6); box-shadow:0 8px 28px -6px rgba(0,0,0,.7),0 0 24px -8px rgba(242,199,110,.4); color:var(--gold-light); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px) }
+.timer-pill[hidden]{ display:none }
+.timer-pill-time{ font:400 24px/1 var(--f-display); letter-spacing:.03em; font-variant-numeric:tabular-nums; cursor:pointer }
+.timer-pill-btn{ width:36px; height:36px; border:0; border-radius:50%; cursor:pointer; background:var(--gold); color:#0B0B0B; font-size:14px; display:grid; place-items:center }
+.timer-pill.done{ border-color:var(--accent); box-shadow:0 8px 28px -6px rgba(0,0,0,.7),0 0 30px -4px rgba(255,79,163,.6) }
+.timer-pill.done .timer-pill-time{ color:var(--accent); font-size:20px }
+
 /* Ejercicios */
 .training-exercises{ display:grid; gap:0 }
 .exercise{ padding:14px 0; border-top:1px solid rgba(255,214,232,.1) }

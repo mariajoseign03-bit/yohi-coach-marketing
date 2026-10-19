@@ -23,7 +23,8 @@ function infoButton(key) {
 
 function trainingSection(container) {
   let currentWeekOf = null;
-  let timerInterval = null;
+  let timerCard = null;
+  const getTimer = () => timerCard || (timerCard = buildTimer());
 
   async function render() {
     const r = await api('/api/routine' + (currentWeekOf ? '?weekOf=' + currentWeekOf : ''));
@@ -44,7 +45,8 @@ function trainingSection(container) {
 
     if (!routine) {
       container.replaceChildren(head,
-        el('p', { class: 'muted' }, 'Yohi aún no ha cargado tu rutina para esta semana o este día. Aparecerá aquí cuando esté lista.'));
+        el('p', { class: 'muted' }, 'Yohi aún no ha cargado tu rutina para esta semana o este día. Aparecerá aquí cuando esté lista.'),
+        getTimer());
       // Selector de semanas
       renderWeekSelector(container, head);
       return;
@@ -59,8 +61,8 @@ function trainingSection(container) {
       logsByEx[log.exercise_id].push(log);
     }
 
-    // Temporizador
-    const timerCard = buildTimer();
+    // Temporizador (el mismo de siempre, para que no se reinicie al repintar)
+    const timer = getTimer();
 
     // Ejercicios, agrupados por día cuando la rutina los tiene
     const exBlock = buildDays(exercises, logsByEx, notesByEx, routine.week_of);
@@ -75,7 +77,7 @@ function trainingSection(container) {
         routine.name ? routine.name + ' · ' : '',
         routine.day_on ? 'Rutina del día ' : 'Semana del ', el('strong', {}, fmtDate(routine.week_of))),
       summary,
-      timerCard,
+      timer,
       exBlock);
   }
 
@@ -152,7 +154,7 @@ function trainingSection(container) {
   }
 
   function buildTimer() {
-    let totalSec = 90, remaining = 90, running = false, intervalId = null;
+    let totalSec = 90, remaining = 90, running = false, intervalId = null, touched = false, inView = true;
 
     const display = el('div', { class: 'timer-display' }, '01:30');
     const minIn = el('input', { type: 'number', class: 'timer-input', value: '1', min: '0', max: '30' });
@@ -161,6 +163,7 @@ function trainingSection(container) {
     const fmt = (s) => {
       const m = Math.floor(s / 60), ss = s % 60;
       display.textContent = (m < 10 ? '0' : '') + m + ':' + (ss < 10 ? '0' : '') + ss;
+      syncPill();
     };
 
     const readInputs = () => {
@@ -172,6 +175,19 @@ function trainingSection(container) {
     secIn.addEventListener('change', readInputs);
 
     const wrap = el('div', { class: 'timer-wrap' });
+    // Mini temporizador: aparece solo cuando el grande queda fuera de pantalla y hay una cuenta en marcha o pausada.
+    const pillTime = el('span', { class: 'timer-pill-time' }, '01:30');
+    const pillBtn = el('button', { class: 'timer-pill-btn', type: 'button', 'aria-label': 'Pausar o seguir' }, '⏸');
+    const pill = el('div', { class: 'timer-pill', hidden: '', role: 'timer' }, el('span', { 'aria-hidden': 'true' }, '⏱'), pillTime, pillBtn);
+    function syncPill() {
+      const done = touched && !running && remaining <= 0;
+      pill.hidden = inView || !touched;
+      pill.classList.toggle('done', done);
+      pillTime.textContent = done ? '¡A entrenar!' : display.textContent;
+      pillBtn.textContent = running ? '⏸' : (done ? '↺' : '▶');
+    }
+    document.body.append(pill);
+    if ('IntersectionObserver' in window) new IntersectionObserver((es) => { inView = es[es.length - 1].isIntersecting; syncPill(); }).observe(wrap);
     const card = el('div', { class: 'timer-card' });
     const mascot = el('img', { class: 'timer-mascot', src: '/yohi-timer.webp', alt: 'Yohi Coach', width: '428', height: '520' });
     const startBtn = el('button', { class: 'timer-btn start', type: 'button' }, '▶  Iniciar');
@@ -194,6 +210,7 @@ function trainingSection(container) {
         wrap.classList.add('done-ring');
         display.innerHTML = '<span style="color:var(--accent)">¡A entrenar!</span>';
         startBtn.hidden = true; pauseBtn.hidden = true; resetBtn.hidden = false;
+        syncPill();
         // Vibrar si el dispositivo lo permite
         try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch {}
         setTimeout(() => wrap.classList.remove('done-ring'), 2500);
@@ -203,7 +220,7 @@ function trainingSection(container) {
     startBtn.addEventListener('click', () => {
       if (!running) {
         if (remaining <= 0) { remaining = totalSec; }
-        running = true;
+        running = true; touched = true;
         wrap.classList.remove('done-ring');
         wrap.classList.add('running');
         inputRow.hidden = true;
@@ -217,6 +234,7 @@ function trainingSection(container) {
       wrap.classList.remove('running');
       startBtn.hidden = false; pauseBtn.hidden = true;
       startBtn.textContent = '▶  Seguir';
+      syncPill();
     });
 
     resetBtn.addEventListener('click', () => {
@@ -227,6 +245,12 @@ function trainingSection(container) {
       inputRow.hidden = false;
       startBtn.hidden = false; pauseBtn.hidden = true; resetBtn.hidden = true;
       startBtn.textContent = '▶  Iniciar';
+      touched = false; syncPill();
+    });
+    pillBtn.addEventListener('click', () => { (running ? pauseBtn : (remaining <= 0 ? resetBtn : startBtn)).click(); });
+    pillTime.addEventListener('click', () => {
+      if (location.hash !== '#rutina') location.hash = '#rutina';
+      setTimeout(() => wrap.scrollIntoView({ block: 'center', behavior: 'smooth' }), 250);
     });
 
     const body = el('div', { class: 'timer-body' },
