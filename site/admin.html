@@ -638,7 +638,7 @@
       form.addEventListener('change', () => setTimeout(saveDraft, 0));
 
       form.addEventListener('submit', async (e) => {
-        e.preventDefault(); msg.textContent = ''; go.disabled = true;
+        e.preventDefault(); msg.className = 'err'; msg.textContent = ''; go.disabled = true;
         const valid = groupOrder().flatMap((g) => exercises.filter((x) => x._g === g)).filter(x => x.name.trim());
         if (!valid.length) { msg.textContent = 'Agrega al menos un ejercicio con nombre.'; go.disabled = false; return; }
         const r = await api('/api/admin/routine', {
@@ -652,9 +652,14 @@
       });
 
       const routinesList = el('div', { style: 'margin-top:14px' });
+      let usedDates = new Set();
+      const addDaysISO = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n, 12)).toISOString().slice(0, 10); };
+      // Ejercicios de una rutina guardada, sin ids: así la copia se guarda como rutina nueva y no toca los registros del original.
+      const exCopy = (list) => list.map((ex) => ({ name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '', load: ex.target_load || '', unit: ex.unit === 'lbs' ? 'lbs' : 'kg' }));
 
       async function loadRoutines() {
         const r = await api('/api/admin/routines?userId=' + st.id);
+        usedDates = new Set(r.ok ? r.data.routines.map((x) => x.week_of) : []);
         if (!r.ok || !r.data.routines.length) { routinesList.replaceChildren(el('p', { class: 'muted' }, 'Sin rutinas.')); return; }
         routinesList.replaceChildren(...r.data.routines.map(rt => {
           const [, m, d] = rt.week_of.split('-').map(Number);
@@ -727,11 +732,45 @@
               editingId = rt.id; syncEditing(); renderForm();
             }
           } }, 'Editar');
+          const dupBtn = el('button', { class: 'btn ghost small', style: 'font-size:12px', type: 'button', onclick: async () => {
+            const rd = await api('/api/admin/routine?id=' + rt.id);
+            if (!rd.ok) return;
+            const step = rt.day_on ? 1 : 7;
+            let next = addDaysISO(rt.week_of, step), guard = 0;
+            while (usedDates.has(next) && guard++ < 60) next = addDaysISO(next, step);
+            kindSel.value = rt.day_on ? 'day' : 'week'; syncKind(true); weekIn.value = next;
+            nameIn.value = rt.name || ''; exercises = tagGroups(exCopy(rd.data.exercises));
+            editingId = null; syncEditing(); renderForm(); saveDraft();
+            msg.className = 'ok'; msg.textContent = '📋 Copia lista. Revisa la fecha y toca «Guardar rutina».';
+            form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } }, 'Duplicar');
+          const others = students.filter((x) => x.id !== st.id);
+          const cpSel = el('select', { 'aria-label': 'Copiar a otro alumno' }, el('option', { value: '' }, 'Elige alumno…'), ...others.map((x) => el('option', { value: String(x.id) }, x.name)));
+          const cpDate = el('input', { type: 'date', value: rt.week_of, 'aria-label': 'Fecha en el otro alumno' });
+          const cpMsg = el('p', { class: 'muted', role: 'status', style: 'margin:0;font-size:13px' });
+          const cpGo = el('button', { class: 'btn small', type: 'button', onclick: async () => {
+            const to = Number(cpSel.value); cpMsg.className = 'err'; cpMsg.textContent = '';
+            if (!to) { cpMsg.textContent = 'Elige a quién copiarla.'; return; }
+            if (!cpDate.value) { cpMsg.textContent = 'Elige la fecha.'; return; }
+            const target = others.find((x) => x.id === to);
+            const [ex, ls] = await Promise.all([api('/api/admin/routine?id=' + rt.id), api('/api/admin/routines?userId=' + to)]);
+            if (!ex.ok) { cpMsg.textContent = 'No pude leer la rutina.'; return; }
+            const clash = ls.ok && ls.data.routines.some((x) => x.week_of === cpDate.value);
+            if (clash && !confirm(target.name + ' ya tiene una rutina en esa fecha. Si sigues, se reemplaza por esta. ¿Continuar?')) return;
+            cpGo.disabled = true;
+            const r = await api('/api/admin/routine', { userId: to, weekOf: cpDate.value, daily: !!rt.day_on, name: rt.name || '', exercises: exCopy(ex.data.exercises).map((x) => ({ ...x })) });
+            cpGo.disabled = false;
+            cpMsg.className = r.ok ? 'ok' : 'err'; cpMsg.textContent = r.ok ? '✓ Copiada a ' + target.name : (r.data.error || 'No se pudo copiar.');
+          } }, 'Copiar');
+          const detCp = el('details', {}, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex;font-size:13px' }, 'Copiar a otro alumno'),
+            others.length ? el('div', { style: 'display:grid;gap:8px;margin-top:10px;max-width:360px' },
+              el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, rt.day_on ? 'Elige el alumno y el día.' : 'Elige el alumno y el lunes de la semana.'), cpSel, cpDate, el('div', { class: 'row' }, cpGo), cpMsg)
+              : el('p', { class: 'muted', style: 'font-size:13px' }, 'Aún no hay otros alumnos.'));
           return el('div', { style: 'padding:8px 0;border-bottom:1px solid rgba(255,214,232,.1)' },
             el('div', { class: 'row', style: 'align-items:center;gap:8px;flex-wrap:wrap' },
               el('strong', { style: 'font-size:14px' }, (rt.day_on ? 'Diaria · ' : 'Semana · ') + d + ' ' + MESES[m - 1] + (rt.name ? ' · ' + rt.name : '')),
-              editBtn, delBtn),
-            detR, detLog);
+              editBtn, dupBtn, delBtn),
+            detR, detCp, detLog);
         }));
       }
 
