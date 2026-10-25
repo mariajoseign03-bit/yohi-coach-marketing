@@ -623,6 +623,15 @@ async function activePlan(env, userId, today) {
       WHERE user_id = ? AND start_date <= ? AND end_date >= ? ORDER BY id DESC LIMIT 1`,
   ).bind(userId, today, today).first();
 }
+// Plan con el que se agenda: el vigente si aún le quedan sesiones; si las gastó todas y ya hay un plan renovado que parte después, ese.
+async function bookingPlan(env, userId, today) {
+  const cur = await activePlan(env, userId, today);
+  if (cur && cur.modality === 'presencial' && (await usedSessions(env, cur.id)) < cur.sessions_total) return cur;
+  const next = await env.DB.prepare(
+    `SELECT id, modality, sede, sessions_total, start_date, end_date FROM plans WHERE user_id = ? AND start_date > ? ORDER BY start_date, id LIMIT 1`,
+  ).bind(userId, today).first();
+  return next && next.modality === 'presencial' ? next : cur;
+}
 async function usedSessions(env, planId) {
   const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM bookings WHERE plan_id = ? AND ${USED}`).bind(planId).first();
   return r ? r.n : 0;
@@ -632,13 +641,14 @@ async function agenda(req, env) {
   const user = await currentUser(req, env);
   if (!user) return fail(401, 'No has iniciado sesión.');
   const today = todayCL(env);
-  const plan = await activePlan(env, user.id, today);
+  const plan = await bookingPlan(env, user.id, today);
   if (!plan || plan.modality !== 'presencial') return json({ ok: true, plan: null, days: [], mine: [] });
   const used = await usedSessions(env, plan.id);
   const to = plan.end_date;
+  const from = plan.start_date > today ? plan.start_date : today;
   const { results: days } = await env.DB.prepare(
     "SELECT day, mode, sede, slots FROM open_days WHERE day >= ? AND day <= ? AND mode != 'closed' AND sede = ? ORDER BY day",
-  ).bind(today, to, plan.sede).all();
+  ).bind(from, to, plan.sede).all();
   const { results: taken } = await env.DB.prepare(
     "SELECT day, time FROM bookings WHERE day >= ? AND day <= ? AND status IN ('requested','confirmed')",
   ).bind(today, to).all();
@@ -686,7 +696,7 @@ async function createBooking(req, env) {
   if (!b || !validDate(String(b.day || '')) || !/^\d\d:\d\d$/.test(String(b.time || ''))) return fail(400, 'Hora inválida.');
   const { day, time } = b;
   const today = todayCL(env);
-  const plan = await activePlan(env, user.id, today);
+  const plan = await bookingPlan(env, user.id, today);
   if (!plan || plan.modality !== 'presencial') return fail(400, 'Tu plan no tiene agenda de sesiones.');
   if (day < plan.start_date || day > plan.end_date) return fail(400, 'Ese día está fuera de tu plan.');
   const open = await env.DB.prepare('SELECT mode, sede, slots FROM open_days WHERE day = ?').bind(day).first();
