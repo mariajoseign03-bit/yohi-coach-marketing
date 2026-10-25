@@ -304,7 +304,7 @@
   }
 
   async function render() {
-    const [pend, stu, ag] = await Promise.all([api('/api/admin/pending'), api('/api/admin/students'), api('/api/admin/agenda')]);
+    const [pend, stu, ag, ren] = await Promise.all([api('/api/admin/pending'), api('/api/admin/students'), api('/api/admin/agenda'), api('/api/admin/renewals')]);
     const top = el('div', { class: 'top' },
       el('div', {}, el('span', { class: 'brand' }, 'YOHI COACH · PANEL'), el('p', { class: 'hello' }, 'Hola, ' + me.data.user.name.split(' ')[0])),
       el('button', { class: 'btn ghost small', type: 'button', onclick: logout }, 'Cerrar sesión'));
@@ -749,14 +749,15 @@
     const pendingList = pend.data.pending || [];
     const asked = ag.ok ? ag.data.bookings.filter((b) => b.status === 'requested').length : 0;
     const parts = location.hash.slice(1).split('/');
-    const tab = ['alumnos', 'mensajes', 'planes', 'agenda'].includes(parts[0]) ? parts[0] : (parts[0] === 'alumno' ? 'alumnos' : 'alumnos');
+    const tab = ['alumnos', 'mensajes', 'planes', 'renovaciones', 'agenda'].includes(parts[0]) ? parts[0] : (parts[0] === 'alumno' ? 'alumnos' : 'alumnos');
     const ICONS = {
       alumnos: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 3-6 6.5-6s6.5 2.4 6.5 6M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.5c2 .7 3.5 2.6 3.5 5.5"/>',
       mensajes: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
       planes: '<rect x="5" y="4" width="14" height="17" rx="2.5"/><path d="M9 4V3h6v1M9 11h6M9 15h4"/>',
+      renovaciones: '<rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19M6.5 15h4"/>',
       agenda: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
     };
-    const tabsNav = el('nav', { class: 'tabs', 'aria-label': 'Secciones del panel' }, ...[['alumnos', 'Alumnos', pendingList.length], ['mensajes', 'Mensajes', 0], ['planes', 'Planes', 0], ['agenda', 'Agenda', asked]].map(([id, label, n]) => {
+    const tabsNav = el('nav', { class: 'tabs', 'aria-label': 'Secciones del panel' }, ...[['alumnos', 'Alumnos', pendingList.length], ['mensajes', 'Mensajes', 0], ['planes', 'Planes', 0], ['renovaciones', 'Renovaciones', ren.ok ? ren.data.pending : 0], ['agenda', 'Agenda', asked]].map(([id, label, n]) => {
       const a = el('a', { href: '#' + id, class: id === tab ? 'on' : '' });
       a.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONS[id] + '</svg>';
       a.append(label);
@@ -938,9 +939,69 @@
         el('p', { style: 'margin:0' }, 'Aquí van a llegar los mensajes de tus alumnos, con aviso cuando el asistente derive una duda de dolor, lesión o alimentación.'),
         el('p', { class: 'muted', style: 'margin:0;font-size:13.5px' }, 'Todavía no está activo. Mientras tanto, los alumnos pueden escribirte por WhatsApp desde su portal.'))];
 
+    // ---------- Renovaciones: comprobantes de transferencia que suben los alumnos ----------
+    const renList = ren.ok ? ren.data.renewals : [];
+    const renPending = ren.ok ? ren.data.pending : 0;
+    const renovacionesView = () => {
+      if (!ren.ok) return [el('p', { class: 'err' }, 'No se pudieron cargar las renovaciones.')];
+      let filt = renPending ? 'pending' : 'all';
+      const bankTa = el('textarea', { rows: '5', maxlength: '600', 'aria-label': 'Datos para transferir', placeholder: 'Ej:\nBanco Estado · Cuenta Vista\nN° 12345678\nNombre completo · RUT 12.345.678-9\nCorreo para comprobantes' });
+      bankTa.value = ren.data.bank || '';
+      const bankMsg = el('p', { class: 'muted', role: 'status', style: 'margin:0;font-size:13px' });
+      const bankSave = el('button', { class: 'btn small', type: 'button', onclick: async () => {
+        bankSave.disabled = true; const r = await api('/api/admin/settings/bank', { text: bankTa.value }); bankSave.disabled = false;
+        bankMsg.className = r.ok ? 'ok' : 'err'; bankMsg.textContent = r.ok ? '✓ Guardado. Los alumnos lo ven al tocar «Renovar mi plan».' : (r.data.error || 'No se pudo guardar.');
+      } }, 'Guardar datos');
+      const bankCard = el('section', { class: 'card', style: 'display:grid;gap:10px' },
+        el('h2', { style: 'margin:0' }, 'Datos para transferir'),
+        el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, 'Escribe aquí tu cuenta: es lo que ven los alumnos cuando van a renovar.'),
+        bankTa, el('div', { class: 'row' }, bankSave), bankMsg);
+      const planTxt = (x) => {
+        if (!x.plan_end) return 'Sin plan cargado';
+        const dl = daysLeft(x.plan_end);
+        return (x.plan_modality === 'presencial' ? 'Presencial · ' + (SEDE_NOMBRE[x.plan_sede] || '') + ' · ' + x.plan_sessions + ' sesiones' : 'Online') + ' · vence el ' + fmtDate(x.plan_end) + (x.plan_end < ren.data.today ? ' (vencido)' : ' (' + (dl === 1 ? 'falta 1 día' : 'faltan ' + dl + ' días') + ')');
+      };
+      const LABEL = { pending: ['Pendiente', 'chip gold'], approved: ['Aprobada', 'chip green'], rejected: ['Rechazada', 'chip red'] };
+      const row = (x) => {
+        const [label, cls] = LABEL[x.status];
+        const file = el('a', { class: 'btn ghost small', href: '/api/renewals/file?id=' + x.id, target: '_blank', rel: 'noopener' }, '📎 Ver comprobante');
+        const kids = [
+          el('div', { class: 'item' }, el('div', {}, el('strong', {}, x.name), el('br'), el('span', { class: 'muted', style: 'font-size:13px' }, x.email)), el('span', { class: cls }, label)),
+          el('p', { style: 'margin:0;font-size:14px' }, 'Plan actual: ', planTxt(x)),
+          el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, 'Subió el comprobante el ' + fmtDate(x.created_at.slice(0, 10)) + ' · ' + x.file_name),
+          x.note ? el('p', { style: 'margin:0;font-size:14px' }, '💬 ', x.note) : '',
+        ];
+        if (x.status === 'pending') {
+          const why = el('input', { type: 'text', maxlength: '200', placeholder: 'Motivo (opcional): ej. el monto no coincide', 'aria-label': 'Motivo del rechazo' });
+          const yes = el('button', { class: 'btn small danger', type: 'button', onclick: async () => { yes.disabled = true; await api('/api/admin/renewals/decide', { id: x.id, action: 'reject', reason: why.value }); render(); } }, 'Confirmar rechazo');
+          const approve = el('button', { class: 'btn small', type: 'button', onclick: async () => {
+            if (!confirm('¿Aprobar y renovar el plan de ' + x.name + '? Se crea un plan nuevo con las mismas condiciones y ella/él recibe un correo.')) return;
+            approve.disabled = true; const r = await api('/api/admin/renewals/decide', { id: x.id, action: 'approve' });
+            if (!r.ok) { approve.disabled = false; alert(r.data.error || 'No se pudo renovar.'); return; }
+            render();
+          } }, '✓ Aprobar y renovar');
+          kids.push(el('div', { class: 'row' }, file, approve),
+            el('details', {}, el('summary', { class: 'btn ghost small', style: 'list-style:none;display:inline-flex' }, 'Rechazar'), el('div', { style: 'display:grid;gap:8px;margin-top:10px' }, why, yes)));
+        } else {
+          kids.push(el('p', { class: 'muted', style: 'margin:0;font-size:13px' }, (x.status === 'approved' ? 'Aprobada' : 'Rechazada') + ' el ' + fmtDate((x.decided_at || '').slice(0, 10)) + (x.reject_reason ? ' · Motivo: ' + x.reject_reason : '')), el('div', { class: 'row' }, file));
+        }
+        return el('div', { class: 'card', style: 'display:grid;gap:10px' }, ...kids);
+      };
+      const listBox = el('div', { style: 'display:grid;gap:12px' });
+      const segBox = el('div', { class: 'seg', role: 'group', 'aria-label': 'Filtrar renovaciones' });
+      const paint = () => {
+        segBox.replaceChildren(...[['pending', 'Pendientes (' + renPending + ')'], ['all', 'Todas (' + renList.length + ')']].map(([k, t]) => el('button', { type: 'button', 'aria-pressed': String(filt === k), onclick: () => { filt = k; paint(); } }, t)));
+        const shown = renList.filter((x) => filt === 'all' || x.status === 'pending');
+        listBox.replaceChildren(...(shown.length ? shown.map(row) : [el('p', { class: 'muted', style: 'margin:14px 0' }, filt === 'pending' ? 'No hay comprobantes por revisar. 🎉' : 'Aún no hay renovaciones.')]));
+      };
+      paint();
+      return [el('h2', { style: 'margin-top:0' }, 'Renovaciones'), segBox, listBox, bankCard];
+    };
+
     let content;
     if (tab === 'agenda') content = ag.ok ? agendaSection(ag.data) : [el('p', { class: 'err' }, 'No se pudo cargar la agenda.')];
     else if (tab === 'mensajes') content = mensajesView();
+    else if (tab === 'renovaciones') content = renovacionesView();
     else if (tab === 'planes') content = planesView(parts[0] === 'planes' && parts[1] ? Number(parts[1]) : null);
     else {
       const st = parts[0] === 'alumno' ? students.find((x) => x.id === Number(parts[1])) : null;

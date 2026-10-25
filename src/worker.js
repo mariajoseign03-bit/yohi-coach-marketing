@@ -1,5 +1,5 @@
 import { gcalConfigured, gcalCreate, gcalDelete } from './gcal.js';
-import { mailConfigured, mailConfig, bookingEmail, resetEmail, sendMail } from './mail.js';
+import { mailConfigured, mailConfig, bookingEmail, resetEmail, renewalEmail, sendMail } from './mail.js';
 // Portal de alumnos de Yohi Coach — API sobre Cloudflare Workers + D1.
 // Solo atiende /api/*; el resto del sitio lo sirven los archivos estáticos (ASSETS).
 
@@ -229,6 +229,159 @@ async function login(req, env, url) {
   );
 }
 
+/* ---------- renovaciones: el alumno sube el comprobante de su transferencia y Yohi lo revisa ---------- */
+const planOf = (env, userId) => env.DB.prepare('SELECT id, modality, sede, sessions_total, start_date, end_date FROM plans WHERE user_id = ? ORDER BY id DESC LIMIT 1').bind(userId).first();
+const bankInfo = async (env) => { const r = await env.DB.prepare("SELECT value FROM app_settings WHERE key = 'bank_info'").first(); return r ? r.value : ''; };
+const dayDiff = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 86400000);
+const siteOf = (env) => (mailConfig(env) || { site: 'https://yohicoach.cl' }).site;
+
+// Alumno: su plan (con días y sesiones), sus renovaciones y los datos para transferir que dejó Yohi.
+async function myRenewals(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  const today = todayCL(env);
+  const plan = (await activePlan(env, user.id, today)) || (await planOf(env, user.id));
+  const used = plan && plan.modality === 'presencial' ? await usedSessions(env, plan.id) : null;
+  const next = await env.DB.prepare('SELECT modality, sede, sessions_total, start_date, end_date FROM plans WHERE user_id = ? AND start_date > ? ORDER BY id DESC LIMIT 1').bind(user.id, today).first();
+  const { results } = await env.DB.prepare('SELECT id, status, note, file_name, reject_reason, created_at, decided_at FROM renewals WHERE user_id = ? ORDER BY id DESC LIMIT 20').bind(user.id).all();
+  return json({ ok: true, today, plan: plan ? { ...plan, used } : null, next: next || null, renewals: results, bank: await bankInfo(env) });
+}
+
+async function submitRenewal(req, env, ctx) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  if (await limited(env, `renew:${user.id}`, 6, 86400)) return fail(429, 'Enviaste varios comprobantes hoy. Escríbele a Yohi por WhatsApp.');
+  if (!(req.headers.get('content-type') || '').includes('multipart/form-data')) return fail(400, 'Solicitud inválida.');
+  if (Number(req.headers.get('content-length') || 0) > PDF_MAX + 100000) return fail(413, 'El archivo pesa más de 4 MB.');
+  let fd;
+  try { fd = await req.formData(); } catch { return fail(400, 'Solicitud inválida.'); }
+  const file = fd.get('file');
+  const note = String(fd.get('note') || '').trim().slice(0, 300);
+  if (!file || typeof file === 'string' || !file.size) return fail(400, 'Adjunta tu comprobante (PDF o imagen).');
+  if (file.size > PDF_MAX) return fail(400, 'El archivo pesa más de 4 MB.');
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const kind = fileKind(bytes);
+  if (!kind) return fail(400, 'El comprobante debe ser un PDF, PNG o JPG.');
+  const pending = await env.DB.prepare("SELECT id FROM renewals WHERE user_id = ? AND status = 'pending'").bind(user.id).first();
+  if (pending) return fail(409, 'Ya tienes un comprobante en revisión. Espera a que Yohi lo revise.');
+  const plan = await planOf(env, user.id);
+  const name = String(file.name || '').replace(/[^\w.\- ]/g, '_').slice(0, 80) || `comprobante.${kind.ext}`;
+  const ins = await env.DB.prepare('INSERT INTO renewals (user_id, plan_id, note, file_name) VALUES (?, ?, ?, ?)').bind(user.id, plan ? plan.id : null, note, name).run();
+  const rid = ins.meta && ins.meta.last_row_id;
+  try {
+    const stmts = [];
+    for (let i = 0, seq = 0; i < bytes.length; i += CHUNK, seq++) {
+      stmts.push(env.DB.prepare('INSERT INTO renewal_chunks (renewal_id, seq, data) VALUES (?, ?, ?)').bind(rid, seq, bytesToB64(bytes.subarray(i, i + CHUNK))));
+    }
+    await env.DB.batch(stmts);
+  } catch (e) {
+    await env.DB.prepare('DELETE FROM renewals WHERE id = ?').bind(rid).run();
+    return fail(500, 'No se pudo guardar el archivo. Intenta de nuevo.');
+  }
+  // Aviso por correo a Yohi (en segundo plano; si el correo no está conectado, no pasa nada).
+  if (mailConfigured(env)) {
+    const { results: admins } = await env.DB.prepare("SELECT name, email FROM users WHERE role = 'admin' AND status = 'active'").all();
+    for (const a of admins) {
+      const p = sendMail(env, { to: a.email, ...renewalEmail({ kind: 'new', name: a.name, studentName: user.name, site: siteOf(env) }) });
+      if (ctx && ctx.waitUntil) ctx.waitUntil(p);
+    }
+  }
+  return json({ ok: true });
+}
+
+async function cancelRenewal(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  const b = await readBody(req);
+  const id = Number(b && b.id);
+  if (!Number.isInteger(id)) return fail(400, 'Solicitud inválida.');
+  await env.DB.prepare("DELETE FROM renewals WHERE id = ? AND user_id = ? AND status = 'pending'").bind(id, user.id).run();
+  return json({ ok: true });
+}
+
+// Comprobante (PDF o imagen): solo quien lo subió o Yohi.
+async function renewalFile(req, env, url) {
+  const user = await currentUser(req, env);
+  if (!user) return fail(401, 'No has iniciado sesión.');
+  const id = Number(url.searchParams.get('id'));
+  if (!Number.isInteger(id)) return fail(400, 'Solicitud inválida.');
+  const row = await env.DB.prepare('SELECT user_id FROM renewals WHERE id = ?').bind(id).first();
+  if (!row || (row.user_id !== user.id && user.role !== 'admin')) return fail(404, 'No encontrado.');
+  const { results } = await env.DB.prepare('SELECT data FROM renewal_chunks WHERE renewal_id = ? ORDER BY seq').bind(id).all();
+  const parts = results.map((r) => Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0)));
+  const body = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let off = 0;
+  for (const p of parts) { body.set(p, off); off += p.length; }
+  const kind = fileKind(body) || FILE_KINDS.pdf;
+  return new Response(body, {
+    headers: {
+      'content-type': kind.type,
+      'content-disposition': `inline; filename="comprobante-${id}.${kind.ext}"`,
+      'cache-control': 'private, no-store',
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': 'sandbox',
+    },
+  });
+}
+
+// Yohi: todas las renovaciones (pendientes primero) con el plan actual de cada alumno.
+async function adminRenewals(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const { results } = await env.DB.prepare(
+    `SELECT r.id, r.user_id, r.status, r.note, r.file_name, r.reject_reason, r.created_at, r.decided_at, u.name, u.email,
+            (SELECT modality FROM plans p WHERE p.user_id = r.user_id ORDER BY p.id DESC LIMIT 1) AS plan_modality,
+            (SELECT sede FROM plans p WHERE p.user_id = r.user_id ORDER BY p.id DESC LIMIT 1) AS plan_sede,
+            (SELECT sessions_total FROM plans p WHERE p.user_id = r.user_id ORDER BY p.id DESC LIMIT 1) AS plan_sessions,
+            (SELECT end_date FROM plans p WHERE p.user_id = r.user_id ORDER BY p.id DESC LIMIT 1) AS plan_end
+       FROM renewals r JOIN users u ON u.id = r.user_id
+      ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.id DESC LIMIT 100`,
+  ).all();
+  return json({ ok: true, today: todayCL(env), renewals: results, pending: results.filter((r) => r.status === 'pending').length, bank: await bankInfo(env) });
+}
+
+// Yohi aprueba (crea el plan nuevo con las mismas condiciones) o rechaza con un motivo.
+async function adminDecideRenewal(req, env, ctx) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const id = Number(b.id);
+  if (!Number.isInteger(id) || !['approve', 'reject'].includes(b.action)) return fail(400, 'Solicitud inválida.');
+  const r = await env.DB.prepare('SELECT r.id, r.user_id, r.status, u.name, u.email FROM renewals r JOIN users u ON u.id = r.user_id WHERE r.id = ?').bind(id).first();
+  if (!r) return fail(404, 'No se encontró la renovación.');
+  if (r.status !== 'pending') return fail(409, 'Esta renovación ya fue revisada.');
+  const notify = (info) => {
+    if (!mailConfigured(env) || !r.email) return;
+    const p = sendMail(env, { to: r.email, ...renewalEmail({ name: r.name, site: siteOf(env), ...info }) });
+    if (ctx && ctx.waitUntil) ctx.waitUntil(p);
+  };
+  if (b.action === 'reject') {
+    const reason = String(b.reason || '').trim().slice(0, 200);
+    await env.DB.prepare("UPDATE renewals SET status = 'rejected', reject_reason = ?, decided_at = ? WHERE id = ?").bind(reason, isoNow(), id).run();
+    notify({ kind: 'rejected', reason });
+    return json({ ok: true });
+  }
+  const cur = await planOf(env, r.user_id);
+  if (!cur) return fail(400, 'Este alumno no tiene un plan para renovar. Créalo primero en Planes.');
+  const today = todayCL(env);
+  // Si el plan sigue vigente, el nuevo parte el día siguiente (no se pierden días ni sesiones); si ya venció, parte hoy.
+  const start = cur.end_date >= today ? addDays(cur.end_date, 1) : today;
+  let end, sede = null, sessions = null;
+  if (cur.modality === 'presencial') { sede = cur.sede; sessions = cur.sessions_total; end = addDays(start, 27); }
+  else { const months = dayDiff(cur.start_date, cur.end_date) > 62 ? 3 : 1; end = addDays(addMonths(start, months), -1); }
+  const ins = await env.DB.prepare('INSERT INTO plans (user_id, modality, sede, sessions_total, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?)').bind(r.user_id, cur.modality, sede, sessions, start, end).run();
+  await env.DB.prepare("UPDATE renewals SET status = 'approved', new_plan_id = ?, decided_at = ? WHERE id = ?").bind(ins.meta && ins.meta.last_row_id, isoNow(), id).run();
+  notify({ kind: 'approved', end });
+  return json({ ok: true, start, end });
+}
+
+async function adminSaveBank(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  if (!b || typeof b.text !== 'string') return fail(400, 'Solicitud inválida.');
+  await env.DB.prepare("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('bank_info', ?)").bind(b.text.trim().slice(0, 600)).run();
+  return json({ ok: true });
+}
+
 /* ---------- recuperar la clave por correo (código de 6 dígitos) ---------- */
 const RESET_MINUTES = 15, RESET_MAX_TRIES = 5;
 const resetHash = (userId, code) => sha256Hex(`reset:${userId}:${code}`);
@@ -297,12 +450,12 @@ async function logout(req, env, url) {
 async function me(req, env) {
   const user = await currentUser(req, env);
   if (!user) return fail(401, 'No has iniciado sesión.');
-  const plan = await env.DB.prepare(
+  const plan = (await activePlan(env, user.id, todayCL(env))) || (await env.DB.prepare(
     `SELECT modality, sede, sessions_total, start_date, end_date FROM plans
       WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
   )
     .bind(user.id)
-    .first();
+    .first());
   return json({
     ok: true,
     user: { name: user.name, email: user.email, role: user.role, healthConsent: !!user.health_consent_at },
@@ -1353,6 +1506,13 @@ export default {
         case 'POST /api/signup': return await signup(req, env, url);
         case 'POST /api/login': return await login(req, env, url);
         case 'POST /api/logout': return await logout(req, env, url);
+        case 'GET /api/renewals': return await myRenewals(req, env);
+        case 'POST /api/renewals': return await submitRenewal(req, env, ctx);
+        case 'POST /api/renewals/cancel': return await cancelRenewal(req, env);
+        case 'GET /api/renewals/file': return await renewalFile(req, env, url);
+        case 'GET /api/admin/renewals': return await adminRenewals(req, env);
+        case 'POST /api/admin/renewals/decide': return await adminDecideRenewal(req, env, ctx);
+        case 'POST /api/admin/settings/bank': return await adminSaveBank(req, env);
         case 'POST /api/password/forgot': return await passwordForgot(req, env, ctx);
         case 'POST /api/password/reset': return await passwordReset(req, env);
         case 'GET /api/me': return await me(req, env);

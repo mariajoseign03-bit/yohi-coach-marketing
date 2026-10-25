@@ -97,3 +97,42 @@ ${logoHeader(site)}
 </div></div></body></html>`;
   return { subject, text, html };
 }
+
+// Aviso de renovación. kind: 'approved' | 'rejected' (al alumno) | 'new' (a Yohi). Solo lleva nombre de pila, fechas y la razón que escribe Yohi.
+export function renewalEmail({ kind, name, studentName, end, reason, site = 'https://yohicoach.cl' }) {
+  const first = String(name || '').trim().split(/\s+/)[0] || 'hola';
+  const who = String(studentName || '').trim();
+  const cap = (t) => t.replace(/^./, (c) => c.toUpperCase());
+  let subject, lead, box, tail, btn, link;
+  if (kind === 'approved') {
+    subject = `Renovamos tu plan: vigente hasta ${dayText(end)}`;
+    lead = 'Recibimos tu transferencia y renovamos tu plan. ¡Seguimos entrenando!';
+    box = `Vigente hasta el ${dayText(end)}`;
+    tail = 'Puedes ver los detalles de tu plan y pedir tus próximas horas desde tu portal.';
+    btn = 'Ver mi plan'; link = `${site}/alumnos#renovar`;
+  } else if (kind === 'rejected') {
+    subject = 'No pudimos validar tu comprobante';
+    lead = 'Revisamos tu comprobante de transferencia y todavía no pudimos validarlo.';
+    box = reason ? `Mensaje de Yohi: ${reason}` : 'Yohi te explicará el motivo por WhatsApp.';
+    tail = 'Puedes subir otro comprobante desde tu portal o escribirle a Yohi por WhatsApp.';
+    btn = 'Ir a Renovar'; link = `${site}/alumnos#renovar`;
+  } else {
+    subject = `Nueva renovación: ${who || 'un alumno'}`;
+    lead = `${who || 'Un alumno'} subió un comprobante de transferencia para renovar su plan.`;
+    box = 'Pendiente de revisión';
+    tail = 'Revisa el comprobante y aprueba la renovación desde tu panel.';
+    btn = 'Abrir Renovaciones'; link = `${site}/admin#renovaciones`;
+  }
+  const text = `Hola, ${first}.\n\n${lead}\n\n${box}\n\n${tail}\n\n${btn}: ${link}`;
+  const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f6f1f4;font-family:Arial,Helvetica,sans-serif;color:#111">
+<div style="max-width:520px;margin:0 auto;padding:24px 16px">
+${logoHeader(site)}
+<div style="background:#fff;border-radius:0 0 18px 18px;padding:26px 24px">
+<p style="margin:0 0 14px;font-size:17px">Hola, <b>${esc(first)}</b></p>
+<p style="margin:0 0 18px;font-size:15px;line-height:1.5">${esc(lead)}</p>
+<div style="border:2px solid #FF4FA3;border-radius:14px;padding:16px 18px;margin:0 0 18px;background:#fff5fa"><div style="font-size:17px;font-weight:800;line-height:1.35">${esc(cap(box))}</div></div>
+<p style="margin:0 0 22px;font-size:14px;line-height:1.5;color:#444">${esc(tail)}</p>
+<a href="${esc(link)}" style="display:inline-block;background:#FF4FA3;color:#111;text-decoration:none;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:14px 26px;border-radius:999px">${esc(btn)}</a>
+</div></div></body></html>`;
+  return { subject, text, html };
+}
