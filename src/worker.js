@@ -250,7 +250,7 @@ async function passwordForgot(req, env, ctx) {
     const expires = new Date(Date.now() + RESET_MINUTES * 60000).toISOString();
     await env.DB.prepare('INSERT OR REPLACE INTO password_resets (user_id, code_hash, expires_at, tries) VALUES (?, ?, ?, 0)')
       .bind(user.id, await resetHash(user.id, code), expires).run();
-    const send = sendMail(env, { to: user.email, ...resetEmail({ name: user.name, code, minutes: RESET_MINUTES }) });
+    const send = sendMail(env, { to: user.email, ...resetEmail({ name: user.name, code, minutes: RESET_MINUTES, site: mailConfig(env).site }) });
     if (ctx && ctx.waitUntil) ctx.waitUntil(send); else await send;
   }
   return json({ ok: true, message: `Si ese correo tiene una cuenta activa, te enviamos un código de 6 dígitos. Vence en ${RESET_MINUTES} minutos.` });

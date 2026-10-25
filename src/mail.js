@@ -15,6 +15,8 @@ export function mailConfig(env) {
 export const mailConfigured = (env) => !!mailConfig(env);
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// Cabecera negra con el logo de Yohi (imagen alojada en el sitio; si el correo la bloquea, se ve el texto «Yohi Coach» en rosa).
+const logoHeader = (site) => `<div style="background:#111;border-radius:18px 18px 0 0;padding:22px 24px;text-align:center"><img src="${esc(site)}/email-logo.png" width="104" height="104" alt="Yohi Coach" style="display:block;margin:0 auto;border:0;width:104px;height:104px;border-radius:52px;color:#FF6DB4;font:800 14px Arial,Helvetica,sans-serif;letter-spacing:.14em"></div>`;
 export function dayText(iso) {
   const [y, m, d] = iso.split('-').map(Number);
   return `${DIAS[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()]} ${d} de ${MESES[m - 1]}`;
@@ -34,7 +36,7 @@ export function bookingEmail({ name, day, time, sedeName, kind, site }) {
   const text = `Hola, ${first}.\n\n${lead}\n\n${when}\n${sedeName}\n\n${tail}\n\nVer mi agenda: ${link}\n\nRecibes este correo porque tienes una hora en tu portal de Yohi Coach.`;
   const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f6f1f4;font-family:Arial,Helvetica,sans-serif;color:#111">
 <div style="max-width:520px;margin:0 auto;padding:24px 16px">
-<div style="background:#111;border-radius:18px 18px 0 0;padding:18px 24px"><span style="color:#FF6DB4;font-weight:800;letter-spacing:.14em;font-size:13px">YOHI COACH</span></div>
+${logoHeader(site)}
 <div style="background:#fff;border-radius:0 0 18px 18px;padding:26px 24px">
 <p style="margin:0 0 14px;font-size:17px">Hola, <b>${esc(first)}</b></p>
 <p style="margin:0 0 18px;font-size:15px;line-height:1.5">${esc(lead)}</p>
@@ -78,13 +80,13 @@ export async function sendMail(env, { to, subject, text, html }) {
 }
 
 // Correo con el código para recuperar la clave. Solo lleva el nombre de pila y el código (nada de enlaces ni datos de salud).
-export function resetEmail({ name, code, minutes }) {
+export function resetEmail({ name, code, minutes, site = 'https://yohicoach.cl' }) {
   const first = String(name || '').trim().split(/\s+/)[0] || 'hola';
   const subject = `Tu código para recuperar la clave: ${code}`;
   const text = `Hola, ${first}.\n\nPediste recuperar tu clave del portal de Yohi Coach. Tu código es:\n\n${code}\n\nVence en ${minutes} minutos. Escríbelo en la pantalla donde lo pediste y elige tu clave nueva.\n\nSi no fuiste tú, ignora este correo: tu clave actual sigue funcionando. Nunca compartas este código con nadie, ni siquiera con Yohi.`;
   const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f6f1f4;font-family:Arial,Helvetica,sans-serif;color:#111">
 <div style="max-width:520px;margin:0 auto;padding:24px 16px">
-<div style="background:#111;border-radius:18px 18px 0 0;padding:18px 24px"><span style="color:#FF6DB4;font-weight:800;letter-spacing:.14em;font-size:13px">YOHI COACH</span></div>
+${logoHeader(site)}
 <div style="background:#fff;border-radius:0 0 18px 18px;padding:26px 24px">
 <p style="margin:0 0 14px;font-size:17px">Hola, <b>${esc(first)}</b></p>
 <p style="margin:0 0 18px;font-size:15px;line-height:1.5">Pediste recuperar tu clave del portal. Este es tu código:</p>
