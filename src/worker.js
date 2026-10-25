@@ -654,6 +654,30 @@ async function agenda(req, env) {
   return json({ ok: true, plan: { total: plan.sessions_total, used, left: Math.max(0, plan.sessions_total - used), end: plan.end_date }, days: out, mine });
 }
 
+/* ---------- historial de sesiones: «tal día a tal hora se realizó tu sesión» ----------
+   Una hora confirmada cuenta como realizada cuando ya pasó (la hora + 1 h). Una cancelación con menos de 24 h cuenta como sesión perdida. */
+async function sessionHistory(env, userId) {
+  const { results } = await env.DB.prepare(
+    `SELECT id, day, time, sede, status, late_cancel FROM bookings
+      WHERE user_id = ? AND (status IN ('confirmed','done') OR (status = 'cancelled' AND late_cancel = 1)) ORDER BY day DESC, time DESC`,
+  ).bind(userId).all();
+  const now = nowMs(env);
+  return results
+    .filter((b) => b.status === 'cancelled' || b.status === 'done' || slotMs(b.day, b.time) + 3600000 <= now)
+    .map((b) => ({ id: b.id, day: b.day, time: b.time, sede: b.sede, lost: b.status === 'cancelled' }));
+}
+async function mySessions(req, env) {
+  const user = await currentUser(req, env);
+  if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
+  return json({ ok: true, sessions: await sessionHistory(env, user.id) });
+}
+async function adminSessions(req, env, url) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const userId = Number(url.searchParams.get('userId'));
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
+  return json({ ok: true, sessions: await sessionHistory(env, userId) });
+}
+
 async function createBooking(req, env) {
   const user = await currentUser(req, env);
   if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
@@ -1534,6 +1558,8 @@ export default {
         case 'POST /api/admin/notes/delete': return await adminDeleteNote(req, env);
         case 'GET /api/admin/progress': return await adminProgress(req, env, url);
         case 'GET /api/agenda': return await agenda(req, env);
+        case 'GET /api/sessions': return await mySessions(req, env);
+        case 'GET /api/admin/sessions': return await adminSessions(req, env, url);
         case 'POST /api/bookings': return await createBooking(req, env);
         case 'POST /api/bookings/cancel': return await cancelBooking(req, env);
         case 'GET /api/admin/agenda': return await adminAgenda(req, env);

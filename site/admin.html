@@ -884,9 +884,20 @@
         el('a', { class: 'btn ghost small', href: '#planes/' + st.id }, 'Editar plan'),
         el('button', { class: 'btn ghost small danger', type: 'button', onclick: () => { delBox.hidden = false; confirmIn.focus(); } }, 'Eliminar cuenta'));
       const segs = el('div', { class: 'seg', role: 'group', 'aria-label': 'Secciones de la ficha' },
-        ...[['rutina', 'Rutina'], ['progreso', 'Progreso']].map(([k, t]) => el('button', { type: 'button', 'aria-pressed': String(sub === k), onclick: () => { location.hash = '#alumno/' + st.id + (k === 'progreso' ? '/progreso' : ''); } }, t)));
+        ...[['rutina', 'Rutina'], ['progreso', 'Progreso'], ['sesiones', 'Sesiones']].map(([k, t]) => el('button', { type: 'button', 'aria-pressed': String(sub === k), onclick: () => { location.hash = '#alumno/' + st.id + (k === 'rutina' ? '' : '/' + k); } }, t)));
       let body;
-      if (sub === 'progreso') {
+      if (sub === 'sesiones') {
+        const holder = el('ul', { class: 'ses-list' }), count = el('span', { class: 'muted', style: 'font-size:13px' });
+        api('/api/admin/sessions?userId=' + st.id).then((r) => {
+          const list = r.ok ? r.data.sessions : [];
+          const done = list.filter((x) => !x.lost).length;
+          count.textContent = st.modality === 'presencial' ? done + ' realizadas · ' + (st.used ?? 0) + ' de ' + st.sessions_total + ' usadas en el plan' : done + ' realizadas';
+          holder.replaceChildren(...(list.length ? list.map((x) => el('li', { class: x.lost ? 'lost' : '' },
+            el('span', {}, fmtDate(x.day)), el('span', { class: 'muted' }, x.time + ' · ' + (SEDE_NOMBRE[x.sede] || '')), x.lost ? el('em', {}, 'perdida') : ''))
+            : [el('li', { class: 'muted' }, 'Aún no hay sesiones realizadas.')]));
+        });
+        body = el('section', { class: 'card', style: 'display:grid;gap:12px' }, el('div', { class: 'row', style: 'justify-content:space-between' }, el('h2', { style: 'margin:0' }, 'Sesiones de ' + st.name.split(' ')[0]), count), holder);
+      } else if (sub === 'progreso') {
         const mp = medPanel(st);
         const medCard = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Medidas'), mp.box);
         mp.load();
@@ -1005,7 +1016,7 @@
     else if (tab === 'planes') content = planesView(parts[0] === 'planes' && parts[1] ? Number(parts[1]) : null);
     else {
       const st = parts[0] === 'alumno' ? students.find((x) => x.id === Number(parts[1])) : null;
-      content = st ? fichaView(st, parts[2] === 'progreso' ? 'progreso' : 'rutina') : alumnosView();
+      content = st ? fichaView(st, ['progreso', 'sesiones'].includes(parts[2]) ? parts[2] : 'rutina') : alumnosView();
     }
     app.replaceChildren(top, tabsNav, el('div', { class: 'admview' }, ...content));
   }
