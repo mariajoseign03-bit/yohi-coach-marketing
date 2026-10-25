@@ -86,6 +86,7 @@
     const msg = el('p', { class: 'err', role: 'alert' });
     const pendingBox = el('div');
     const calBox = el('div');
+    let pastMap = {}; // sesiones ya realizadas por día, para el historial del calendario
     // Resultado de Google Calendar y del correo de aviso al alumno.
     const outcome = (d, doneText) => {
       const bad = [];
@@ -192,19 +193,23 @@
         return b;
       }));
       const times = [...new Set([...((o && o.slots && o.slots.length) ? o.slots : (SLOT_TIMES[cur] || [])), ...bs.map((b) => b.time)])].sort();
-      const slots = times.map((t) => { const b = bs.find((x) => x.time === t); return b ? bookedRow(b) : el('div', { class: 'slot-row free' }, el('span', { class: 'slot-t' }, t), el('span', { class: 'muted' }, 'libre')); });
+      const hist = (pastMap[iso] || []).map((h) => el('div', { class: 'slot-row ' + (h.lost ? 'lost' : 'done') },
+        el('div', { class: 'slot-top' }, el('span', { class: 'slot-t' }, h.time), el('span', { class: 'badge ' + (h.lost ? 'wait' : 'okb') }, h.lost ? 'Perdida' : 'Realizada')),
+        el('div', { class: 'slot-name' }, h.name), el('div', { class: 'muted', style: 'font-size:12.5px' }, SEDE_NOMBRE[h.sede] || '')));
+      const slots = hist.length ? hist : times.map((t) => { const b = bs.find((x) => x.time === t); return b ? bookedRow(b) : el('div', { class: 'slot-row free' }, el('span', { class: 'slot-t' }, t), el('span', { class: 'muted' }, 'libre')); });
       const dd = dayDate(iso);
       return el('div', { class: 'wk-day' + (past ? ' past' : '') + (iso === ag.today ? ' today' : '') },
         el('div', { class: 'wk-day-main' },
           el('div', { class: 'wk-day-head' }, el('strong', {}, DIA_LARGO[i]), el('span', { class: 'wk-date' }, dd.getUTCDate() + ' ' + MESES[dd.getUTCMonth()])),
-          seg,
+          past ? '' : seg,
           cur !== 'closed' && o ? el('div', { class: 'wk-sede-tag' }, SEDE_NOMBRE[o.sede] || '') : '',
           (cur !== 'closed' && o && !past) ? rangeEditor(iso, o) : ''),
-        slots.length ? el('div', { class: 'slot-list' }, ...slots) : el('p', { class: 'muted wk-closed' }, past ? 'Ya pasó' : 'Sin atención'));
+        slots.length ? el('div', { class: 'slot-list' }, ...slots) : el('p', { class: 'muted wk-closed' }, past ? 'Sin sesiones' : 'Sin atención'));
     }
 
     function weekDetail(wk, days, byDay, openMap) {
       const all = days.flatMap((d) => byDay[d] || []);
+      const nDone = days.reduce((n, d) => n + (pastMap[d] || []).filter((h) => !h.lost).length, 0);
       const nReq = all.filter((b) => b.status === 'requested').length;
       const wd = dayDate(wk), we = dayDate(addIso(wk, 6));
       const title = 'Semana del ' + wd.getUTCDate() + (wd.getUTCMonth() !== we.getUTCMonth() ? ' ' + MESES[wd.getUTCMonth()] : '') + ' al ' + we.getUTCDate() + ' ' + MESES[we.getUTCMonth()];
@@ -232,7 +237,7 @@
       } }, 'Aplicar a días abiertos');
       const head = el('div', { class: 'wk-head' },
         el('div', {}, el('strong', { class: 'wk-title' }, title),
-          el('div', { class: 'muted', style: 'font-size:12.5px;margin-top:2px' }, nReq + (nReq === 1 ? ' por confirmar' : ' por confirmar') + ' · ' + (all.length - nReq) + (all.length - nReq === 1 ? ' confirmada' : ' confirmadas'))),
+          el('div', { class: 'muted', style: 'font-size:12.5px;margin-top:2px' }, nReq + (nReq === 1 ? ' por confirmar' : ' por confirmar') + ' · ' + (all.length - nReq) + (all.length - nReq === 1 ? ' confirmada' : ' confirmadas') + (nDone ? ' · ' + nDone + (nDone === 1 ? ' realizada' : ' realizadas') : ''))),
         el('div', { class: 'wk-tools' },
           el('label', { class: 'wk-sede' }, 'Sede al abrir', sedeSelect),
           el('button', { class: 'btn ghost small', type: 'button', onclick: () => bulk('am') }, 'Lun–Vie mañana'),
@@ -253,7 +258,8 @@
       const cell = (iso) => {
         const o = openMap[iso], bs = byDay[iso] || [];
         const req = bs.filter((b) => b.status === 'requested').length, conf = bs.length - req;
-        const dots = [...Array(Math.min(req, 4)).fill('req'), ...Array(Math.min(conf, 4)).fill('ok')].map((k) => el('i', { class: 'dot ' + k }));
+        const nd = (pastMap[iso] || []).filter((h) => !h.lost).length;
+        const dots = [...Array(Math.min(req, 4)).fill('req'), ...Array(Math.min(conf, 4)).fill('ok'), ...Array(Math.min(nd, 4)).fill('done')].map((k) => el('i', { class: 'dot ' + k }));
         const isOpen = o && o.mode !== 'closed';
         return el('div', { class: 'cal-day' + (iso.slice(0, 7) === agState.month ? '' : ' off') + (iso === ag.today ? ' today' : '') + (iso < ag.today ? ' past' : '') + (isOpen ? ' open' : '') },
           el('span', { class: 'cal-n' }, String(dayDate(iso).getUTCDate())),
@@ -270,16 +276,21 @@
           onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } } }, ...days.map(cell)));
         if (sel) grid.append(weekDetail(wk, days, byDay, openMap));
       }
+      const monthDone = Object.entries(pastMap).filter(([d]) => d.slice(0, 7) === agState.month).reduce((n, [, l]) => n + l.filter((h) => !h.lost).length, 0);
+      const monthLost = Object.entries(pastMap).filter(([d]) => d.slice(0, 7) === agState.month).reduce((n, [, l]) => n + l.filter((h) => h.lost).length, 0);
+      const monthTxt = el('p', { class: 'cal-sum' }, el('strong', {}, String(monthDone)), monthDone === 1 ? ' sesión realizada en ' : ' sesiones realizadas en ', MES_FULL[M - 1].toLowerCase(), monthLost ? ' · ' + monthLost + (monthLost === 1 ? ' perdida' : ' perdidas') : '');
       return [
         el('h2', {}, 'Agenda'),
         el('p', { class: 'muted', style: 'font-size:13px' }, 'Toca una semana para abrirla: ahí eliges la disponibilidad de cada día y ves las horas que piden los alumnos. Un día con horas pedidas no se puede cambiar hasta responderlas.'),
-        nav, grid,
-        el('p', { class: 'cal-legend muted' }, el('i', { class: 'dot req' }), ' por confirmar  ', el('i', { class: 'dot ok' }), ' confirmada  · el texto bajo el número es la disponibilidad'),
+        nav, monthTxt, grid,
+        el('p', { class: 'cal-legend muted' }, el('i', { class: 'dot req' }), ' por confirmar  ', el('i', { class: 'dot ok' }), ' confirmada  ', el('i', { class: 'dot done' }), ' realizada  · el texto bajo el número es la disponibilidad'),
       ];
     }
 
     function paint() {
       const byDay = {};
+      pastMap = {};
+      for (const h of (ag.past || [])) (pastMap[h.day] = pastMap[h.day] || []).push(h);
       for (const b of ag.bookings) (byDay[b.day] = byDay[b.day] || []).push(b);
       const openMap = Object.fromEntries(ag.days.map((d) => [d.day, d]));
       const asked = ag.bookings.filter((b) => b.status === 'requested');

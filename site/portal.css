@@ -505,3 +505,10 @@ textarea:focus-visible{ outline:none; border-color:var(--accent); box-shadow:0 0
 .ses-list li em{ font-style:normal; font-size:12px; color:var(--muted) }
 .ses-list li.lost span:first-child{ text-decoration:line-through; opacity:.6 }
 .stack{ display:grid; gap:16px }
+
+/* Historial en el calendario */
+.dot.done{ background:var(--accent-soft) }
+.slot-row.done{ border-left-color:var(--accent-soft); background:rgba(255,214,232,.06) }
+.slot-row.lost{ border-left-color:var(--muted); opacity:.7 }
+.cal-sum{ margin:4px 0 10px; font-size:14px; color:var(--muted) }
+.cal-sum strong{ color:var(--fg); font-size:18px }

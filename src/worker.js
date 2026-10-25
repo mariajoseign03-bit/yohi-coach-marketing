@@ -774,7 +774,16 @@ async function adminAgenda(req, env) {
     `SELECT b.id, b.day, b.time, b.status, b.sede, u.name FROM bookings b JOIN users u ON u.id = b.user_id
       WHERE b.status IN ('requested','confirmed') AND b.day >= ? ORDER BY b.day, b.time`,
   ).bind(today).all();
-  return json({ ok: true, today, days: days.map((d) => ({ day: d.day, mode: d.mode, sede: d.sede, custom: !!d.slots, slots: d.mode === 'closed' ? [] : slotsOf(d) })), bookings, gcal: gcalConfigured(env), mail: mailConfigured(env) });
+  // Historial para el calendario mensual: sesiones ya pasadas (confirmadas = realizadas) y las perdidas por cancelar con menos de 24 h.
+  const since = new Date(nowMs(env) - 400 * 86400000).toISOString().slice(0, 10);
+  const { results: pastRows } = await env.DB.prepare(
+    `SELECT b.id, b.day, b.time, b.sede, b.status, u.name FROM bookings b JOIN users u ON u.id = b.user_id
+      WHERE b.day >= ? AND b.day <= ? AND (b.status IN ('confirmed','done') OR (b.status = 'cancelled' AND b.late_cancel = 1)) ORDER BY b.day, b.time`,
+  ).bind(since, today).all();
+  const now = nowMs(env);
+  const past = pastRows.filter((b) => b.status !== 'confirmed' || slotMs(b.day, b.time) + 3600000 <= now).map((b) => ({ id: b.id, day: b.day, time: b.time, sede: b.sede, name: b.name, lost: b.status === 'cancelled' }));
+  const pastIds = new Set(past.map((b) => b.id));
+  return json({ ok: true, today, days: days.map((d) => ({ day: d.day, mode: d.mode, sede: d.sede, custom: !!d.slots, slots: d.mode === 'closed' ? [] : slotsOf(d) })), bookings: bookings.filter((b) => !pastIds.has(b.id)), past, gcal: gcalConfigured(env), mail: mailConfigured(env) });
 }
 
 async function adminOpenDay(req, env) {
