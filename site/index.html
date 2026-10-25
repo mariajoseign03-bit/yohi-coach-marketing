@@ -564,6 +564,12 @@ h1{ margin:0; font-weight:400 }
 .alum-ok p{ margin:0 0 16px; font-size:14.5px; line-height:1.55; color:var(--muted) }
 .alum-ok p strong{ color:var(--fg) }
 .alum-ok .btn{ width:100% }
+.alum-forgot{ justify-self:start; min-height:36px; padding:0; background:none; border:0; color:var(--accent-soft); font:700 13px/1 var(--f-text); cursor:pointer; text-decoration:underline; text-underline-offset:4px }
+.alum-forgot-h{ margin:0; font:800 18px/1.2 var(--f-text); color:var(--fg) }
+.alum-hint{ margin:0 }
+.alum-okmsg{ margin:0; font-size:13.5px; font-weight:700; color:var(--gold-light) }
+.alum-okmsg:empty{ display:none }
+#formForgot .alum-back{ justify-self:center }
 .alum-back{ margin-top:10px; min-height:44px; background:none; border:0; color:var(--muted); font:700 14px/1 var(--f-text); cursor:pointer; text-decoration:underline; text-underline-offset:4px }
 @media (max-width:860px){
   .nav-ig{ display:none }
@@ -1158,8 +1164,27 @@ h1{ margin:0; font-weight:400 }
     <form class="alum-f" id="formIn" role="tabpanel" aria-labelledby="tabIn" novalidate>
       <label>Correo<input name="user" type="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="tucorreo@ejemplo.cl" required></label>
       <label class="alum-pw">Clave<input name="pass" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Tu clave" required><button class="alum-eye" type="button" data-eye aria-label="Mostrar clave"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></label>
+      <button class="alum-forgot" type="button" id="goForgot">¿Olvidaste tu clave?</button>
       <p class="alum-err" role="alert"></p>
       <button class="btn btn-primary alum-go" type="submit">Ingresar</button>
+    </form>
+    <form class="alum-f" id="formForgot" hidden novalidate aria-labelledby="forgotH">
+      <p class="alum-forgot-h" id="forgotH">Recuperar mi clave</p>
+      <div id="forgotStep1" class="alum-f">
+        <p class="alum-hint">Escribe tu correo y te enviamos un código de 6 dígitos para elegir una clave nueva.</p>
+        <label>Correo<input name="femail" type="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="tucorreo@ejemplo.cl" required></label>
+      </div>
+      <div id="forgotStep2" class="alum-f" hidden>
+        <p class="alum-hint" id="forgotSent"></p>
+        <label>Código de 6 dígitos<input name="fcode" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="123456"></label>
+        <label class="alum-pw">Clave nueva<input name="fpass" type="password" autocomplete="new-password" minlength="10" placeholder="Mínimo 10 caracteres" autocapitalize="off" autocorrect="off" spellcheck="false"><button class="alum-eye" type="button" data-eye aria-label="Mostrar clave"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></label>
+        <p class="alum-hint">Mínimo 10 caracteres, con letras y números.</p>
+        <button class="alum-forgot" type="button" id="forgotResend">Reenviar código</button>
+      </div>
+      <p class="alum-err" role="alert"></p>
+      <p class="alum-okmsg" role="status"></p>
+      <button class="btn btn-primary alum-go" type="submit" id="forgotGo">Enviar código</button>
+      <button class="alum-back" type="button" id="forgotBack">Volver a ingresar</button>
     </form>
     <form class="alum-f" id="formUp" role="tabpanel" aria-labelledby="tabUp" hidden novalidate>
       <label>Nombre<input name="name" type="text" autocomplete="name" placeholder="Tu nombre" required></label>
@@ -1454,14 +1479,15 @@ document.querySelectorAll('.pv-btn').forEach(b=>b.addEventListener('click',()=>{
 (function(){
   const dlg=document.getElementById('alumDlg'), openB=document.getElementById('alumBtn'); if(!dlg||!openB) return;
   const tabIn=document.getElementById('tabIn'), tabUp=document.getElementById('tabUp');
-  const fIn=document.getElementById('formIn'), fUp=document.getElementById('formUp'), ok=document.getElementById('alumOk');
+  const fIn=document.getElementById('formIn'), fUp=document.getElementById('formUp'), ok=document.getElementById('alumOk'), fForgot=document.getElementById('formForgot');
   const tabs=document.querySelector('.alum-tabs'), head=[...dlg.querySelectorAll('.alum-sub')];
   const pick=which=>{
-    const up=which==='up';
+    const up=which==='up', fg=which==='forgot';
     tabIn.setAttribute('aria-selected',!up); tabUp.setAttribute('aria-selected',up);
     tabIn.tabIndex=up?-1:0; tabUp.tabIndex=up?0:-1;
-    fIn.hidden=up; fUp.hidden=!up; ok.hidden=true; tabs.hidden=false; head.forEach(h=>h.hidden=false);
+    fIn.hidden=up||fg; fUp.hidden=!up; fForgot.hidden=!fg; ok.hidden=true; tabs.hidden=fg; head.forEach(h=>h.hidden=false);
     dlg.querySelectorAll('.alum-err').forEach(e=>e.textContent='');
+    dlg.querySelectorAll('.alum-okmsg').forEach(e=>e.textContent='');
   };
   const setMenuSafe=()=>{ try{ if(typeof setMenu==='function') setMenu(false) }catch(e){} };
   const open=which=>{ pick(which||'in'); if(!dlg.open) dlg.showModal(); setMenuSafe(); };
@@ -1489,7 +1515,7 @@ document.querySelectorAll('.pv-btn').forEach(b=>b.addEventListener('click',()=>{
     const i=b.parentElement.querySelector('input'), show=i.type==='password';
     i.type=show?'text':'password'; b.setAttribute('aria-label',show?'Ocultar clave':'Mostrar clave');
   }));
-  const done=()=>{ fIn.hidden=fUp.hidden=true; tabs.hidden=true; head.forEach(h=>h.hidden=true); ok.hidden=false; ok.querySelector('a').focus() };
+  const done=()=>{ fIn.hidden=fUp.hidden=fForgot.hidden=true; tabs.hidden=true; head.forEach(h=>h.hidden=true); ok.hidden=false; ok.querySelector('a').focus() };
   const check=(f,fields)=>{
     const err=f.querySelector('.alum-err');
     for(const [name,msg,test] of fields){
@@ -1508,6 +1534,42 @@ document.querySelectorAll('.pv-btn').forEach(b=>b.addEventListener('click',()=>{
     if(!r.ok){ fIn.querySelector('.alum-err').textContent=r.data.error||'No pudimos ingresar. Intenta de nuevo.'; return }
     location.href=r.data.role==='admin'?'/admin':'/alumnos';
   });
+
+  // ¿Olvidaste tu clave?: paso 1 pide el correo y manda el código; paso 2 pide código + clave nueva.
+  const st1=document.getElementById('forgotStep1'), st2=document.getElementById('forgotStep2'), fGo=document.getElementById('forgotGo');
+  const fErr=fForgot.querySelector('.alum-err'), fMsg=fForgot.querySelector('.alum-okmsg');
+  const forgotStep=n=>{ st1.hidden=n!==1; st2.hidden=n!==2; fGo.textContent=n===1?'Enviar código':'Cambiar mi clave'; fErr.textContent=''; };
+  const sendCode=async()=>{
+    const r=await post('/api/password/forgot',{email:fForgot.elements.femail.value});
+    if(!r.ok){ fErr.textContent=r.data.error||'No pudimos enviar el código. Intenta de nuevo.'; return false }
+    document.getElementById('forgotSent').textContent=r.data.message||'Te enviamos un código de 6 dígitos.';
+    return true;
+  };
+  document.getElementById('goForgot').addEventListener('click',()=>{ const m=fIn.elements.user.value.trim(); pick('forgot'); forgotStep(1); fForgot.elements.femail.value=m; fForgot.elements.femail.focus(); });
+  document.getElementById('forgotBack').addEventListener('click',()=>{ pick('in'); fForgot.reset(); forgotStep(1); });
+  fForgot.addEventListener('reset',()=>{ forgotStep(1); fMsg.textContent=''; });
+  document.getElementById('forgotResend').addEventListener('click',async()=>{
+    fMsg.textContent=''; busy(fForgot,true);
+    if(await sendCode()){ fMsg.textContent='Listo, te mandamos otro código.'; fForgot.elements.fcode.value=''; fForgot.elements.fcode.focus(); }
+    busy(fForgot,false);
+  });
+  fForgot.addEventListener('submit',async e=>{ e.preventDefault(); fMsg.textContent='';
+    if(!st1.hidden){
+      if(!check(fForgot,[['femail','Escribe tu correo.',v=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)]])) return;
+      busy(fForgot,true); const sent=await sendCode(); busy(fForgot,false);
+      if(sent){ forgotStep(2); fForgot.elements.fcode.focus(); }
+      return;
+    }
+    if(!check(fForgot,[['fcode','Escribe el código de 6 dígitos que te llegó al correo.',v=>/^\d{6}$/.test(v.replace(/\D/g,''))],['fpass','Elige una clave nueva.',v=>v.length>=10]])) return;
+    busy(fForgot,true);
+    const r=await post('/api/password/reset',{email:fForgot.elements.femail.value,code:fForgot.elements.fcode.value,password:fForgot.elements.fpass.value});
+    busy(fForgot,false);
+    if(!r.ok){ fErr.textContent=r.data.error||'No pudimos cambiar tu clave. Intenta de nuevo.'; return }
+    const mail=fForgot.elements.femail.value; fForgot.reset(); pick('in'); fIn.elements.user.value=mail;
+    fIn.querySelector('.alum-err').textContent=''; fIn.elements.pass.focus();
+    fIn.insertAdjacentHTML('afterbegin','<p class="alum-okmsg" role="status" id="pwDone">Tu clave quedó cambiada. Ingresa con la nueva.</p>');
+  });
+  fIn.addEventListener('input',()=>{ const d=document.getElementById('pwDone'); if(d) d.remove(); });
 
   fUp.addEventListener('submit',async e=>{ e.preventDefault();
     if(!check(fUp,[['name','Escribe tu nombre.'],['mail','Escribe un correo válido.',v=>/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)],

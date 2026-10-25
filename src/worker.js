@@ -1,5 +1,5 @@
 import { gcalConfigured, gcalCreate, gcalDelete } from './gcal.js';
-import { mailConfigured, mailConfig, bookingEmail, sendMail } from './mail.js';
+import { mailConfigured, mailConfig, bookingEmail, resetEmail, sendMail } from './mail.js';
 // Portal de alumnos de Yohi Coach — API sobre Cloudflare Workers + D1.
 // Solo atiende /api/*; el resto del sitio lo sirven los archivos estáticos (ASSETS).
 
@@ -227,6 +227,65 @@ async function login(req, env, url) {
     200,
     { 'set-cookie': sessionCookie(url, token, SESSION_DAYS * 86400) },
   );
+}
+
+/* ---------- recuperar la clave por correo (código de 6 dígitos) ---------- */
+const RESET_MINUTES = 15, RESET_MAX_TRIES = 5;
+const resetHash = (userId, code) => sha256Hex(`reset:${userId}:${code}`);
+
+// Misma respuesta exista o no la cuenta (no revela quién está registrado) y el envío va en segundo plano para que el tiempo tampoco lo delate.
+async function passwordForgot(req, env, ctx) {
+  const ip = req.headers.get('cf-connecting-ip') || 'x';
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const email = normEmail(b.email);
+  if (!validEmail(email)) return fail(400, 'Escribe un correo válido.');
+  if (!mailConfigured(env)) return fail(503, 'La recuperación por correo aún no está disponible. Escríbele a Yohi por WhatsApp y te ayuda.');
+  if (await limited(env, `forgot:${email}`, 3, 3600) || (await limited(env, `forgotip:${ip}`, 10, 3600))) {
+    return fail(429, 'Pediste varios códigos seguidos. Espera un rato e intenta de nuevo.');
+  }
+  const user = await env.DB.prepare("SELECT id, name, email FROM users WHERE email = ? AND status = 'active'").bind(email).first();
+  if (user) {
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+    const expires = new Date(Date.now() + RESET_MINUTES * 60000).toISOString();
+    await env.DB.prepare('INSERT OR REPLACE INTO password_resets (user_id, code_hash, expires_at, tries) VALUES (?, ?, ?, 0)')
+      .bind(user.id, await resetHash(user.id, code), expires).run();
+    const send = sendMail(env, { to: user.email, ...resetEmail({ name: user.name, code, minutes: RESET_MINUTES }) });
+    if (ctx && ctx.waitUntil) ctx.waitUntil(send); else await send;
+  }
+  return json({ ok: true, message: `Si ese correo tiene una cuenta activa, te enviamos un código de 6 dígitos. Vence en ${RESET_MINUTES} minutos.` });
+}
+
+async function passwordReset(req, env) {
+  const ip = req.headers.get('cf-connecting-ip') || 'x';
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const email = normEmail(b.email);
+  const code = String(b.code || '').replace(/\D/g, '');
+  if (!validEmail(email) || code.length !== 6) return fail(400, 'Revisa tu correo y el código de 6 dígitos.');
+  if (await limited(env, `reset:${email}:${ip}`, 10, 900) || (await limited(env, `resetip:${ip}`, 40, 900))) {
+    return fail(429, 'Demasiados intentos. Espera unos minutos.');
+  }
+  const pwErr = validPassword(b.password, email);
+  if (pwErr) return fail(400, pwErr);
+  const bad = () => fail(400, 'El código no es correcto o ya venció. Si hace falta, pide uno nuevo.');
+  const user = await env.DB.prepare("SELECT id FROM users WHERE email = ? AND status = 'active'").bind(email).first();
+  const row = user ? await env.DB.prepare('SELECT code_hash, expires_at, tries FROM password_resets WHERE user_id = ?').bind(user.id).first() : null;
+  if (!user || !row) return bad();
+  if (row.expires_at < isoNow()) { await env.DB.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(user.id).run(); return bad(); }
+  if (!timingSafeEqual(await resetHash(user.id, code), row.code_hash)) {
+    // Con 5 errores el código se anula: hay que pedir otro.
+    if (row.tries + 1 >= RESET_MAX_TRIES) await env.DB.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(user.id).run();
+    else await env.DB.prepare('UPDATE password_resets SET tries = tries + 1 WHERE user_id = ?').bind(user.id).run();
+    return bad();
+  }
+  const { hash, salt } = await makeHash(b.password);
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET pass_hash = ?, pass_salt = ? WHERE id = ?').bind(hash, salt, user.id),
+    env.DB.prepare('DELETE FROM password_resets WHERE user_id = ?').bind(user.id),
+    env.DB.prepare('DELETE FROM auth_sessions WHERE user_id = ?').bind(user.id), // cierra sesiones abiertas con la clave anterior
+  ]);
+  return json({ ok: true, message: 'Listo: tu clave quedó cambiada. Ya puedes ingresar.' });
 }
 
 async function logout(req, env, url) {
@@ -1279,7 +1338,7 @@ async function adminPlan(req, env) {
 
 /* ---------- entrada ---------- */
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
 
@@ -1294,6 +1353,8 @@ export default {
         case 'POST /api/signup': return await signup(req, env, url);
         case 'POST /api/login': return await login(req, env, url);
         case 'POST /api/logout': return await logout(req, env, url);
+        case 'POST /api/password/forgot': return await passwordForgot(req, env, ctx);
+        case 'POST /api/password/reset': return await passwordReset(req, env);
         case 'GET /api/me': return await me(req, env);
         case 'POST /api/setup': return await setup(req, env);
         case 'GET /api/admin/pending': return await adminPending(req, env);

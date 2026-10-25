@@ -76,3 +76,22 @@ export async function sendMail(env, { to, subject, text, html }) {
     return bounced ? 'error' : 'ok';
   } catch (e) { console.error('mail', e.message); return 'error'; }
 }
+
+// Correo con el código para recuperar la clave. Solo lleva el nombre de pila y el código (nada de enlaces ni datos de salud).
+export function resetEmail({ name, code, minutes }) {
+  const first = String(name || '').trim().split(/\s+/)[0] || 'hola';
+  const subject = `Tu código para recuperar la clave: ${code}`;
+  const text = `Hola, ${first}.\n\nPediste recuperar tu clave del portal de Yohi Coach. Tu código es:\n\n${code}\n\nVence en ${minutes} minutos. Escríbelo en la pantalla donde lo pediste y elige tu clave nueva.\n\nSi no fuiste tú, ignora este correo: tu clave actual sigue funcionando. Nunca compartas este código con nadie, ni siquiera con Yohi.`;
+  const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f6f1f4;font-family:Arial,Helvetica,sans-serif;color:#111">
+<div style="max-width:520px;margin:0 auto;padding:24px 16px">
+<div style="background:#111;border-radius:18px 18px 0 0;padding:18px 24px"><span style="color:#FF6DB4;font-weight:800;letter-spacing:.14em;font-size:13px">YOHI COACH</span></div>
+<div style="background:#fff;border-radius:0 0 18px 18px;padding:26px 24px">
+<p style="margin:0 0 14px;font-size:17px">Hola, <b>${esc(first)}</b></p>
+<p style="margin:0 0 18px;font-size:15px;line-height:1.5">Pediste recuperar tu clave del portal. Este es tu código:</p>
+<div style="border:2px solid #FF4FA3;border-radius:14px;padding:16px 18px;margin:0 0 18px;background:#fff5fa;text-align:center">
+<div style="font-size:34px;font-weight:800;letter-spacing:.3em;padding-left:.3em">${esc(code)}</div></div>
+<p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:#444">Vence en ${esc(minutes)} minutos. Escríbelo en la pantalla donde lo pediste y elige tu clave nueva.</p>
+<p style="margin:0;font-size:13px;line-height:1.5;color:#666">Si no fuiste tú, ignora este correo: tu clave actual sigue funcionando. Nunca compartas este código con nadie, ni siquiera con Yohi.</p>
+</div></div></body></html>`;
+  return { subject, text, html };
+}
