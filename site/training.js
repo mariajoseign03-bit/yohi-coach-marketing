@@ -3,6 +3,7 @@
 
 const TRAINING_INFO = {
   rir: { title: 'RIR — Repeticiones en Reserva', text: 'Cuántas reps más podrías haber hecho. RIR 2 = te quedaban 2. RIR 0 = fallo.' },
+  rpe: { title: 'RPE — Esfuerzo percibido', text: 'Qué tan duro fue, de 1 a 10. RPE 10 = no podías hacer ni una más. RPE 8 = te quedaban 2 reps (es lo mismo que RIR 2). Puedes usar RIR o RPE, el que te resulte más fácil.' },
   reps: { title: 'Repeticiones', text: 'Veces que hiciste el movimiento completo. Si superas el rango con buen RIR, sube peso.' },
   rest: { title: 'Descanso', text: 'Tiempo entre series. Lo define Yohi en tu rutina según el objetivo del ejercicio.' },
   warmup: { title: 'Series de calentamiento', text: 'Series livianas previas para preparar músculos y articulaciones. No cuentan en el progreso.' },
@@ -82,6 +83,21 @@ function trainingSection(container) {
   }
 
   // Cada día es un bloque que se despliega; se abre solo el de hoy (si los días tienen nombre de la semana).
+  // Ejercicios seguidos que Yohi marcó como biserie (triserie, circuito) se agrupan en un recuadro.
+  function withSupersets(items, cardFn) {
+    const out = []; let i = 0, k = 0;
+    while (k < items.length) {
+      let j = k + 1;
+      while (j < items.length && items[j].superset_prev) j++;
+      const chain = items.slice(k, j);
+      if (chain.length > 1) {
+        const label = chain.length === 2 ? 'Biserie' : chain.length === 3 ? 'Triserie' : 'Circuito';
+        out.push(el('div', { class: 'superset' }, el('div', { class: 'superset-tag' }, '⚡ ' + label + ' · haz una serie de cada ejercicio, alternando'), ...chain.map((ex) => cardFn(ex, i++))));
+      } else out.push(cardFn(chain[0], i++));
+      k = j;
+    }
+    return out;
+  }
   function buildDays(exercises, logsByEx, notesByEx, weekOf) {
     const groups = [];
     for (const ex of exercises) {
@@ -91,7 +107,7 @@ function trainingSection(container) {
       g.items.push(ex);
     }
     const card = (ex, i) => buildExercise(ex, i, logsByEx[ex.id] || [], weekOf, notesByEx[ex.id] || '');
-    if (groups.length === 1 && !groups[0].day) return el('div', { class: 'training-exercises' }, ...exercises.map(card));
+    if (groups.length === 1 && !groups[0].day) return el('div', { class: 'training-exercises' }, ...withSupersets(exercises, card));
     // El alumno ve "Día 1", "Día 2"…, aunque Yohi haya escrito Lunes, Martes…
     const plain = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const dayName = (label, n) => {
@@ -106,7 +122,7 @@ function trainingSection(container) {
       const count = el('span', { class: 'day-count' });
       const det = el('details', { class: 'day-group' },
         el('summary', { class: 'day-sum' }, el('span', { class: 'day-name' }, g.day ? dayName(g.day, dayN++) : 'Otros ejercicios'), count),
-        el('div', { class: 'training-exercises' }, ...g.items.map((ex, i) => card(ex, i))));
+        el('div', { class: 'training-exercises' }, ...withSupersets(g.items, card)));
       const recount = () => {
         const n = det.querySelectorAll('.ex-badge.done').length;
         count.textContent = n + '/' + total + ' ejercicios';
@@ -287,7 +303,7 @@ function trainingSection(container) {
       badge,
       el('div', { class: 'ex-info' },
         el('span', { class: 'ex-name' }, ex.name),
-        el('span', { class: 'ex-meta' }, ex.sets + '×' + ex.reps + ' · ' + ex.rest_sec + 's desc' + (ex.target_load ? ' · carga ' + ex.target_load + ' ' + unitTxt : ''))),
+        el('span', { class: 'ex-meta' }, ex.sets + '×' + ex.reps + ' · ' + ex.rest_sec + 's desc' + (ex.target_load ? ' · carga ' + ex.target_load + ' ' + unitTxt : '') + (ex.target_rir ? ' · RIR ' + ex.target_rir : '') + (ex.target_rpe ? ' · RPE ' + ex.target_rpe : ''))),
       el('span', { class: 'ex-tap' }, 'Toca para registrar'));
 
     // Tabla de series de trabajo
@@ -296,7 +312,7 @@ function trainingSection(container) {
       el('span', { class: 'set-col' }, unitTxt.toUpperCase() + ' ', infoButton('kg')),
       el('span', { class: 'set-col' }, 'Reps ', infoButton('reps')),
       el('span', { class: 'set-col' }, 'RIR ', infoButton('rir')),
-      el('span', { class: 'set-col rest' }, 'Desc ', infoButton('rest')));
+      el('span', { class: 'set-col rest' }, 'RPE ', infoButton('rpe')));
 
     const setRows = [];
     for (let s = 1; s <= ex.sets; s++) {
@@ -305,14 +321,15 @@ function trainingSection(container) {
       const repsIn = el('input', { type: 'number', class: 'set-input', placeholder: '—', min: '0', max: '200', value: log ? log.reps : '' });
       const rirIn = el('input', { type: 'number', class: 'set-input', placeholder: '—', min: '0', max: '10', value: log != null && log.rir != null ? log.rir : '' });
 
-      setRows.push({ setNum: s, setType: 'work', kgIn, repsIn, rirIn });
+      const rpeIn = el('input', { type: 'number', class: 'set-input', placeholder: '—', min: '1', max: '10', step: '0.5', value: log != null && log.rpe != null ? log.rpe : '' });
+      setRows.push({ setNum: s, setType: 'work', kgIn, repsIn, rirIn, rpeIn });
 
       body.append(el('div', { class: 'set-row' },
         el('span', { class: 'set-col num' }, String(s)),
         el('span', { class: 'set-col' }, kgIn),
         el('span', { class: 'set-col' }, repsIn),
         el('span', { class: 'set-col' }, rirIn),
-        el('span', { class: 'set-col rest', style: 'text-align:center;font-size:13px;color:var(--muted);font-weight:600' }, ex.rest_sec + 's')));
+        el('span', { class: 'set-col rest' }, rpeIn)));
     }
 
     // Series de calentamiento
@@ -323,7 +340,7 @@ function trainingSection(container) {
         const kgIn = el('input', { type: 'number', class: 'set-input', placeholder: '—', min: '0', max: '999', step: '0.5', value: log ? log.kg : '' });
         const repsIn = el('input', { type: 'number', class: 'set-input', placeholder: '—', min: '0', max: '200', value: log ? log.reps : '' });
 
-        setRows.push({ setNum: s, setType: 'warmup', kgIn, repsIn, rirIn: null });
+        setRows.push({ setNum: s, setType: 'warmup', kgIn, repsIn, rirIn: null, rpeIn: null });
 
         body.append(el('div', { class: 'set-row warmup' },
           el('span', { class: 'set-col num' }, 'C' + s),
@@ -357,6 +374,7 @@ function trainingSection(container) {
         kg: s.kgIn.value !== '' ? Number(s.kgIn.value) : null,
         reps: s.repsIn.value !== '' ? Number(s.repsIn.value) : null,
         rir: s.rirIn && s.rirIn.value !== '' ? Number(s.rirIn.value) : null,
+        rpe: s.rpeIn && s.rpeIn.value !== '' ? Number(s.rpeIn.value) : null,
       })).filter(s => s.kg !== null || s.reps !== null);
       return { sets, note: obsIn.value.trim() };
     };
@@ -392,16 +410,16 @@ function trainingSection(container) {
     // Autoguardado: borrador local al instante y guardado en el servidor ~1,2 s después de dejar de escribir.
     let timer = null;
     body.addEventListener('input', () => {
-      writeDraft({ sets: setRows.map(s => [s.setType, s.setNum, s.kgIn.value, s.repsIn.value, s.rirIn ? s.rirIn.value : '']), note: obsIn.value });
+      writeDraft({ sets: setRows.map(s => [s.setType, s.setNum, s.kgIn.value, s.repsIn.value, s.rirIn ? s.rirIn.value : '', s.rpeIn ? s.rpeIn.value : '']), note: obsIn.value });
       clearTimeout(timer); timer = setTimeout(() => doSave(true), 1200);
     });
     // Si quedó un borrador sin guardar (cerró la pestaña, se fue de la página), se recupera y se guarda.
     const draft = readDraft();
     if (draft && Array.isArray(draft.sets)) {
       let restored = false;
-      for (const [type, num, kg, reps, rir] of draft.sets) {
+      for (const [type, num, kg, reps, rir, rpe] of draft.sets) {
         const row = setRows.find(r => r.setType === type && r.setNum === num);
-        if (row && (kg !== '' || reps !== '')) { row.kgIn.value = kg; row.repsIn.value = reps; if (row.rirIn) row.rirIn.value = rir; restored = true; }
+        if (row && (kg !== '' || reps !== '')) { row.kgIn.value = kg; row.repsIn.value = reps; if (row.rirIn) row.rirIn.value = rir; if (row.rpeIn && rpe != null) row.rpeIn.value = rpe; restored = true; }
       }
       if (typeof draft.note === 'string' && draft.note !== obsIn.value) { obsIn.value = draft.note; restored = true; }
       if (restored) { msg.className = 'set-msg'; msg.textContent = 'Recuperamos lo que estabas anotando…'; timer = setTimeout(() => doSave(true), 800); }

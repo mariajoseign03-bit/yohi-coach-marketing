@@ -470,13 +470,13 @@
       let rows = [];
       const mk = (type, n, log) => {
         const num = (attrs) => el('input', Object.assign({ type: 'number', class: 'set-input', placeholder: '—', min: '0' }, attrs));
-        const r = { type, n, kg: num({ max: '999', step: '0.5', value: log && log.kg != null ? log.kg : '' }), reps: num({ max: '200', value: log && log.reps != null ? log.reps : '' }), rir: num({ max: '10', value: log && log.rir != null ? log.rir : '' }) };
+        const r = { type, n, kg: num({ max: '999', step: '0.5', value: log && log.kg != null ? log.kg : '' }), reps: num({ max: '200', value: log && log.reps != null ? log.reps : '' }), rir: num({ max: '10', value: log && log.rir != null ? log.rir : '' }), rpe: num({ max: '10', step: '0.5', value: log && log.rpe != null ? log.rpe : '' }) };
         grid.append(el('div', { class: 'set-row' + (type === 'warmup' ? ' warmup' : '') },
-          el('span', { class: 'set-col num' }, (type === 'warmup' ? 'C' : '') + n), el('span', { class: 'set-col' }, r.kg), el('span', { class: 'set-col' }, r.reps), el('span', { class: 'set-col' }, r.rir)));
+          el('span', { class: 'set-col num' }, (type === 'warmup' ? 'C' : '') + n), el('span', { class: 'set-col' }, r.kg), el('span', { class: 'set-col' }, r.reps), el('span', { class: 'set-col' }, r.rir), el('span', { class: 'set-col' }, r.rpe)));
         rows.push(r);
       };
       const fill = () => {
-        grid.replaceChildren(el('div', { class: 'set-row set-header' }, el('span', { class: 'set-col num' }, 'Serie'), el('span', { class: 'set-col' }, ex.unit === 'lbs' ? 'LBS' : 'KG'), el('span', { class: 'set-col' }, 'Reps'), el('span', { class: 'set-col' }, 'RIR')));
+        grid.replaceChildren(el('div', { class: 'set-row set-header' }, el('span', { class: 'set-col num' }, 'Serie'), el('span', { class: 'set-col' }, ex.unit === 'lbs' ? 'LBS' : 'KG'), el('span', { class: 'set-col' }, 'Reps'), el('span', { class: 'set-col' }, 'RIR'), el('span', { class: 'set-col' }, 'RPE')));
         rows = [];
         const day = exLogs.filter((l) => l.logged_on === dateIn.value);
         for (let i = 1; i <= (ex.warmup_sets || 0); i++) mk('warmup', i, day.find((l) => l.set_type === 'warmup' && l.set_num === i));
@@ -485,8 +485,8 @@
       // Autoguardado: ~1,2 s después de dejar de escribir se guarda solo (sin recargar el panel, para no quitarte el cursor).
       let timer = null;
       const auto = el('span', { class: 'muted', style: 'font-size:13px', role: 'status' });
-      const snapshot = () => ({ date: dateIn.value, sets: rows.filter((r) => r.kg.value !== '' || r.reps.value !== '' || r.rir.value !== '')
-        .map((r) => ({ setType: r.type, setNum: r.n, kg: r.kg.value, reps: r.reps.value, rir: r.rir.value })) });
+      const snapshot = () => ({ date: dateIn.value, sets: rows.filter((r) => r.kg.value !== '' || r.reps.value !== '' || r.rir.value !== '' || r.rpe.value !== '')
+        .map((r) => ({ setType: r.type, setNum: r.n, kg: r.kg.value, reps: r.reps.value, rir: r.rir.value, rpe: r.rpe.value })) });
       async function autoSave(snap) {
         if (!snap.date || !snap.sets.length) return;
         auto.textContent = 'Guardando…';
@@ -500,8 +500,8 @@
       save.onclick = async () => {
         msg.textContent = '';
         if (!dateIn.value) { msg.textContent = 'Elige la fecha.'; return; }
-        const sets = rows.filter((r) => r.kg.value !== '' || r.reps.value !== '' || r.rir.value !== '')
-          .map((r) => ({ setType: r.type, setNum: r.n, kg: r.kg.value, reps: r.reps.value, rir: r.rir.value }));
+        const sets = rows.filter((r) => r.kg.value !== '' || r.reps.value !== '' || r.rir.value !== '' || r.rpe.value !== '')
+          .map((r) => ({ setType: r.type, setNum: r.n, kg: r.kg.value, reps: r.reps.value, rir: r.rir.value, rpe: r.rpe.value }));
         save.disabled = true;
         const r = await api('/api/admin/training/log', { userId, exerciseId: ex.id, loggedOn: dateIn.value, sets, clearSets: true });
         save.disabled = false;
@@ -534,7 +534,10 @@
           el('span', { class: 'rv-chip' }, el('b', {}, String(ex.reps)), ' reps'),
           el('span', { class: 'rv-chip' }, el('b', {}, String(ex.rest_sec)), ' s desc'),
           ex.warmup_sets ? el('span', { class: 'rv-chip gold' }, el('b', {}, String(ex.warmup_sets)), ' calent.') : '',
-          ex.target_load ? el('span', { class: 'rv-chip gold' }, 'Carga ', el('b', {}, ex.target_load), ' ' + (ex.unit === 'lbs' ? 'lbs' : 'kg')) : ''),
+          ex.target_load ? el('span', { class: 'rv-chip gold' }, 'Carga ', el('b', {}, ex.target_load), ' ' + (ex.unit === 'lbs' ? 'lbs' : 'kg')) : '',
+          ex.target_rir ? el('span', { class: 'rv-chip' }, 'RIR ', el('b', {}, ex.target_rir)) : '',
+          ex.target_rpe ? el('span', { class: 'rv-chip' }, 'RPE ', el('b', {}, ex.target_rpe)) : '',
+          ex.superset_prev ? el('span', { class: 'rv-chip gold' }, '⚡ Biserie con el anterior') : ''),
         ex.notes ? el('p', { class: 'rv-note' }, '💬 ', ex.notes) : '');
       const groups = dayGroups(exs);
       if (groups.length === 1 && !groups[0].day) return el('div', { class: 'rv-flat' }, ...exs.map(row));
@@ -547,7 +550,7 @@
       // Cada ejercicio lleva un id de grupo interno (_g) para poder renombrar o borrar un día completo sin que se mezclen los nombres.
       let gSeq = 0;
       const tagGroups = (list) => { const m = new Map(); return list.map((x) => { const k = (x.day || '').trim(); if (!m.has(k)) m.set(k, ++gSeq); return { ...x, _g: m.get(k) }; }); };
-      const blankEx = (day, g) => ({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: day || '', notes: '', load: '', unit: 'kg', _g: g });
+      const blankEx = (day, g) => ({ name: '', sets: 3, reps: '8-12', restSec: 90, warmupSets: 1, day: day || '', notes: '', load: '', unit: 'kg', rir: '', rpe: '', link: false, _g: g });
       let exercises = [blankEx('', ++gSeq)];
       let editingId = null;
       const weekIn = el('input', { name: 'week_of', type: 'date', value: (() => { const d = new Date(); const day = d.getDay(); const diff = d.getDate() - day + (day === 0 ? -6 : 1); return new Date(d.setDate(diff)).toISOString().slice(0, 10); })() });
@@ -573,8 +576,11 @@
         const unitS = el('select', { 'aria-label': 'Unidad de peso', style: 'width:78px', onchange: (e) => { ex.unit = e.target.value; renderForm(); } },
           el('option', { value: 'kg' }, 'kg'), el('option', { value: 'lbs' }, 'lbs'));
         unitS.value = ex.unit === 'lbs' ? 'lbs' : 'kg';
+        const rirI = el('input', { type: 'text', inputmode: 'decimal', placeholder: 'Ej: 2', value: ex.rir || '', style: 'width:70px', maxlength: '10', 'aria-label': 'RIR objetivo', oninput: (e) => { ex.rir = e.target.value; } });
+        const rpeI = el('input', { type: 'text', inputmode: 'decimal', placeholder: 'Ej: 8', value: ex.rpe || '', style: 'width:70px', maxlength: '10', 'aria-label': 'RPE objetivo', oninput: (e) => { ex.rpe = e.target.value; } });
         const noteI = el('input', { type: 'text', placeholder: 'Nota para el alumno', value: ex.notes, oninput: (e) => { ex.notes = e.target.value; } });
-        return el('div', { class: 'routine-ex' },
+        const linkI = el('input', { type: 'checkbox', onchange: (e) => { ex.link = e.target.checked; renderForm(); } }); linkI.checked = !!ex.link;
+        return el('div', { class: 'routine-ex' + (ex.link && idx > 0 ? ' linked' : '') },
           el('div', { class: 'routine-ex-head' },
             el('span', { class: 'routine-ex-num' }, String(idx + 1)),
             el('div', { style: 'flex:1' }, nameI), rm),
@@ -584,8 +590,11 @@
             el('label', { style: 'font-size:12px' }, 'Desc (s)', restI),
             el('label', { style: 'font-size:12px' }, 'Calent.', warmI),
             el('label', { style: 'font-size:12px' }, 'Carga (' + (ex.unit === 'lbs' ? 'lbs' : 'kg') + ')', loadI),
-            el('label', { style: 'font-size:12px' }, 'Unidad', unitS)),
-          el('div', { style: 'margin-top:6px' }, noteI));
+            el('label', { style: 'font-size:12px' }, 'Unidad', unitS),
+            el('label', { style: 'font-size:12px' }, 'RIR obj.', rirI),
+            el('label', { style: 'font-size:12px' }, 'RPE obj.', rpeI)),
+          el('div', { style: 'margin-top:6px' }, noteI),
+          idx > 0 ? el('label', { class: 'link-ex' }, linkI, ' ⚡ Biserie con el ejercicio anterior') : '');
       }
 
       const exList = el('div');
@@ -677,7 +686,7 @@
         if (!valid.length) { msg.textContent = 'Agrega al menos un ejercicio con nombre.'; go.disabled = false; return; }
         const r = await api('/api/admin/routine', {
           userId: st.id, weekOf: weekIn.value, daily: kindSel.value === 'day', name: nameIn.value,
-          exercises: valid.map(x => ({ id: x.id, name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets ?? 1, day: (x.day || '').trim(), notes: x.notes || '', load: (x.load || '').trim(), unit: x.unit === 'lbs' ? 'lbs' : 'kg' }))
+          exercises: valid.map(x => ({ id: x.id, name: x.name.trim(), sets: x.sets || 3, reps: x.reps || '8-12', restSec: x.restSec || 90, warmupSets: x.warmupSets ?? 1, day: (x.day || '').trim(), notes: x.notes || '', load: (x.load || '').trim(), unit: x.unit === 'lbs' ? 'lbs' : 'kg', rir: (x.rir || '').trim(), rpe: (x.rpe || '').trim(), link: !!x.link }))
         });
         go.disabled = false;
         if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
@@ -689,7 +698,7 @@
       let usedDates = new Set();
       const addDaysISO = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n, 12)).toISOString().slice(0, 10); };
       // Ejercicios de una rutina guardada, sin ids: así la copia se guarda como rutina nueva y no toca los registros del original.
-      const exCopy = (list) => list.map((ex) => ({ name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '', load: ex.target_load || '', unit: ex.unit === 'lbs' ? 'lbs' : 'kg' }));
+      const exCopy = (list) => list.map((ex) => ({ name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '', load: ex.target_load || '', unit: ex.unit === 'lbs' ? 'lbs' : 'kg', rir: ex.target_rir || '', rpe: ex.target_rpe || '', link: !!ex.superset_prev }));
 
       async function loadRoutines() {
         const r = await api('/api/admin/routines?userId=' + st.id);
@@ -730,7 +739,7 @@
                   for (const d of dates) {
                     any = true;
                     const sets = exLogs.filter((l) => l.logged_on === d);
-                    const fmtSet = (l) => (l.set_type === 'warmup' ? 'C' : 'S') + l.set_num + ': ' + fmtN(l.kg) + ' ' + (l.unit === 'lbs' ? 'lbs' : 'kg') + ' × ' + fmtN(l.reps) + (l.rir != null ? ' (RIR ' + l.rir + ')' : '');
+                    const fmtSet = (l) => (l.set_type === 'warmup' ? 'C' : 'S') + l.set_num + ': ' + fmtN(l.kg) + ' ' + (l.unit === 'lbs' ? 'lbs' : 'kg') + ' × ' + fmtN(l.reps) + ((l.rir != null || l.rpe != null) ? ' (' + [l.rir != null ? 'RIR ' + l.rir : '', l.rpe != null ? 'RPE ' + l.rpe : ''].filter(Boolean).join(' · ') + ')' : '');
                     item.append(el('div', { class: 'reg-date' }, fmtD(d)));
                     if (sets.length) item.append(el('div', { class: 'reg-sets' }, sets.map(fmtSet).join('  ·  ')));
                     for (const n of exNotes.filter((x) => x.logged_on === d)) item.append(el('p', { class: 'reg-note' }, '📝 ', n.note));
@@ -762,7 +771,7 @@
             kindSel.value = rt.day_on ? 'day' : 'week'; weekIn.value = rt.week_of; syncKind(true); nameIn.value = rt.name || '';
             const rd = await api('/api/admin/routine?id=' + rt.id);
             if (rd.ok) {
-              exercises = tagGroups(rd.data.exercises.map(ex => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '', load: ex.target_load || '', unit: ex.unit === 'lbs' ? 'lbs' : 'kg' })));
+              exercises = tagGroups(rd.data.exercises.map(ex => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '', load: ex.target_load || '', unit: ex.unit === 'lbs' ? 'lbs' : 'kg', rir: ex.target_rir || '', rpe: ex.target_rpe || '', link: !!ex.superset_prev })));
               editingId = rt.id; syncEditing(); renderForm();
             }
           } }, 'Editar');

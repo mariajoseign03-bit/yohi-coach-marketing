@@ -1131,13 +1131,16 @@ async function adminRoutine(req, env) {
       String(ex.notes || '').slice(0, 300),
       String(ex.load == null ? '' : ex.load).trim().slice(0, 20),
       ex.unit === 'lbs' ? 'lbs' : 'kg',
+      String(ex.rir == null ? '' : ex.rir).trim().slice(0, 10),
+      String(ex.rpe == null ? '' : ex.rpe).trim().slice(0, 10),
+      ex.link && i > 0 && String(exs[i - 1].day || '').trim() === String(ex.day || '').trim() ? 1 : 0, // biserie con el ejercicio anterior (mismo día)
     ];
     let id = assigned[i];
     if (id == null) { const ids = pool.get(keyOf(ex.name, ex.day)); if (ids && ids.length) { id = ids.shift(); keep.add(id); } }
     if (id != null) {
-      stmts.push(env.DB.prepare('UPDATE routine_exercises SET pos = ?, name = ?, sets = ?, reps = ?, rest_sec = ?, warmup_sets = ?, day = ?, notes = ?, target_load = ?, unit = ? WHERE id = ?').bind(i, ...vals, id));
+      stmts.push(env.DB.prepare('UPDATE routine_exercises SET pos = ?, name = ?, sets = ?, reps = ?, rest_sec = ?, warmup_sets = ?, day = ?, notes = ?, target_load = ?, unit = ?, target_rir = ?, target_rpe = ?, superset_prev = ? WHERE id = ?').bind(i, ...vals, id));
     } else {
-      stmts.push(env.DB.prepare('INSERT INTO routine_exercises (routine_id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(routine.id, i, ...vals));
+      stmts.push(env.DB.prepare('INSERT INTO routine_exercises (routine_id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit, target_rir, target_rpe, superset_prev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(routine.id, i, ...vals));
     }
   });
   for (const o of old) if (!keep.has(o.id)) stmts.push(env.DB.prepare('DELETE FROM routine_exercises WHERE id = ?').bind(o.id));
@@ -1174,7 +1177,7 @@ async function adminRoutineDetail(req, env, url) {
   const routine = await env.DB.prepare('SELECT id, user_id, week_of, name, day_on FROM routines WHERE id = ?').bind(id).first();
   if (!routine) return fail(404, 'Rutina no encontrada.');
   const { results: exercises } = await env.DB.prepare(
-    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
+    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit, target_rir, target_rpe, superset_prev FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
   ).bind(id).all();
   return json({ ok: true, routine, exercises });
 }
@@ -1190,14 +1193,14 @@ async function adminTrainingLogs(req, env, url) {
   if (weekOf) {
     const weekEnd = addDays(weekOf, 6);
     ({ results: logs } = await env.DB.prepare(
-      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, re.name AS exercise_name, re.unit AS unit
+      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, tl.rpe, re.name AS exercise_name, re.unit AS unit
          FROM training_logs tl JOIN routine_exercises re ON re.id = tl.exercise_id
         WHERE tl.user_id = ? AND tl.logged_on >= ? AND tl.logged_on <= ?
         ORDER BY tl.logged_on, re.pos, tl.set_type DESC, tl.set_num`,
     ).bind(userId, weekOf, weekEnd).all());
   } else {
     ({ results: logs } = await env.DB.prepare(
-      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, re.name AS exercise_name, re.unit AS unit
+      `SELECT tl.id, tl.exercise_id, tl.logged_on, tl.set_type, tl.set_num, tl.kg, tl.reps, tl.rir, tl.rpe, re.name AS exercise_name, re.unit AS unit
          FROM training_logs tl JOIN routine_exercises re ON re.id = tl.exercise_id
         WHERE tl.user_id = ? ORDER BY tl.logged_on DESC, re.pos, tl.set_type DESC, tl.set_num LIMIT 200`,
     ).bind(userId).all());
@@ -1240,12 +1243,12 @@ async function myRoutine(req, env, url) {
   }
   if (!routine) return json({ ok: true, routine: null, exercises: [], logs: [] });
   const { results: exercises } = await env.DB.prepare(
-    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
+    'SELECT id, pos, name, sets, reps, rest_sec, warmup_sets, day, notes, target_load, unit, target_rir, target_rpe, superset_prev FROM routine_exercises WHERE routine_id = ? ORDER BY pos',
   ).bind(routine.id).all();
   // También traer los logs del alumno para esta semana
   const weekEnd = addDays(weekOf, 6);
   const { results: logs } = await env.DB.prepare(
-    `SELECT id, exercise_id, logged_on, set_type, set_num, kg, reps, rir
+    `SELECT id, exercise_id, logged_on, set_type, set_num, kg, reps, rir, rpe
        FROM training_logs WHERE user_id = ? AND logged_on >= ? AND logged_on <= ?
       ORDER BY exercise_id, set_type DESC, set_num`,
   ).bind(user.id, weekOf, weekEnd).all();
@@ -1301,9 +1304,10 @@ async function saveLog(env, userId, b) {
     const kg = s.kg != null && s.kg !== '' ? Math.max(0, Math.min(999, Number(s.kg) || 0)) : null;
     const reps = s.reps != null && s.reps !== '' ? Math.max(0, Math.min(200, Number(s.reps) || 0)) : null;
     const rir = s.rir != null && s.rir !== '' ? Math.max(0, Math.min(10, Number(s.rir) || 0)) : null;
+    const rpe = s.rpe != null && s.rpe !== '' ? Math.max(1, Math.min(10, Math.round((Number(s.rpe) || 1) * 2) / 2)) : null;
     stmts.push(env.DB.prepare(
-      'INSERT INTO training_logs (user_id, exercise_id, logged_on, set_type, set_num, kg, reps, rir) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-    ).bind(userId, exerciseId, loggedOn, setType, setNum, kg, reps, rir));
+      'INSERT INTO training_logs (user_id, exercise_id, logged_on, set_type, set_num, kg, reps, rir, rpe) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).bind(userId, exerciseId, loggedOn, setType, setNum, kg, reps, rir, rpe));
   }
   await env.DB.batch(stmts);
   return json({ ok: true });
