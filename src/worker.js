@@ -1216,7 +1216,26 @@ async function adminTrainingLogs(req, env, url) {
       'SELECT exercise_id, logged_on, note FROM training_notes WHERE user_id = ? ORDER BY logged_on DESC LIMIT 200',
     ).bind(userId).all());
   }
-  return json({ ok: true, logs, notes });
+  const comments = weekOf
+    ? (await env.DB.prepare('SELECT exercise_id, logged_on, body FROM exercise_comments WHERE user_id = ? AND logged_on >= ? AND logged_on <= ?').bind(userId, weekOf, addDays(weekOf, 6)).all()).results
+    : (await env.DB.prepare('SELECT exercise_id, logged_on, body FROM exercise_comments WHERE user_id = ? ORDER BY logged_on DESC LIMIT 200').bind(userId).all()).results;
+  return json({ ok: true, logs, notes, comments });
+}
+
+// Yohi comenta un ejercicio que el alumno entrenó un día: lo ve bajo ese ejercicio. Un comentario vacío lo borra.
+async function adminComment(req, env) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  const userId = Number(b && b.userId), exerciseId = Number(b && b.exerciseId), day = String((b && b.loggedOn) || '');
+  if (!Number.isInteger(userId) || !Number.isInteger(exerciseId) || !validDate(day)) return fail(400, 'Solicitud inválida.');
+  const ok = await env.DB.prepare('SELECT re.id FROM routine_exercises re JOIN routines r ON r.id = re.routine_id WHERE re.id = ? AND r.user_id = ?').bind(exerciseId, userId).first();
+  if (!ok) return fail(404, 'No se encontró ese ejercicio del alumno.');
+  const body = String(b.body || '').trim().slice(0, 500);
+  if (!body) { await env.DB.prepare('DELETE FROM exercise_comments WHERE exercise_id = ? AND logged_on = ?').bind(exerciseId, day).run(); return json({ ok: true, removed: true }); }
+  await env.DB.prepare(
+    "INSERT INTO exercise_comments (user_id, exercise_id, logged_on, body) VALUES (?, ?, ?, ?) ON CONFLICT(exercise_id, logged_on) DO UPDATE SET body = excluded.body, updated_at = datetime('now')",
+  ).bind(userId, exerciseId, day, body).run();
+  return json({ ok: true });
 }
 
 // Alumno: obtener su rutina de la semana actual (o una semana específica)
@@ -1255,7 +1274,10 @@ async function myRoutine(req, env, url) {
   const { results: notes } = await env.DB.prepare(
     'SELECT exercise_id, logged_on, note FROM training_notes WHERE user_id = ? AND logged_on >= ? AND logged_on <= ? ORDER BY logged_on',
   ).bind(user.id, weekOf, weekEnd).all();
-  return json({ ok: true, routine, exercises, logs, notes });
+  const { results: comments } = await env.DB.prepare(
+    'SELECT exercise_id, logged_on, body FROM exercise_comments WHERE user_id = ? AND logged_on >= ? AND logged_on <= ? ORDER BY logged_on DESC',
+  ).bind(user.id, weekOf, weekEnd).all();
+  return json({ ok: true, routine, exercises, logs, notes, comments });
 }
 
 // Alumno: listar semanas disponibles con rutina
@@ -1602,6 +1624,7 @@ export default {
         case 'GET /api/admin/anamnesis': return await adminAnamnesis(req, env, url);
         case 'POST /api/admin/anamnesis': return await adminSaveAnamnesis(req, env);
         case 'GET /api/progress': return await myProgress(req, env);
+        case 'POST /api/admin/comment': return await adminComment(req, env);
         case 'GET /api/admin/notes': return await adminNotes(req, env, url);
         case 'POST /api/admin/notes': return await adminAddNote(req, env);
         case 'POST /api/admin/notes/delete': return await adminDeleteNote(req, env);

@@ -519,3 +519,10 @@ textarea:focus-visible{ outline:none; border-color:var(--accent); box-shadow:0 0
 .routine-ex.linked{ margin-left:14px; border-left:3px solid var(--accent) }
 .link-ex{ display:flex; align-items:center; gap:8px; margin-top:8px; font:700 13px/1.2 var(--f-text); color:var(--accent-soft) }
 .link-ex input{ width:20px; height:20px; accent-color:var(--accent) }
+
+/* Comentarios de Yohi */
+.ex-cmt-flag{ display:inline-block; margin-top:3px; font:700 11px/1.2 var(--f-text); color:var(--accent-text) }
+.ex-comments{ display:grid; gap:8px; margin:8px 0 }
+.ex-comment{ margin:0; padding:10px 12px; border-radius:12px; background:rgba(255,79,163,.09); border-left:3px solid var(--accent); font-size:14px; line-height:1.45 }
+.ex-comment-by{ display:block; font:800 11px/1.2 var(--f-text); letter-spacing:.04em; text-transform:uppercase; color:var(--accent-text); margin-bottom:3px }
+.cmt-box{ display:grid; gap:6px; margin:6px 0 10px }

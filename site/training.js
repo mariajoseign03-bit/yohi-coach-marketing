@@ -40,6 +40,8 @@ function trainingSection(container) {
     // Última observación del alumno por ejercicio (vienen ordenadas por fecha)
     const notesByEx = {};
     for (const n of (r.data.notes || [])) notesByEx[n.exercise_id] = n.note;
+    const commentsByEx = {};
+    for (const c of (r.data.comments || [])) (commentsByEx[c.exercise_id] = commentsByEx[c.exercise_id] || []).push(c);
 
     // Encabezado
     const head = el('h2', { style: 'margin-top:0' }, 'Mi rutina');
@@ -66,7 +68,7 @@ function trainingSection(container) {
     const timer = getTimer();
 
     // Ejercicios, agrupados por día cuando la rutina los tiene
-    const exBlock = buildDays(exercises, logsByEx, notesByEx, routine.week_of);
+    const exBlock = buildDays(exercises, logsByEx, notesByEx, routine.week_of, commentsByEx);
 
     // Progreso resumen
     const summary = buildSummary(exercises, logsByEx);
@@ -98,7 +100,7 @@ function trainingSection(container) {
     }
     return out;
   }
-  function buildDays(exercises, logsByEx, notesByEx, weekOf) {
+  function buildDays(exercises, logsByEx, notesByEx, weekOf, commentsByEx) {
     const groups = [];
     for (const ex of exercises) {
       const d = (ex.day || '').trim();
@@ -106,7 +108,7 @@ function trainingSection(container) {
       if (!g) { g = { day: d, items: [] }; groups.push(g); }
       g.items.push(ex);
     }
-    const card = (ex, i) => buildExercise(ex, i, logsByEx[ex.id] || [], weekOf, notesByEx[ex.id] || '');
+    const card = (ex, i) => buildExercise(ex, i, logsByEx[ex.id] || [], weekOf, notesByEx[ex.id] || '', (commentsByEx || {})[ex.id] || []);
     if (groups.length === 1 && !groups[0].day) return el('div', { class: 'training-exercises' }, ...withSupersets(exercises, card));
     // El alumno ve "Día 1", "Día 2"…, aunque Yohi haya escrito Lunes, Martes…
     const plain = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -278,7 +280,7 @@ function trainingSection(container) {
     return wrap;
   }
 
-  function buildExercise(ex, idx, existingLogs, weekOf, existingNote) {
+  function buildExercise(ex, idx, existingLogs, weekOf, existingNote, comments) {
     const workLogs = existingLogs.filter(l => l.set_type === 'work');
     const warmupLogs = existingLogs.filter(l => l.set_type === 'warmup');
     const isDone = workLogs.length >= ex.sets;
@@ -303,6 +305,7 @@ function trainingSection(container) {
       badge,
       el('div', { class: 'ex-info' },
         el('span', { class: 'ex-name' }, ex.name),
+        (comments && comments.length) ? el('span', { class: 'ex-cmt-flag' }, '💬 Yohi te comentó') : '',
         el('span', { class: 'ex-meta' }, ex.sets + '×' + ex.reps + ' · ' + ex.rest_sec + 's desc' + (ex.target_load ? ' · carga ' + ex.target_load + ' ' + unitTxt : '') + (ex.target_rir ? ' · RIR ' + ex.target_rir : '') + (ex.target_rpe ? ' · RPE ' + ex.target_rpe : ''))),
       el('span', { class: 'ex-tap' }, 'Toca para registrar'));
 
@@ -351,6 +354,11 @@ function trainingSection(container) {
       }
     }
 
+    // Comentarios de Yohi sobre lo que entrenaste (por día)
+    if (comments && comments.length) {
+      body.append(el('div', { class: 'ex-comments' }, ...comments.map((c) => el('p', { class: 'ex-comment' },
+        el('span', { class: 'ex-comment-by' }, '💬 Yohi · ' + fmtDate(c.logged_on)), c.body))));
+    }
     // Nota de Yohi
     if (ex.notes) {
       body.append(el('p', { class: 'ex-note' }, '💬 ', ex.notes));

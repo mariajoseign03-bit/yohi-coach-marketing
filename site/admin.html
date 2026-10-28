@@ -459,6 +459,20 @@
       return form;
     }
     // Yohi registra o corrige los pesos de un alumno (misma ficha que ve el alumno).
+    // Comentario de Yohi para el alumno sobre un ejercicio de un día (el alumno lo ve en su rutina).
+    function commentBox(ex, day, current, st) {
+      const ta = el('textarea', { rows: '2', maxlength: '500', class: 'ex-obs', placeholder: 'Comentario para ' + st.name.split(' ')[0] + '… (lo ve bajo este ejercicio)', 'aria-label': 'Comentario para el alumno' });
+      ta.value = current;
+      const status = el('span', { class: 'muted', role: 'status', style: 'font-size:12.5px' });
+      const go = el('button', { class: 'btn ghost small', type: 'button', onclick: async () => {
+        go.disabled = true; status.className = 'muted'; status.textContent = '';
+        const r = await api('/api/admin/comment', { userId: st.id, exerciseId: ex.id, loggedOn: day, body: ta.value });
+        go.disabled = false;
+        status.className = r.ok ? 'ok' : 'err';
+        status.textContent = r.ok ? (r.data.removed ? 'Comentario borrado.' : '✓ Enviado: ' + st.name.split(' ')[0] + ' lo ve en su rutina.') : (r.data.error || 'No se pudo enviar.');
+      } }, '💬 Comentar');
+      return el('div', { class: 'cmt-box' }, ta, el('div', { class: 'row', style: 'align-items:center;gap:10px' }, go, status));
+    }
     function regEditor(ex, exLogs, rt, userId, openNow, onSaved) {
       const isoAddDays = (iso, n) => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d + n, 12)).toISOString().slice(0, 10); };
       const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
@@ -732,6 +746,7 @@
                 for (const ex of g.items) {
                   const exLogs = lg.data.logs.filter((l) => l.exercise_id === ex.id);
                   const exNotes = lg.data.notes.filter((n) => n.exercise_id === ex.id);
+                  const exCmts = (lg.data.comments || []).filter((c) => c.exercise_id === ex.id);
                   const dates = [...new Set([...exLogs.map((l) => l.logged_on), ...exNotes.map((n) => n.logged_on)])].sort();
                   const item = el('div', { class: 'reg-ex' }, el('div', { class: 'reg-name' }, ex.name, el('span', { class: 'muted', style: 'font-weight:500;font-size:13px' }, '  ' + ex.sets + '×' + ex.reps)));
                   if (!dates.length) item.append(el('div', { class: 'muted', style: 'font-size:13px' }, 'Sin registro'));
@@ -743,6 +758,7 @@
                     item.append(el('div', { class: 'reg-date' }, fmtD(d)));
                     if (sets.length) item.append(el('div', { class: 'reg-sets' }, sets.map(fmtSet).join('  ·  ')));
                     for (const n of exNotes.filter((x) => x.logged_on === d)) item.append(el('p', { class: 'reg-note' }, '📝 ', n.note));
+                    item.append(commentBox(ex, d, (exCmts.find((c) => c.logged_on === d) || {}).body || '', st));
                   }
                   item.append(regEditor(ex, exLogs, rt, st.id, keep.ex === ex.id, () => {
                     const days = [...detLog.querySelectorAll('details.rv-day')].map((x) => [x, x.querySelector('.rv-day-name').textContent]).filter(([x]) => x.open).map(([, n]) => n);
