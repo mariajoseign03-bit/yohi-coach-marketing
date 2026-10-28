@@ -22,18 +22,20 @@ export function dayText(iso) {
   return `${DIAS[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()]} ${d} de ${MESES[m - 1]}`;
 }
 
-// kind: 'confirmed' | 'moved'. Solo lleva nombre de pila, día, hora y sede: nada de datos de salud.
+// kind: 'confirmed' | 'moved' | 'cancelled' | 'rejected'. Solo lleva nombre de pila, día, hora y sede: nada de datos de salud.
 export function bookingEmail({ name, day, time, sedeName, kind, site }) {
   const first = String(name || '').trim().split(/\s+/)[0] || 'hola';
   const when = `${dayText(day)} · ${time}`;
-  const moved = kind === 'moved';
-  const subject = moved ? `Cambió tu hora: ${when}` : `Tu hora está confirmada: ${when}`;
-  const lead = moved ? 'Yohi cambió el horario de tu sesión. Esta es tu hora nueva:' : 'Yohi confirmó tu sesión. Te esperamos:';
-  const tail = moved
+  const moved = kind === 'moved', off = kind === 'cancelled' || kind === 'rejected';
+  const subject = kind === 'cancelled' ? `Se canceló tu hora: ${when}` : kind === 'rejected' ? `No pudimos confirmar tu hora: ${when}` : moved ? `Cambió tu hora: ${when}` : `Tu hora está confirmada: ${when}`;
+  const lead = kind === 'cancelled' ? 'Yohi canceló esta sesión:' : kind === 'rejected' ? 'Yohi no pudo confirmar esta hora que pediste:' : moved ? 'Yohi cambió el horario de tu sesión. Esta es tu hora nueva:' : 'Yohi confirmó tu sesión. Te esperamos:';
+  const tail = off
+    ? 'La sesión vuelve a tu plan. Puedes pedir otra hora desde tu agenda.'
+    : moved
     ? 'Si esta hora no te acomoda, puedes cancelarla desde tu agenda hasta 24 horas antes y la sesión vuelve a tu plan.'
     : 'Recuerda: puedes cancelar desde tu agenda hasta 24 horas antes y la sesión vuelve a tu plan. Con menos de 24 horas, la sesión se pierde.';
   const link = `${site}/alumnos#agenda`;
-  const text = `Hola, ${first}.\n\n${lead}\n\n${when}\n${sedeName}\n\n${tail}\n\nVer mi agenda: ${link}\n\nRecibes este correo porque tienes una hora en tu portal de Yohi Coach.`;
+  const text = `Hola, ${first}.\n\n${lead}\n\n${when}\n${sedeName}\n\n${tail}\n\n${off ? 'Pedir otra hora' : 'Ver mi agenda'}: ${link}\n\nRecibes este correo porque tienes una hora en tu portal de Yohi Coach.`;
   const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f6f1f4;font-family:Arial,Helvetica,sans-serif;color:#111">
 <div style="max-width:520px;margin:0 auto;padding:24px 16px">
 ${logoHeader(site)}
@@ -45,7 +47,7 @@ ${logoHeader(site)}
 <div style="font-size:18px;font-weight:700;margin-top:2px">${esc(time)}</div>
 <div style="font-size:14px;color:#555;margin-top:6px">${esc(sedeName)}</div></div>
 <p style="margin:0 0 22px;font-size:14px;line-height:1.5;color:#444">${esc(tail)}</p>
-<a href="${esc(link)}" style="display:inline-block;background:#FF4FA3;color:#111;text-decoration:none;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:14px 26px;border-radius:999px">Ver mi agenda</a>
+<a href="${esc(link)}" style="display:inline-block;background:#FF4FA3;color:#111;text-decoration:none;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:14px 26px;border-radius:999px">${off ? 'Pedir otra hora' : 'Ver mi agenda'}</a>
 </div>
 <p style="margin:14px 8px 0;font-size:12px;color:#777;line-height:1.5">Recibes este correo porque tienes una hora en tu portal de Yohi Coach.</p>
 </div></body></html>`;

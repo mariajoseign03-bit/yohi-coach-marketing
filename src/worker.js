@@ -849,11 +849,36 @@ async function adminMoveBooking(env, id, day, time) {
   return json({ ok: true, gcal, mail });
 }
 
+// Yohi agenda una hora para un alumno: queda confirmada de inmediato y descuenta 1 sesión de su plan.
+async function adminCreateBooking(env, userId, day, time) {
+  if (!Number.isInteger(userId) || !validDate(day) || !/^\d\d:\d\d$/.test(time)) return fail(400, 'Elige el alumno, el día y la hora.');
+  const u = await env.DB.prepare("SELECT id, name FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
+  if (!u) return fail(404, 'No se encontró el alumno.');
+  const open = await env.DB.prepare('SELECT mode, sede, slots FROM open_days WHERE day = ?').bind(day).first();
+  if (!open || open.mode === 'closed' || !slotsOf(open).includes(time)) return fail(400, 'Ese día u hora no está abierto. Ábrelo primero en el calendario.');
+  if (slotMs(day, time) <= nowMs(env)) return fail(400, 'Esa hora ya pasó.');
+  const plan = await env.DB.prepare(
+    "SELECT id, modality, sede, sessions_total FROM plans WHERE user_id = ? AND start_date <= ? AND end_date >= ? ORDER BY id DESC LIMIT 1",
+  ).bind(userId, day, day).first();
+  if (!plan || plan.modality !== 'presencial') return fail(400, u.name.split(' ')[0] + ' no tiene un plan presencial que cubra ese día.');
+  if (plan.sede !== open.sede) return fail(400, 'Esa hora es en otra sede distinta a la de su plan.');
+  if ((await usedSessions(env, plan.id)) >= plan.sessions_total) return fail(400, u.name.split(' ')[0] + ' ya usó todas las sesiones de su plan.');
+  try {
+    const r = await env.DB.prepare("INSERT INTO bookings (user_id, plan_id, day, time, sede, status, decided_at) VALUES (?, ?, ?, ?, ?, 'confirmed', ?)")
+      .bind(userId, plan.id, day, time, plan.sede, isoNow()).run();
+    var id = r.meta.last_row_id;
+  } catch { return fail(409, 'Esa hora ya está tomada.'); }
+  const gcal = await gcalAdd(env, id);
+  const mail = await mailBooking(env, id, 'confirmed');
+  return json({ ok: true, gcal, mail, left: Math.max(0, plan.sessions_total - (await usedSessions(env, plan.id))) });
+}
+
 async function adminBooking(req, env) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const b = await readBody(req);
   const id = Number(b && b.id);
   if (b && b.action === 'move') return adminMoveBooking(env, id, String(b.day || ''), String(b.time || ''));
+  if (b && b.action === 'create') return adminCreateBooking(env, Number(b.userId), String(b.day || ''), String(b.time || ''));
   const next = { confirm: 'confirmed', reject: 'rejected', cancel: 'cancelled' }[b && b.action];
   if (!Number.isInteger(id) || !next) return fail(400, 'Solicitud inválida.');
   const from = next === 'confirmed' ? "status = 'requested'" : "status IN ('requested','confirmed')";
@@ -861,7 +886,8 @@ async function adminBooking(req, env) {
   const row = await env.DB.prepare('SELECT status FROM bookings WHERE id = ?').bind(id).first();
   if (!row || row.status !== next) return fail(404, 'La reserva ya no está en ese estado.');
   const gcal = next === 'confirmed' ? await gcalAdd(env, id) : await gcalRemove(env, id);
-  const mail = next === 'confirmed' ? await mailBooking(env, id, 'confirmed') : 'off';
+  // Avisa al alumno: confirmada, rechazada (la pidió y no se pudo) o cancelada por Yohi.
+  const mail = await mailBooking(env, id, next === 'confirmed' ? 'confirmed' : next === 'rejected' ? 'rejected' : 'cancelled');
   return json({ ok: true, gcal, mail });
 }
 

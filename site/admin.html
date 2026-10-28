@@ -80,7 +80,7 @@
   let agState = null; // { month: 'AAAA-MM', week: lunes 'AAAA-MM-DD' | null } — se conserva al refrescar
 
   // Agenda de Yohi: calendario mensual; al tocar una semana se despliegan sus 7 días (disponibilidad + horas pedidas).
-  function agendaSection(ag0) {
+  function agendaSection(ag0, students) {
     let ag = ag0;
     if (!agState) agState = { month: ag.today.slice(0, 7), week: mondayOf(ag.today) };
     const msg = el('p', { class: 'err', role: 'alert' });
@@ -101,10 +101,10 @@
       if (r.ok) { ag = r.data; paint(); } else msg.textContent = r.data.error || 'No se pudo actualizar la agenda.';
     }
     async function bookingAct(id, action, label) {
-      if (action !== 'confirm' && !confirm('¿' + label + ' esta hora? La sesión vuelve al plan del alumno.')) return;
+      if (action !== 'confirm' && !confirm('¿' + label + ' esta hora? La sesión vuelve al plan del alumno' + (ag.mail ? ' y le llega un correo de aviso.' : '.'))) return;
       const r = await api('/api/admin/booking', { id, action });
       if (!r.ok) { msg.textContent = r.data.error || 'No se pudo.'; return; }
-      outcome(r.data, action === 'confirm' ? 'Hora confirmada' : 'Listo');
+      outcome(r.data, action === 'confirm' ? 'Hora confirmada' : action === 'reject' ? 'Hora rechazada' : 'Hora cancelada');
       refresh();
     }
     async function syncGcal(btn) {
@@ -157,6 +157,29 @@
         moveBox(b));
     }
 
+    // Agendar una hora libre a nombre de un alumno (queda confirmada y descuenta 1 sesión).
+    function assignBox(iso, t) {
+      const list = students.filter((x) => x.modality === 'presencial');
+      const det = el('details', { class: 'mv' }, el('summary', {}, '+ Agendar alumno'));
+      if (!list.length) { det.append(el('p', { class: 'muted', style: 'font-size:12.5px;margin:6px 0' }, 'Aún no hay alumnos con plan presencial.')); return det; }
+      const sel = el('select', { 'aria-label': 'Alumno' }, el('option', { value: '' }, 'Elige alumno…'), ...list.map((x) => el('option', { value: String(x.id) }, x.name + ' · ' + (x.used ?? 0) + '/' + x.sessions_total)));
+      const go = el('button', { class: 'btn small', type: 'button' }, 'Agendar');
+      go.onclick = async () => {
+        if (!sel.value) { msg.className = 'err'; msg.textContent = 'Elige a qué alumno agendar.'; return; }
+        const who = list.find((x) => String(x.id) === sel.value);
+        if (!confirm('¿Agendar a ' + who.name + ' el ' + dayLabel(iso) + ' a las ' + t + '? Se descuenta 1 sesión de su plan' + (ag.mail ? ' y le llega un correo de aviso.' : '.'))) return;
+        go.disabled = true; msg.textContent = '';
+        const r = await api('/api/admin/booking', { action: 'create', userId: Number(sel.value), day: iso, time: t });
+        go.disabled = false;
+        if (!r.ok) { msg.className = 'err'; msg.textContent = r.data.error || 'No se pudo agendar.'; return; }
+        outcome(r.data, 'Hora agendada para ' + who.name.split(' ')[0] + ' (le quedan ' + r.data.left + ')');
+        if (!msg.textContent) { msg.className = 'ok'; msg.textContent = 'Hora agendada para ' + who.name.split(' ')[0] + '. Le quedan ' + r.data.left + (r.data.left === 1 ? ' sesión.' : ' sesiones.'); }
+        refresh();
+      };
+      det.append(el('div', { class: 'mv-body' }, sel, go));
+      return det;
+    }
+
     // Mover una reserva a otra hora libre (de cualquier día abierto).
     function moveBox(b) {
       const taken = new Set(ag.bookings.filter((x) => x.id !== b.id).map((x) => x.day + ' ' + x.time));
@@ -196,7 +219,7 @@
       const hist = (pastMap[iso] || []).map((h) => el('div', { class: 'slot-row ' + (h.lost ? 'lost' : 'done') },
         el('div', { class: 'slot-top' }, el('span', { class: 'slot-t' }, h.time), el('span', { class: 'badge ' + (h.lost ? 'wait' : 'okb') }, h.lost ? 'Perdida' : 'Realizada')),
         el('div', { class: 'slot-name' }, h.name), el('div', { class: 'muted', style: 'font-size:12.5px' }, SEDE_NOMBRE[h.sede] || '')));
-      const slots = hist.length ? hist : times.map((t) => { const b = bs.find((x) => x.time === t); return b ? bookedRow(b) : el('div', { class: 'slot-row free' }, el('span', { class: 'slot-t' }, t), el('span', { class: 'muted' }, 'libre')); });
+      const slots = hist.length ? hist : times.map((t) => { const b = bs.find((x) => x.time === t); return b ? bookedRow(b) : el('div', { class: 'slot-row free', style: past ? '' : 'flex-wrap:wrap' }, el('span', { class: 'slot-t' }, t), el('span', { class: 'muted' }, 'libre'), past ? '' : assignBox(iso, t)); });
       const dd = dayDate(iso);
       return el('div', { class: 'wk-day' + (past ? ' past' : '') + (iso === ag.today ? ' today' : '') },
         el('div', { class: 'wk-day-main' },
@@ -1060,7 +1083,7 @@
     };
 
     let content;
-    if (tab === 'agenda') content = ag.ok ? agendaSection(ag.data) : [el('p', { class: 'err' }, 'No se pudo cargar la agenda.')];
+    if (tab === 'agenda') content = ag.ok ? agendaSection(ag.data, students) : [el('p', { class: 'err' }, 'No se pudo cargar la agenda.')];
     else if (tab === 'mensajes') content = mensajesView();
     else if (tab === 'renovaciones') content = renovacionesView();
     else if (tab === 'planes') content = planesView(parts[0] === 'planes' && parts[1] ? Number(parts[1]) : null);
