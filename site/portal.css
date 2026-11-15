@@ -663,3 +663,19 @@ textarea:focus-visible{ outline:none; border-color:var(--accent); box-shadow:0 0
 .ficha-head + .stats + .seg{ display:grid; grid-template-columns:repeat(3,1fr); margin-bottom:14px }
 .ficha-head + .stats + .seg button{ width:100% }
 @media (max-width:420px){ .stat strong{ font-size:22px } }
+
+/* ===== Ficha: formularios plegados ===== */
+.newrt > summary{ display:inline-flex; list-style:none; cursor:pointer }
+.newrt > summary::-webkit-details-marker{ display:none }
+.newrt[open] > summary{ margin-bottom:14px }
+.newrt-body{ min-width:0 }
+/* Ficha más compacta: que el contenido empiece antes */
+.ficha-head{ padding:14px 16px; gap:12px; flex-wrap:nowrap }
+.ficha-head h1{ font-size:clamp(22px,6vw,30px) }
+.ficha-head .avatar.big-av{ width:48px; height:48px; font-size:15px; flex:0 0 auto }
+.ficha-head > div{ min-width:0 !important }
+.ficha-head .btn{ flex:0 0 auto; margin-left:auto }
+.stats{ margin:10px 0 12px; gap:8px }
+.stat{ padding:10px 12px }
+.stat strong{ font-size:21px }
+.stat small{ font-size:11.5px; line-height:1.3 }

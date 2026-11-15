@@ -683,7 +683,7 @@
         editingId = null; syncEditing(); exercises = [blankEx('', ++gSeq)]; nameIn.value = ''; clearDraft(); renderForm(); loadRoutines();
       } }, 'Borrar rutina completa');
       const editNote = el('p', { class: 'muted', role: 'status', style: 'font-size:13px;margin:0', hidden: '' }, '✏️ Estás editando una rutina que ya existe. Al guardar, reemplaza a la anterior de esa fecha.');
-      function syncEditing() { delAll.hidden = !editingId; editNote.hidden = !editingId; }
+      function syncEditing() { delAll.hidden = !editingId; editNote.hidden = !editingId; if (typeof formSum !== 'undefined') formSum.textContent = editingId ? '✎ Editando rutina' : '＋ Nueva rutina'; }
       const form = el('form', { class: 'form', novalidate: '' },
         el('div', { class: 'row', style: 'margin-bottom:10px' }, upBtn, delAll), fileIn, upMsg, editNote,
         el('label', {}, 'Tipo de rutina', kindSel),
@@ -693,6 +693,10 @@
         exList, addBtn, draftNote, msg, go);
       form.addEventListener('input', () => setTimeout(saveDraft, 0));
       form.addEventListener('change', () => setTimeout(saveDraft, 0));
+      // El formulario queda plegado: primero se ven las rutinas; se abre solo al crear, editar o recuperar un borrador.
+      const formSum = el('summary', { class: 'btn small' }, '＋ Nueva rutina');
+      const formDet = el('details', { class: 'newrt' }, formSum, el('div', { class: 'newrt-body' }, form));
+      const openForm = (scroll) => { formDet.open = true; if (scroll) setTimeout(() => formDet.scrollIntoView({ block: 'start', behavior: 'smooth' }), 60); };
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault(); msg.className = 'err'; msg.textContent = ''; go.disabled = true;
@@ -704,7 +708,7 @@
         });
         go.disabled = false;
         if (!r.ok) { msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
-        msg.className = 'ok'; msg.textContent = '✓ Rutina guardada'; clearDraft(); editingId = null; syncEditing();
+        msg.className = 'ok'; msg.textContent = '✓ Rutina guardada'; clearDraft(); editingId = null; syncEditing(); formDet.open = false;
         loadRoutines();
       });
 
@@ -788,7 +792,7 @@
             const rd = await api('/api/admin/routine?id=' + rt.id);
             if (rd.ok) {
               exercises = tagGroups(rd.data.exercises.map(ex => ({ id: ex.id, name: ex.name, sets: ex.sets, reps: ex.reps, restSec: ex.rest_sec, warmupSets: ex.warmup_sets, day: ex.day || '', notes: ex.notes || '', load: ex.target_load || '', unit: ex.unit === 'lbs' ? 'lbs' : 'kg', rir: ex.target_rir || '', rpe: ex.target_rpe || '', link: !!ex.superset_prev })));
-              editingId = rt.id; syncEditing(); renderForm();
+              editingId = rt.id; syncEditing(); renderForm(); openForm(true);
             }
           } }, 'Editar');
           const dupBtn = el('button', { class: 'btn ghost small', style: 'font-size:12px', type: 'button', onclick: async () => {
@@ -799,7 +803,7 @@
             while (usedDates.has(next) && guard++ < 60) next = addDaysISO(next, step);
             kindSel.value = rt.day_on ? 'day' : 'week'; syncKind(true); weekIn.value = next;
             nameIn.value = rt.name || ''; exercises = tagGroups(exCopy(rd.data.exercises));
-            editingId = null; syncEditing(); renderForm(); saveDraft();
+            editingId = null; syncEditing(); renderForm(); saveDraft(); openForm(true);
             msg.className = 'ok'; msg.textContent = '📋 Copia lista. Revisa la fecha y toca «Guardar rutina».';
             form.scrollIntoView({ behavior: 'smooth', block: 'start' });
           } }, 'Duplicar');
@@ -834,10 +838,12 @@
       }
 
       async function load() {
-        if (!restoreDraft()) renderForm();
+        const hadDraft = restoreDraft();
+        if (!hadDraft) renderForm();
         draftReady = true;
         await loadRoutines();
-        box.replaceChildren(form, routinesList);
+        if (hadDraft || editingId) formDet.open = true;
+        box.replaceChildren(formDet, routinesList);
       }
       return { box, load };
     }
@@ -989,9 +995,9 @@
           el('button', { class: 'btn ghost small', type: 'button', onclick: async () => { if (!confirm('¿Borrar esta nota?')) return; await api('/api/admin/notes/delete', { id: n.id }); load(); } }, 'Borrar')))
           : [el('p', { class: 'muted', style: 'margin:0' }, 'Aún no hay notas.')]));
       }
-      box.append(kindBox, title, text,
-        el('label', { style: 'display:flex;gap:10px;align-items:center;font-weight:600' }, vis, 'Visible para ' + first + ' en su portal'),
-        msg, add, el('hr', { style: 'border:0;border-top:1px solid rgba(255,214,232,.12);width:100%;margin:4px 0' }), list);
+      box.append(el('details', { class: 'newrt' }, el('summary', { class: 'btn small' }, '＋ Agregar nota o hito'),
+        el('div', { class: 'newrt-body', style: 'display:grid;gap:12px' }, kindBox, title, text,
+          el('label', { style: 'display:flex;gap:10px;align-items:center;font-weight:600' }, vis, 'Visible para ' + first + ' en su portal'), msg, add)), list);
       load();
       return box;
     }
@@ -1045,7 +1051,7 @@
         mp.load();
         const evoHolder = el('div'), prHolder = el('div');
         api('/api/admin/progress?userId=' + st.id).then((r) => { const d = r.ok ? r.data.exercises : []; evoHolder.replaceChildren(evolutionCard(d)); prHolder.replaceChildren(prCard(d)); });
-        body = el('div', { class: 'admview' }, anamnesisPanel(st), notesPanel(st), evoHolder, prHolder, medCard);
+        body = el('div', { class: 'admview' }, evoHolder, prHolder, notesPanel(st), anamnesisPanel(st), medCard);
       } else {
         const rp = routinePanel(st);
         body = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Rutina de ' + st.name.split(' ')[0]), rp.box);
