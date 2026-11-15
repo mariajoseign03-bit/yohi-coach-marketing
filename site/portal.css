@@ -628,3 +628,18 @@ textarea:focus-visible{ outline:none; border-color:var(--accent); box-shadow:0 0
 .timer-actions .timer-btn.reset{ flex:0 0 42px; width:42px; padding:0 }
 .timer-inputs{ grid-column:1 / -1; grid-row:3; margin:8px 0 0 }
 .timer-input{ min-height:34px }
+
+/* ===== Rediseño panel de Yohi: barra inferior + vista Hoy ===== */
+.tab-badge{ position:absolute; top:2px; left:calc(50% + 6px); min-width:18px; height:18px; padding:0 5px; border-radius:999px; background:var(--accent); color:var(--on-accent); font:800 10.5px/18px var(--f-text); text-align:center }
+.todo-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px }
+.todo{ display:grid; grid-template-columns:auto 1fr; align-items:center; gap:2px 12px; padding:16px; border-radius:22px; background:linear-gradient(155deg,rgba(255,79,163,.3),rgba(25,25,25,.9)); border:1px solid rgba(255,109,180,.5); color:var(--fg); text-decoration:none }
+.todo-ic{ grid-row:span 2; font-size:26px }
+.todo-n{ font:400 34px/1 var(--f-display) }
+.todo span:last-child{ font-size:13px; font-weight:700; color:var(--accent-soft) }
+.ok-card{ display:grid; gap:4px }
+.ses-day{ list-style:none; margin:0; padding:0; display:grid; gap:0 }
+.ses-row{ display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid rgba(255,214,232,.1) }
+.ses-row:last-child{ border-bottom:0 }
+.ses-time{ flex:0 0 58px; font:400 24px/1 var(--f-display); letter-spacing:.02em; color:var(--accent-text) }
+.tabbar-in{ width:min(760px,100%) }
+.admview > h2{ margin:26px 0 10px }
