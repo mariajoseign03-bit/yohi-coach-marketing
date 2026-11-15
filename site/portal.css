@@ -643,3 +643,23 @@ textarea:focus-visible{ outline:none; border-color:var(--accent); box-shadow:0 0
 .ses-time{ flex:0 0 58px; font:400 24px/1 var(--f-display); letter-spacing:.02em; color:var(--accent-text) }
 .tabbar-in{ width:min(760px,100%) }
 .admview > h2{ margin:26px 0 10px }
+
+/* ===== Agenda y ficha de alumno ===== */
+.ask-card{ border-color:rgba(242,199,110,.45); background:rgba(242,199,110,.06) }
+.conn{ margin-top:18px; border:1px solid rgba(255,214,232,.12); border-radius:18px; padding:0 16px; background:rgba(255,255,255,.02) }
+.conn summary{ display:flex; align-items:center; gap:8px; min-height:48px; cursor:pointer; list-style:none; font:800 12px/1 var(--f-text); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); flex-wrap:wrap }
+.conn summary::-webkit-details-marker{ display:none }
+.conn summary span{ margin-right:auto }
+.conn summary small{ font:600 12px/1 var(--f-text); letter-spacing:0; text-transform:none; margin-right:6px }
+.conn[open]{ padding-bottom:10px }
+.stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:12px 0 16px }
+.stat{ background:rgba(25,25,25,.82); border:1px solid rgba(255,214,232,.12); border-radius:20px; padding:14px; display:grid; gap:3px; align-content:start; min-width:0 }
+.stat .kick{ font-size:11px }
+.stat strong{ font:400 26px/1.05 var(--f-display); letter-spacing:.02em; text-transform:uppercase; overflow-wrap:anywhere }
+.stat small{ color:var(--muted); font-size:12px; font-weight:600 }
+.stat.warn{ border-color:rgba(242,199,110,.55); background:rgba(242,199,110,.08) }
+.stat.warn strong{ color:var(--gold-light) }
+.danger-zone{ margin-top:28px; padding-top:18px; border-top:1px solid rgba(255,214,232,.1); display:flex; justify-content:center }
+.ficha-head + .stats + .seg{ display:grid; grid-template-columns:repeat(3,1fr); margin-bottom:14px }
+.ficha-head + .stats + .seg button{ width:100% }
+@media (max-width:420px){ .stat strong{ font-size:22px } }
