@@ -555,3 +555,76 @@ textarea:focus-visible{ outline:none; border-color:var(--accent); box-shadow:0 0
 .ytimer-btn.pause{ background:rgba(242,199,110,.15); color:var(--gold); border:1.5px solid rgba(242,199,110,.3) }
 .ytimer-btn.reset{ flex:0 0 44px; width:44px; background:rgba(255,255,255,.06); color:var(--muted); border:1px solid rgba(255,255,255,.1); font-size:17px }
 @media (prefers-reduced-motion:reduce){ .ytimer.is-done .ytimer-pill{ animation:none } }
+
+/* ===== Rediseño alumnas (Inicio + Rutina) ===== */
+.top{ flex-wrap:nowrap; align-items:center; margin-bottom:16px }
+.top .hello{ font-size:clamp(28px,7vw,36px); line-height:1.15 }
+.top .brand{ font-size:12px }
+.top-out{ flex:0 0 auto; min-height:38px; padding:0 16px }
+/* Hoy te toca (tarjeta rosa) */
+.hero-today{ position:relative; overflow:hidden; border-radius:28px; padding:20px 20px 18px; background:linear-gradient(155deg,#FF6DB4,#FF4FA3 55%,#F2378F); color:#0B0B0B; display:grid; gap:8px; box-shadow:0 18px 40px -16px rgba(255,79,163,.55) }
+.hero-char{ position:absolute; right:-4px; top:6px; width:96px; height:auto; filter:drop-shadow(0 5px 0 rgba(0,0,0,.16)); pointer-events:none }
+.hero-kick{ font:800 11px/1 var(--f-text); letter-spacing:.16em; text-transform:uppercase; color:rgba(11,11,11,.72) }
+.hero-title{ margin:0; max-width:calc(100% - 96px); font:400 clamp(30px,9vw,40px)/1 var(--f-display); letter-spacing:.01em; text-transform:uppercase; color:#0B0B0B }
+.hero-sub{ margin:0 0 4px; font-weight:800; font-size:13px; color:rgba(11,11,11,.75) }
+.hero-list{ list-style:none; margin:2px 0 6px; padding:0; display:grid; gap:7px }
+.hero-list li{ display:flex; align-items:center; gap:10px; font-weight:700; font-size:14px; background:rgba(255,255,255,.2); border-radius:14px; padding:8px 12px }
+.hero-list i{ flex:0 0 22px; width:22px; height:22px; border-radius:50%; border:2px solid #0B0B0B; display:grid; place-items:center; font:800 12px/1 var(--f-text); font-style:normal }
+.hero-list li.done i{ background:#0B0B0B; color:#FF6DB4 }
+.hero-list li.done .hl-name{ opacity:.65; text-decoration:line-through }
+.hl-name{ flex:1; min-width:0 }
+.hl-meta{ font-size:12px; font-weight:800; opacity:.7; flex:0 0 auto }
+.btn.dark{ background:#0B0B0B; color:#fff; box-shadow:none }
+.hero-today.empty{ padding-bottom:20px }
+.hero-today.empty .hero-sub{ max-width:calc(100% - 100px); font-weight:600 }
+/* Tu semana */
+.week-card{ display:grid; gap:12px; padding:16px 18px }
+.week-dots{ display:flex; justify-content:space-between }
+.week-dots div{ display:grid; justify-items:center; gap:6px; font:800 11px/1 var(--f-text); color:var(--muted) }
+.week-dots i{ width:34px; height:34px; border-radius:50%; border:1.5px dashed rgba(255,255,255,.28); display:grid; place-items:center; font:800 14px/1 var(--f-text); font-style:normal; color:#0B0B0B }
+.week-dots .on i{ background:var(--accent); border:0 }
+.week-dots .today i{ border:2px solid var(--accent); border-style:solid }
+.week-dots .today span{ color:var(--accent-text) }
+/* Plan + próxima sesión */
+.tiles{ display:grid; grid-template-columns:1fr 1fr; gap:12px }
+.tiles.one{ grid-template-columns:1fr }
+.tile{ background:rgba(25,25,25,.82); border:1px solid rgba(255,214,232,.12); border-radius:22px; padding:16px; display:grid; gap:6px; align-content:start; text-decoration:none; color:inherit; min-width:0 }
+.tile .kick{ font-size:12px }
+.tile-big{ font:400 28px/1.05 var(--f-display); letter-spacing:.02em; text-transform:uppercase }
+.tile-big.sm{ font-size:21px }
+.tile small{ color:var(--muted); font-size:12.5px; font-weight:600; line-height:1.4 }
+.tile-link{ color:var(--accent-text); font-weight:800; font-size:12.5px }
+/* Nota / hito */
+.note-card{ display:flex; gap:12px; align-items:flex-start; background:rgba(25,25,25,.82); border:1px solid rgba(255,214,232,.12); border-radius:22px; padding:16px }
+.note-card img{ flex:0 0 40px; width:40px; height:40px; border-radius:50%; object-fit:cover; border:1.5px solid var(--accent) }
+.note-card .kick{ font-size:12px }
+/* Rutina: pestañas por día */
+.day-tabs{ display:flex; gap:8px; overflow-x:auto; padding:2px 0 12px; margin:0 -2px; scrollbar-width:none }
+.day-tabs::-webkit-scrollbar{ display:none }
+.day-tab{ flex:0 0 auto; display:flex; align-items:center; gap:8px; min-height:42px; padding:0 14px; border-radius:999px; border:1.5px solid rgba(255,214,232,.16); background:transparent; color:var(--muted); font:800 13px/1 var(--f-text); cursor:pointer }
+.day-tab .day-count{ padding:3px 7px; font-size:10.5px; border-color:transparent; background:rgba(255,255,255,.08) }
+.day-tab.on{ background:var(--accent); border-color:var(--accent); color:#0B0B0B }
+.day-tab.on .day-count{ background:rgba(11,11,11,.18); color:#0B0B0B }
+.day-tab.done:not(.on){ color:var(--green); border-color:rgba(74,222,128,.4) }
+.day-panel .training-exercises{ display:grid; gap:10px }
+.day-panel .exercise{ background:rgba(25,25,25,.82); border:1px solid rgba(255,214,232,.12); border-radius:22px; padding:14px 16px }
+.day-panel .exercise.open{ border-color:rgba(255,109,180,.55); box-shadow:0 10px 30px -14px rgba(255,79,163,.35) }
+.day-panel .exercise.done{ border-color:rgba(74,222,128,.3) }
+/* Temporizador compacto */
+.timer-wrap{ gap:10px }
+.timer-mascot{ height:84px; max-width:24vw }
+.timer-card{ padding:12px 14px; border-radius:20px }
+.timer-display{ font-size:clamp(30px,9vw,38px); margin-bottom:8px }
+.timer-label{ margin-bottom:4px }
+#entrenamiento{ background:none; border:0; padding:0; box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none }
+#entrenamiento > h2{ margin:4px 0 6px }
+.ex-tap{ display:none }
+.timer-card{ padding:10px 14px }
+.timer-body{ display:grid; grid-template-columns:1fr auto; column-gap:12px; align-items:center }
+.timer-label{ grid-column:1 / -1 }
+.timer-display{ margin:0; grid-column:1; grid-row:2 }
+.timer-actions{ grid-column:2; grid-row:2 }
+.timer-actions .timer-btn{ min-height:42px; padding:0 18px; flex:0 0 auto }
+.timer-actions .timer-btn.reset{ flex:0 0 42px; width:42px; padding:0 }
+.timer-inputs{ grid-column:1 / -1; grid-row:3; margin:8px 0 0 }
+.timer-input{ min-height:34px }

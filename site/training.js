@@ -117,23 +117,35 @@ function trainingSection(container) {
       if (m) return 'Día ' + m[1];
       return /\b(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.test(t) ? 'Día ' + (n + 1) : label;
     };
+    // Pestañas por día: se muestra un solo día a la vez (el de hoy si se puede saber, si no el primero con ejercicios pendientes).
+    const wd = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][new Date(todayLocal() + 'T12:00:00').getDay()];
+    const isDone = (ex) => (logsByEx[ex.id] || []).filter((l) => l.set_type === 'work').length >= ex.sets;
     let dayN = 0;
-    return el('div', { class: 'day-groups' }, ...groups.map((g) => {
-      const total = g.items.length;
-      const isDone = (ex) => (logsByEx[ex.id] || []).filter((l) => l.set_type === 'work').length >= ex.sets;
+    const days = groups.map((g) => ({ g, name: g.day ? dayName(g.day, dayN++) : 'Otros', plain: plain(g.day) }));
+    let pick = days.findIndex((d) => d.plain.includes(wd));
+    if (pick < 0) pick = days.findIndex((d) => d.g.items.some((ex) => !isDone(ex)));
+    if (pick < 0) pick = 0;
+    const tabs = el('div', { class: 'day-tabs', role: 'tablist' });
+    const panels = el('div', { class: 'day-panels' });
+    const els = days.map((d, i) => {
+      const total = d.g.items.length;
       const count = el('span', { class: 'day-count' });
-      const det = el('details', { class: 'day-group' },
-        el('summary', { class: 'day-sum' }, el('span', { class: 'day-name' }, g.day ? dayName(g.day, dayN++) : 'Otros ejercicios'), count),
-        el('div', { class: 'training-exercises' }, ...withSupersets(g.items, card)));
+      const tab = el('button', { type: 'button', class: 'day-tab', role: 'tab' }, el('span', {}, d.name), count);
+      const panel = el('div', { class: 'day-panel', role: 'tabpanel', hidden: '' }, el('div', { class: 'training-exercises' }, ...withSupersets(d.g.items, card)));
       const recount = () => {
-        const n = det.querySelectorAll('.ex-badge.done').length;
-        count.textContent = n + '/' + total + ' ejercicios';
-        count.classList.toggle('done', n === total);
+        const n = panel.querySelectorAll('.ex-badge.done').length;
+        count.textContent = n + '/' + total;
+        tab.classList.toggle('done', n === total);
       };
       recount();
-      det.addEventListener('saved', recount);
-      return det;
-    }));
+      panel.addEventListener('saved', recount);
+      tab.addEventListener('click', () => show(i));
+      tabs.append(tab); panels.append(panel);
+      return { tab, panel };
+    });
+    function show(i) { els.forEach((x, k) => { x.panel.hidden = k !== i; x.tab.classList.toggle('on', k === i); x.tab.setAttribute('aria-selected', String(k === i)); }); }
+    show(pick);
+    return el('div', { class: 'day-groups' }, tabs, panels);
   }
 
   async function renderWeekSelector(container, afterEl) {
