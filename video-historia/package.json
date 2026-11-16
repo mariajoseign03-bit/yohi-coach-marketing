@@ -1,0 +1,26 @@
+{
+  "name": "video-historia",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Historia vertical del portal de alumnas de Yohi Coach (Remotion + Playwright + ffmpeg)",
+  "scripts": {
+    "dev": "remotion studio",
+    "capture": "node scripts/capture.mjs",
+    "render": "node scripts/render.mjs",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.532",
+    "@remotion/fonts": "4.0.532",
+    "@remotion/media": "4.0.532",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.532"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.7",
+    "playwright": "*",
+    "typescript": "5.9.3",
+    "wrangler": "4.40.0"
+  }
+}
