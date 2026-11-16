@@ -10,6 +10,12 @@ const DEMO = { email: 'alumna.demo@yohicoach.demo', pass: 'DemoAlumna-2026' };
 const exe = fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined;
 const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
 const opts = { viewport: { width: 430, height: 932 }, deviceScaleFactor: 2.5, isMobile: true, hasTouch: true, locale: 'es-CL', timezoneId: 'America/Santiago' };
+const REG = {};
+// Guarda el rectángulo (px CSS, coordenadas de documento) de un elemento real para dibujar acentos exactos.
+const region = async (p, key, loc) => {
+  const r = await loc.first().evaluate((el) => { const b = el.getBoundingClientRect(); return { x: b.x + scrollX, y: b.y + scrollY, w: b.width, h: b.height }; });
+  REG[key] = r;
+};
 const hideFixed = (p) => p.addStyleTag({ content: '.tabbar,.mc-fab{visibility:hidden !important}' });
 const showFixed = (p) => p.addStyleTag({ content: '.tabbar,.mc-fab{visibility:visible !important}' });
 const shot = async (p, name, o = {}) => { await p.waitForTimeout(500); await p.screenshot({ path: OUT + name + '.png', ...o }); console.log('✓', name); };
@@ -20,10 +26,14 @@ const shot = async (p, name, o = {}) => { await p.waitForTimeout(500); await p.s
   await p.goto(BASE + '/', { waitUntil: 'networkidle' });
   await p.waitForTimeout(6500); // deja terminar la animación de entrada
   await shot(p, '01-home');
+  await region(p, 'home.alumnos', p.getByText('Alumnos', { exact: true }));
   await p.getByRole('button', { name: /Alumnos/ }).or(p.getByText('Alumnos', { exact: true })).first().click();
   await p.waitForTimeout(800);
   await shot(p, '02-login-modal');
+  await region(p, 'login.email', p.locator('input[name=user]'));
+  await region(p, 'login.ingresar', p.getByRole('button', { name: 'Ingresar' }).last());
   const em = p.locator('input[name=user]'); await em.click(); await em.pressSequentially(DEMO.email, { delay: 15 });
+  await shot(p, '02b-login-correo');
   const pw = p.locator('input[name=pass]').first(); await pw.click(); await pw.pressSequentially(DEMO.pass, { delay: 15 });
   await shot(p, '03-login-lleno');
   await ctx.close();
@@ -37,28 +47,38 @@ const shot = async (p, name, o = {}) => { await p.waitForTimeout(500); await p.s
   const p = await ctx.newPage();
   await p.goto(BASE + '/alumnos.html', { waitUntil: 'networkidle' });
   await p.waitForTimeout(2000);
-  const go = async (t) => { await p.locator(`nav.tabbar a[href="#${t}"]`).click(); await p.waitForTimeout(1000); };
+  const go = async (t) => { await p.locator(`nav.tabbar a[href="#${t}"]`).click(); await p.waitForTimeout(1000); await p.locator('nav.tabbar').screenshot({ path: OUT + `tabbar-${t}.png` }); };
   await shot(p, '10-inicio');
-  await p.locator('nav.tabbar').screenshot({ path: OUT + 'tabbar.png' });
+  await p.locator('nav.tabbar').screenshot({ path: OUT + 'tabbar-inicio.png' });
   await hideFixed(p); await shot(p, '10-inicio-largo', { fullPage: true }); await showFixed(p);
   await go('rutina');
   await shot(p, '11-rutina');
   await p.locator('.tabpanel:not([hidden]) .ex-head').first().click();
   await p.waitForTimeout(700);
   await shot(p, '11-rutina-abierta');
+  await region(p, 'rutina.ejercicio', p.locator('.tabpanel:not([hidden]) .exercise.open'));
+  await region(p, 'rutina.dia', p.locator('.tabpanel:not([hidden]) .exercise').first());
   await go('progreso');
   await shot(p, '12-progreso');
+  for (const [k, t] of [['progreso.evolucion', 'Evolución'], ['progreso.prs', 'Mis PRs'], ['progreso.notas', 'Notas e hitos'], ['progreso.ficha', 'Mi ficha de salud'], ['progreso.mediciones', 'Mediciones']])
+    await region(p, k, p.locator('.tabpanel:not([hidden]) section.card, .tabpanel:not([hidden]) .card').filter({ hasText: t }).last());
   await hideFixed(p); await shot(p, '12-progreso-largo', { fullPage: true }); await showFixed(p);
   await go('chat');
   await shot(p, '13-chat');
+  await region(p, 'chat.whatsapp', p.getByText('Escribir a Yohi por WhatsApp').first());
+  await region(p, 'chat.mocca', p.getByText('Preguntarle a Mocca').first());
   await p.locator('.mc-fab').click(); await p.waitForTimeout(800);
   await shot(p, '13-chat-mocca');
   await p.locator('.mc-opt').first().click(); await p.waitForTimeout(600);
   await shot(p, '13-chat-mocca-respuesta');
+  await region(p, 'chat.respuesta', p.locator('.mc-panel'));
   await p.locator('.mc-panel button[aria-label], .mc-close').first().click().catch(() => {});
   await go('agenda');
   await shot(p, '14-agenda');
+  await region(p, 'agenda.reserva', p.locator('.tabpanel:not([hidden]) .card').filter({ hasText: 'CONFIRMADA' }).first());
   await hideFixed(p); await shot(p, '14-agenda-largo', { fullPage: true }); await showFixed(p);
   await ctx.close();
 }
+fs.writeFileSync(OUT + 'regiones.json', JSON.stringify(REG, null, 1));
+console.log('regiones:', Object.keys(REG).join(', '));
 await browser.close();
