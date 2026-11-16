@@ -138,14 +138,18 @@
   async function renderHistory() {
     const r = await api('/api/sessions');
     const list = r.ok ? r.data.sessions : [];
-    if (!list.length) { histBox.hidden = true; return; }
+    const adj = r.ok ? r.data.adjustments || [] : [];
+    if (!list.length && !adj.length) { histBox.hidden = true; return; }
     const done = list.filter((x) => !x.lost).length;
     histBox.hidden = false;
     histBox.replaceChildren(
       el('div', { class: 'row', style: 'justify-content:space-between' }, el('h2', { style: 'margin:0' }, 'Mis sesiones'), el('span', { class: 'muted', style: 'font-size:13px' }, done + (done === 1 ? ' realizada' : ' realizadas'))),
       el('ul', { class: 'ses-list' }, ...list.map((x) => el('li', { class: x.lost ? 'lost' : '' },
         el('span', {}, dayLabel(x.day)), el('span', { class: 'muted' }, x.time + ' · ' + (SEDE_NOMBRE[x.sede] || '')),
-        x.lost ? el('em', {}, 'perdida') : ''))));
+        x.lost ? el('em', {}, 'perdida') : ''))),
+      ...(adj.length ? [el('h3', { style: 'margin:14px 0 8px;font-size:15px' }, 'Cambios en tu plan'), el('ul', { class: 'ses-list' }, ...adj.map((a) => el('li', {},
+        el('span', { class: 'chip ' + (a.delta > 0 ? 'green' : 'gold') }, (a.delta > 0 ? '+' : '−') + Math.abs(a.delta) + (Math.abs(a.delta) === 1 ? ' sesión' : ' sesiones')),
+        el('span', { style: 'flex:1;min-width:0' }, a.note), el('span', { class: 'muted' }, fmtDate((a.created_at || '').slice(0, 10))))))] : []));
   }
   if (presencial) { renderAgenda(); renderHistory(); }
 

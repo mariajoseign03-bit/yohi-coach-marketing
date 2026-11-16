@@ -1002,6 +1002,41 @@
       return box;
     }
 
+    // --- Ajustar sesiones: sumar o descontar con una observación; el alumno recibe un correo ---
+    function adjustCard(st) {
+      const first = st.name.split(' ')[0];
+      let sign = 1;
+      const used = st.used ?? 0, total = st.sessions_total ?? 0;
+      const seg = el('div', { class: 'seg', role: 'group', 'aria-label': 'Tipo de ajuste' });
+      const qty = el('input', { type: 'number', min: '1', max: '20', value: '1', inputmode: 'numeric', 'aria-label': 'Cantidad de sesiones', style: 'max-width:90px' });
+      const note = el('input', { type: 'text', maxlength: '200', placeholder: 'Observación (ej: Se otorgan 2 sesiones por temas de salud)', 'aria-label': 'Observación' });
+      const preview = el('p', { class: 'muted', style: 'margin:0;font-size:13.5px' });
+      const msg = el('p', { class: 'err', role: 'alert', style: 'margin:0' });
+      const go = el('button', { class: 'btn', type: 'button' }, 'Guardar y avisar por correo');
+      const n = () => Math.max(0, Math.min(20, parseInt(qty.value, 10) || 0));
+      const paint = () => {
+        seg.replaceChildren(...[[1, '＋ Sumar'], [-1, '− Descontar']].map(([v, t]) => el('button', { type: 'button', 'aria-pressed': String(sign === v), onclick: () => { sign = v; paint(); } }, t)));
+        const nt = total + sign * n();
+        preview.textContent = n() ? 'Quedaría con ' + nt + ' sesiones en total (' + Math.max(0, nt - used) + ' por usar).' : 'Elige cuántas sesiones.';
+        if (nt < used) preview.textContent = first + ' ya usó ' + used + ' sesiones; no puede quedar con menos.';
+      };
+      qty.addEventListener('input', paint); paint();
+      go.onclick = async () => {
+        msg.textContent = '';
+        if (!n()) { msg.textContent = 'Elige cuántas sesiones.'; return; }
+        if (!note.value.trim()) { msg.textContent = 'Escribe una observación: queda registrada y se la contamos a ' + first + '.'; note.focus(); return; }
+        go.disabled = true;
+        const r = await api('/api/admin/sessions/adjust', { userId: st.id, delta: sign * n(), note: note.value });
+        if (!r.ok) { go.disabled = false; msg.textContent = r.data.error || 'No se pudo guardar.'; return; }
+        go.textContent = r.data.mailed ? '✓ Listo, le avisamos a ' + first + ' por correo' : '✓ Guardado (el correo de aviso no está conectado)';
+        setTimeout(render, 900);
+      };
+      return el('section', { class: 'card', style: 'display:grid;gap:12px' },
+        el('h2', { style: 'margin:0' }, 'Sumar o descontar sesiones'),
+        el('p', { class: 'muted', style: 'margin:0;font-size:13.5px' }, 'Por ejemplo, si le regalas sesiones por un tema de salud. ' + first + ' recibe un correo con tu observación.'),
+        seg, el('label', { style: 'display:flex;gap:10px;align-items:center;font-weight:700' }, 'Sesiones', qty), note, preview, msg, go);
+    }
+
     // --- Ficha de un alumno: Rutina / Progreso ---
     function fichaView(st, sub) {
       const delBox = el('div', { class: 'card', hidden: '', style: 'border-color:rgba(255,107,107,.5);display:grid;gap:10px' });
@@ -1036,15 +1071,18 @@
       let body;
       if (sub === 'sesiones') {
         const holder = el('ul', { class: 'ses-list' }), count = el('span', { class: 'muted', style: 'font-size:13px' });
+        const adjHolder = el('div', { class: 'adj-hist' });
         api('/api/admin/sessions?userId=' + st.id).then((r) => {
           const list = r.ok ? r.data.sessions : [];
+          const adj = r.ok ? r.data.adjustments || [] : [];
+          adjHolder.replaceChildren(...(adj.length ? [el('h3', { style: 'margin:6px 0 8px;font-size:15px' }, 'Ajustes de sesiones'), el('ul', { class: 'ses-list adj-list' }, ...adj.map((a) => el('li', {}, el('span', { class: 'chip ' + (a.delta > 0 ? 'green' : 'gold') }, (a.delta > 0 ? '+' : '−') + Math.abs(a.delta)), el('span', { style: 'flex:1;min-width:0' }, a.note), el('span', { class: 'muted' }, fmtDate((a.created_at || '').slice(0, 10))))))] : []));
           const done = list.filter((x) => !x.lost).length;
           count.textContent = st.modality === 'presencial' ? done + ' realizadas · ' + (st.used ?? 0) + ' de ' + st.sessions_total + ' usadas en el plan' : done + ' realizadas';
           holder.replaceChildren(...(list.length ? list.map((x) => el('li', { class: x.lost ? 'lost' : '' },
             el('span', {}, fmtDate(x.day)), el('span', { class: 'muted' }, x.time + ' · ' + (SEDE_NOMBRE[x.sede] || '')), x.lost ? el('em', {}, 'perdida') : ''))
             : [el('li', { class: 'muted' }, 'Aún no hay sesiones realizadas.')]));
         });
-        body = el('section', { class: 'card', style: 'display:grid;gap:12px' }, el('div', { class: 'row', style: 'justify-content:space-between' }, el('h2', { style: 'margin:0' }, 'Sesiones de ' + st.name.split(' ')[0]), count), holder);
+        body = el('div', { class: 'admview' }, ...(st.modality === 'presencial' ? [adjustCard(st)] : []), el('section', { class: 'card', style: 'display:grid;gap:12px' }, el('div', { class: 'row', style: 'justify-content:space-between' }, el('h2', { style: 'margin:0' }, 'Sesiones de ' + st.name.split(' ')[0]), count), holder, adjHolder));
       } else if (sub === 'progreso') {
         const mp = medPanel(st);
         const medCard = el('section', { class: 'card' }, el('h2', { style: 'margin-top:0' }, 'Medidas'), mp.box);

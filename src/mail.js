@@ -138,3 +138,32 @@ ${logoHeader(site)}
 </div></div></body></html>`;
   return { subject, text, html };
 }
+
+// Aviso cuando Yohi suma o descuenta sesiones del plan. Cálido y breve: lleva solo el nombre de pila, la cantidad, su observación y cuántas quedan.
+export function adjustEmail({ name, delta, note, left, total, site = 'https://yohicoach.cl' }) {
+  const first = String(name || '').trim().split(/\s+/)[0] || 'hola';
+  const n = Math.abs(delta);
+  const sesiones = `${n} ${n === 1 ? 'sesión' : 'sesiones'}`;
+  const add = delta > 0;
+  const subject = add ? `Yohi te habilitó ${sesiones} más 💗` : 'Ajustamos las sesiones de tu plan';
+  const lead = add
+    ? `Yohi te habilitó ${sesiones} más en tu plan. Es un regalito para que sigas entrenando con tranquilidad 💗`
+    : `Yohi ajustó tu plan y descontó ${sesiones}. Te lo contamos para que lo tengas clarito.`;
+  const box = note ? `Mensaje de Yohi: ${note}` : '';
+  const state = `Ahora tu plan tiene ${total} ${total === 1 ? 'sesión' : 'sesiones'} en total y te ${left === 1 ? 'queda' : 'quedan'} ${left} por usar.`;
+  const tail = add ? 'Ya puedes pedir tus próximas horas desde tu portal. ¡Nos vemos entrenando!' : 'Si tienes dudas, escríbele a Yohi por WhatsApp, ella te ayuda con gusto.';
+  const btn = 'Ver mis sesiones', link = `${site}/alumnos#agenda`;
+  const text = `Hola, ${first}.\n\n${lead}\n\n${box ? box + '\n\n' : ''}${state}\n\n${tail}\n\n${btn}: ${link}`;
+  const html = `<!doctype html><html lang="es"><body style="margin:0;background:#f6f1f4;font-family:Arial,Helvetica,sans-serif;color:#111">
+<div style="max-width:520px;margin:0 auto;padding:24px 16px">
+${logoHeader(site)}
+<div style="background:#fff;border-radius:0 0 18px 18px;padding:26px 24px">
+<p style="margin:0 0 14px;font-size:17px">Hola, <b>${esc(first)}</b></p>
+<p style="margin:0 0 18px;font-size:15px;line-height:1.5">${esc(lead)}</p>
+${box ? `<div style="border:2px solid #FF4FA3;border-radius:14px;padding:16px 18px;margin:0 0 18px;background:#fff5fa"><div style="font-size:16px;font-weight:700;line-height:1.4">${esc(box)}</div></div>` : ''}
+<p style="margin:0 0 12px;font-size:15px;line-height:1.5"><b>${esc(state)}</b></p>
+<p style="margin:0 0 22px;font-size:14px;line-height:1.5;color:#444">${esc(tail)}</p>
+<a href="${esc(link)}" style="display:inline-block;background:#FF4FA3;color:#111;text-decoration:none;font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;padding:14px 26px;border-radius:999px">${esc(btn)}</a>
+</div></div></body></html>`;
+  return { subject, text, html };
+}

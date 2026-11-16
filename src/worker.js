@@ -1,5 +1,5 @@
 import { gcalConfigured, gcalCreate, gcalDelete } from './gcal.js';
-import { mailConfigured, mailConfig, bookingEmail, resetEmail, renewalEmail, sendMail } from './mail.js';
+import { mailConfigured, mailConfig, bookingEmail, resetEmail, renewalEmail, adjustEmail, sendMail } from './mail.js';
 // Portal de alumnos de Yohi Coach — API sobre Cloudflare Workers + D1.
 // Solo atiende /api/*; el resto del sitio lo sirven los archivos estáticos (ASSETS).
 
@@ -676,16 +676,51 @@ async function sessionHistory(env, userId) {
     .filter((b) => b.status === 'cancelled' || b.status === 'done' || slotMs(b.day, b.time) + 3600000 <= now)
     .map((b) => ({ id: b.id, day: b.day, time: b.time, sede: b.sede, lost: b.status === 'cancelled' }));
 }
+async function sessionAdjustments(env, userId) {
+  const { results } = await env.DB.prepare('SELECT id, delta, note, created_at FROM session_adjustments WHERE user_id = ? ORDER BY id DESC LIMIT 30').bind(userId).all();
+  return results;
+}
 async function mySessions(req, env) {
   const user = await currentUser(req, env);
   if (!user || user.role !== 'student') return fail(401, 'No has iniciado sesión.');
-  return json({ ok: true, sessions: await sessionHistory(env, user.id) });
+  return json({ ok: true, sessions: await sessionHistory(env, user.id), adjustments: await sessionAdjustments(env, user.id) });
 }
 async function adminSessions(req, env, url) {
   if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
   const userId = Number(url.searchParams.get('userId'));
   if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
-  return json({ ok: true, sessions: await sessionHistory(env, userId) });
+  return json({ ok: true, sessions: await sessionHistory(env, userId), adjustments: await sessionAdjustments(env, userId) });
+}
+
+// Yohi suma o descuenta sesiones del plan presencial de un alumno, con una observación; el alumno recibe un correo.
+async function adminAdjustSessions(req, env, ctx) {
+  if (!(await requireAdmin(req, env))) return fail(403, 'Sin permiso.');
+  const b = await readBody(req);
+  if (!b) return fail(400, 'Solicitud inválida.');
+  const userId = Number(b.userId), delta = Number(b.delta), note = String(b.note || '').trim().slice(0, 200);
+  if (!Number.isInteger(userId)) return fail(400, 'Alumno inválido.');
+  if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 20) return fail(400, 'Elige cuántas sesiones sumar o descontar (entre 1 y 20).');
+  if (!note) return fail(400, 'Escribe una observación para que quede registrada.');
+  const u = await env.DB.prepare("SELECT id, name, email FROM users WHERE id = ? AND role = 'student' AND status = 'active'").bind(userId).first();
+  if (!u) return fail(404, 'No se encontró al alumno.');
+  const plan = (await activePlan(env, userId, todayCL(env))) || (await planOf(env, userId));
+  if (!plan || plan.modality !== 'presencial') return fail(400, 'Solo se pueden ajustar sesiones de un plan presencial.');
+  const used = await usedSessions(env, plan.id);
+  const total = plan.sessions_total + delta;
+  if (total < used) return fail(400, `${u.name.split(' ')[0]} ya usó ${used} sesiones; no puede quedar con menos.`);
+  if (total < 1 || total > 60) return fail(400, 'El plan debe quedar entre 1 y 60 sesiones.');
+  await env.DB.batch([
+    env.DB.prepare('UPDATE plans SET sessions_total = ? WHERE id = ?').bind(total, plan.id),
+    env.DB.prepare('INSERT INTO session_adjustments (user_id, plan_id, delta, note) VALUES (?, ?, ?, ?)').bind(userId, plan.id, delta, note),
+  ]);
+  const left = Math.max(0, total - used);
+  let mailed = false;
+  if (mailConfigured(env) && u.email) {
+    mailed = true;
+    const p = sendMail(env, { to: u.email, ...adjustEmail({ name: u.name, delta, note, left, total, site: siteOf(env) }) });
+    if (ctx && ctx.waitUntil) ctx.waitUntil(p);
+  }
+  return json({ ok: true, total, used, left, mailed });
 }
 
 async function createBooking(req, env) {
@@ -1645,6 +1680,7 @@ export default {
         case 'POST /api/admin/measurement': return await adminAddMeasurement(req, env);
         case 'POST /api/admin/measurement/delete': return await adminDeleteMeasurement(req, env);
         case 'POST /api/admin/plan': return await adminPlan(req, env);
+        case 'POST /api/admin/sessions/adjust': return await adminAdjustSessions(req, env, ctx);
         case 'POST /api/admin/routine': return await adminRoutine(req, env);
         case 'POST /api/admin/routine/delete': return await adminDeleteRoutine(req, env);
         case 'GET /api/admin/routines': return await adminRoutines(req, env, url);
